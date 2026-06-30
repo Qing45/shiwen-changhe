@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "scrape": "tsx scripts/scraper/index.ts"
+    "scrape": "tsx scripts/scraper/index.ts",
+    "build:standalone": "node scripts/build-standalone.cjs",
+    "verify:standalone": "node scripts/check-babel.cjs"
   },
   "dependencies": {
     "react": "^18.3.1",
