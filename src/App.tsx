@@ -1,12 +1,13 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { RiverPage } from './pages/RiverPage';
+import { PoetPage } from './pages/PoetPage';
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<RiverPage />} />
-        <Route path="/poet/:poetId" element={<Placeholder>poet sub-river</Placeholder>} />
+        <Route path="/poet/:poetId" element={<PoetPage />} />
         <Route path="/poem/:poemId" element={<Placeholder>poem reading</Placeholder>} />
       </Routes>
     </BrowserRouter>
