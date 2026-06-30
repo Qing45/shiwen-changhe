@@ -58,7 +58,11 @@ export function TopNav(props: Props) {
             color: colors.textTertiary, fontFamily: fontFamilies.chinese,
             fontSize: fontSizes.meta, letterSpacing: 2,
           }}>
-            {metaString(props.poet)} · {props.poet.birthYear}—{props.poet.deathYear}
+            {(() => {
+              const meta = metaString(props.poet);
+              const years = `${props.poet.birthYear}—${props.poet.deathYear}`;
+              return meta ? `${meta} · ${years}` : years;
+            })()}
           </div>
           <DynastyLabel />
         </>
@@ -75,7 +79,9 @@ export function TopNav(props: Props) {
           <div style={{
             color: colors.textTertiary, fontFamily: fontFamilies.chinese,
             fontSize: fontSizes.meta, letterSpacing: 2,
-          }}>{props.poet.name} · {props.poem.creationYear ?? ''}</div>
+          }}>{props.poem.creationYear != null
+            ? `${props.poet.name} · ${props.poem.creationYear}`
+            : props.poet.name}</div>
         </>
       )}
     </div>
