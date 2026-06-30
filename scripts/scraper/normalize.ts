@@ -67,7 +67,7 @@ export function normalize(
     }
 
     const poem: Poem = {
-      id: slug(r.title) + '_' + slug(r.poetName),
+      id: poemIdFromUrl(r.url),
       title: r.title,
       poetId: poets.get(r.poetName)!.id,
       content: r.content,
@@ -85,4 +85,11 @@ export function normalize(
 function slug(s: string): string {
   // Pinyin would be ideal; for MVP, hash by char codes
   return s.split('').map((c) => c.charCodeAt(0).toString(16)).join('');
+}
+
+function poemIdFromUrl(url: string): string {
+  const match = url.match(/shiwenv_([a-zA-Z0-9]+)\.aspx/);
+  if (match) return match[1];
+  // Fallback for unexpected URL shapes: slug the full URL
+  return url.split('').map((c) => c.charCodeAt(0).toString(16)).join('').slice(0, 32);
 }
