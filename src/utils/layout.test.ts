@@ -65,23 +65,29 @@ describe('layoutPoets', () => {
     expect(result[0].y).toBe(0);
   });
 
-  it('switches to a 2D grid when a column exceeds PURE_Y_MAX, scattering poets on X and Y', () => {
-    // 12 poets in one column — beyond PURE_Y_MAX (10), triggers grid layout.
+  it('switches to organic scatter when a column exceeds PURE_Y_MAX', () => {
+    // 12 poets in one column — beyond PURE_Y_MAX (10), triggers scatter layout.
     const cluster: Poet[] = Array.from({ length: 12 }, (_, i) => ({
       id: String(i), name: String(i), birthYear: 700, deathYear: 750, dynastyId: 'tang', familiarity: 1,
     }));
-    const result = layoutPoets(cluster, { minYear: 618, maxYear: 907, leftPadding: 5, rightPadding: 5 });
+    const range = { minYear: 618, maxYear: 907, leftPadding: 5, rightPadding: 5 };
+    const result = layoutPoets(cluster, range);
     // Every position must be unique (no overlap)
     const keys = new Set(result.map((p) => `${p.x.toFixed(3)}|${p.y.toFixed(3)}`));
     expect(keys.size).toBe(12);
-    // X jitter applied: at least two distinct X values
-    const xs = new Set(result.map((p) => p.x.toFixed(3)));
-    expect(xs.size).toBeGreaterThan(1);
-    // Cluster stays centered around the nominal X (≈28.4%) — every X within ±6% of it
-    const nominalX = result[0].x; // first item also has jitter; instead compute expected nominal
+    // Scatter, not stacked: multiple distinct X and Y values
+    expect(new Set(result.map((p) => p.x.toFixed(2))).size).toBeGreaterThan(1);
+    expect(new Set(result.map((p) => p.y.toFixed(2))).size).toBeGreaterThan(1);
+    // Deterministic — same input gives same output across calls
+    const result2 = layoutPoets(cluster, range);
+    expect(result2.map((p) => `${p.x.toFixed(3)}|${p.y.toFixed(3)}`)).toEqual(
+      result.map((p) => `${p.x.toFixed(3)}|${p.y.toFixed(3)}`),
+    );
+    // Cluster stays within ±X_JITTER_RANGE (6%) of the nominal X
     const expectedNominal = 5 + (((700 - 618) / (907 - 618)) * 100) * 0.9;
     result.forEach((p) => {
       expect(Math.abs(p.x - expectedNominal)).toBeLessThanOrEqual(6.5);
+      expect(Math.abs(p.y)).toBeLessThanOrEqual(35);
     });
   });
 });

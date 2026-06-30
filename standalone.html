@@ -10094,6 +10094,10 @@ const nodeSizes = {
   5: 22,
 };
 
+function poemCountToSize(count) {
+  return Math.max(8, Math.min(24, 6 + Math.sqrt(count) * 3));
+}
+
 const fontFamilies = {
   chinese: "'KaiTi', 'STKaiti', serif",
 };
@@ -10120,6 +10124,10 @@ function getPoemsByPoet(poetId) {
       if (b.creationYear === undefined) return -1;
       return a.creationYear - b.creationYear;
     });
+}
+
+function getPoemCount(poetId) {
+  return poems.filter((p) => p.poetId === poetId).length;
 }
 
 function getPoem(poemId) {
@@ -10196,11 +10204,43 @@ const COLUMN_THRESHOLD = 1.5;
 const Y_RANGE = 35;
 const PURE_Y_MAX = 10;
 const X_JITTER_RANGE = 6;
+const SCATTER_MIN_DX = 1.6;
+const SCATTER_MIN_DY = 6.5;
+const SCATTER_ATTEMPTS = 60;
 
 function computePercent(year, minYear, maxYear) {
   if (year <= minYear) return 0;
   if (year >= maxYear) return 100;
   return ((year - minYear) / (maxYear - minYear)) * 100;
+}
+
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function scatterPositions(count, nominalX) {
+  const rand = mulberry32(Math.floor(nominalX * 1000) + count * 37);
+  const placed = [];
+  for (let i = 0; i < count; i++) {
+    let x = nominalX;
+    let y = 0;
+    for (let attempt = 0; attempt < SCATTER_ATTEMPTS; attempt++) {
+      x = nominalX + (rand() * 2 - 1) * X_JITTER_RANGE;
+      y = -Y_RANGE + rand() * 2 * Y_RANGE;
+      const collides = placed.some(
+        (p) => Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY
+      );
+      if (!collides) break;
+    }
+    placed.push({ x, y });
+  }
+  return placed;
 }
 
 function assignPositions(items) {
@@ -10225,16 +10265,9 @@ function assignPositions(items) {
         out.push({ item: it.item, x: it.x, y });
       });
     } else {
-      const cols = Math.ceil(Math.sqrt(n));
-      const rows = Math.ceil(n / cols);
-      const cellW = (2 * X_JITTER_RANGE) / cols;
-      const cellH = (2 * Y_RANGE) / rows;
+      const positions = scatterPositions(n, col.x);
       col.items.forEach((it, i) => {
-        const row = Math.floor(i / cols);
-        const c = i % cols;
-        const xJitter = -X_JITTER_RANGE + c * cellW + cellW / 2;
-        const y = -Y_RANGE + row * cellH + cellH / 2;
-        out.push({ item: it.item, x: it.x + xJitter, y });
+        out.push({ item: it.item, x: positions[i].x, y: positions[i].y });
       });
     }
   }
@@ -10705,7 +10738,7 @@ function RiverPage() {
           <RiverBackground />
           <RiverLine />
           {positioned.map(({ poet, x, y }) => {
-            const size = nodeSizes[poet.familiarity] ?? nodeSizes[2];
+            const size = poemCountToSize(getPoemCount(poet.id));
             const isFocal = poet.familiarity >= 4;
             return (
               <Link

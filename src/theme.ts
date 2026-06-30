@@ -30,6 +30,13 @@ export const nodeSizes: Record<number, number> = {
   5: 22,
 };
 
+// Map a poet's poem count to a node radius in px. Sqrt scaling so a 9-poem
+// poet is noticeably bigger than a 1-poem poet but a 36-poet poet isn't 36×
+// the size. Range [8, 24].
+export function poemCountToSize(count: number): number {
+  return Math.max(8, Math.min(24, 6 + Math.sqrt(count) * 3));
+}
+
 export const fontFamilies = {
   chinese: "'KaiTi', 'STKaiti', serif",
 } as const;

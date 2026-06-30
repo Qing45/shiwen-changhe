@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
-import { getPoets } from '../data/load';
+import { getPoets, getPoemCount } from '../data/load';
 import { layoutPoets } from '../utils/layout';
 import { useRiverViewport } from '../hooks/useRiverViewport';
 import { RiverBackground } from '../components/RiverBackground';
 import { RiverLine } from '../components/RiverLine';
 import { TimeAxis } from '../components/TimeAxis';
 import { TopNav } from '../components/TopNav';
-import { colors, fontFamilies, fontSizes, nodeSizes } from '../theme';
+import { colors, fontFamilies, fontSizes, poemCountToSize } from '../theme';
 
 export function RiverPage() {
   const poets = getPoets();
@@ -32,7 +32,7 @@ export function RiverPage() {
           <RiverBackground />
           <RiverLine />
           {positioned.map(({ poet, x, y }) => {
-            const size = nodeSizes[poet.familiarity] ?? nodeSizes[2];
+            const size = poemCountToSize(getPoemCount(poet.id));
             const isFocal = poet.familiarity >= 4;
             return (
               <Link

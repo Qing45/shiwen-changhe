@@ -16,15 +16,20 @@ const COLUMN_THRESHOLD = 1.5;
 const Y_RANGE = 35;
 
 // Above PURE_Y_MAX items in one column, switch from pure vertical spread to
-// a 2D grid (X jitter + Y spread) so labels don't overlap. 10 fits at ~14%
-// per row in a 700px viewport; above that labels start touching.
+// a 2D scatter (X jitter + Y spread) so labels don't overlap.
 const PURE_Y_MAX = 10;
 
-// Half-width of the X jitter for grid layout. ±6% of canvas width = ±36% of
-// viewport at zoom 1 (canvas is 600% wide). A 63-poet cluster spreads to a
-// 8×8 grid where each cell is ~1.5% canvas = ~126px, comfortably larger than
-// a 4-char label.
+// Half-width of the X jitter for scatter layout. ±6% of canvas width = ±36%
+// of viewport at zoom 1 (canvas is 600% wide). 63 poets scatter inside a
+// 12% × 70% territory — area enough for ~90 poets at the minimum separation.
 const X_JITTER_RANGE = 6;
+
+// Minimum separation between two scatter points in canvas percent.
+// X: 1.6% canvas ≈ 134px on a 1400px viewport — fits a 4-char name.
+// Y: 6.5% canvas ≈ 46px on a 700px viewport — fits label height + node.
+const SCATTER_MIN_DX = 1.6;
+const SCATTER_MIN_DY = 6.5;
+const SCATTER_ATTEMPTS = 60;
 
 export function computePercent(year: number, minYear: number, maxYear: number): number {
   if (year <= minYear) return 0;
@@ -32,12 +37,50 @@ export function computePercent(year: number, minYear: number, maxYear: number): 
   return ((year - minYear) / (maxYear - minYear)) * 100;
 }
 
+// Deterministic PRNG so a given cluster always scatters the same way across
+// renders (no jitter on every re-render). mulberry32 is a well-behaved
+// non-cryptographic generator.
+function mulberry32(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Pick count positions inside the rectangle [nominalX ± X_JITTER_RANGE] ×
+ * [-Y_RANGE, +Y_RANGE] using seeded random sampling with collision avoidance.
+ * Returns absolute (x, y) positions; deterministic for a given (count,
+ * nominalX).
+ */
+function scatterPositions(count: number, nominalX: number): { x: number; y: number }[] {
+  const rand = mulberry32(Math.floor(nominalX * 1000) + count * 37);
+  const placed: { x: number; y: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    let x = nominalX;
+    let y = 0;
+    for (let attempt = 0; attempt < SCATTER_ATTEMPTS; attempt++) {
+      x = nominalX + (rand() * 2 - 1) * X_JITTER_RANGE;
+      y = -Y_RANGE + rand() * 2 * Y_RANGE;
+      const collides = placed.some(
+        (p) => Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY,
+      );
+      if (!collides) break;
+    }
+    placed.push({ x, y });
+  }
+  return placed;
+}
+
 /**
  * Spread items within each X-column. Small columns (≤ PURE_Y_MAX) distribute
- * vertically across [-Y_RANGE, +Y_RANGE]. Larger columns form a 2D grid with
- * X jitter so labels don't overlap — the cluster appears as a "constellation"
- * around the nominal X position rather than an impossibly dense vertical
- * stack.
+ * vertically across [-Y_RANGE, +Y_RANGE]. Larger columns scatter organically
+ * in 2D so labels don't overlap — the cluster appears as a "star cloud"
+ * around the nominal X position rather than a regular grid or an impossibly
+ * dense vertical stack.
  */
 function assignPositions<T>(items: { item: T; x: number }[]): { item: T; x: number; y: number }[] {
   const columns: { x: number; items: { item: T; x: number }[] }[] = [];
@@ -62,16 +105,9 @@ function assignPositions<T>(items: { item: T; x: number }[]): { item: T; x: numb
         out.push({ item: it.item, x: it.x, y });
       });
     } else {
-      const cols = Math.ceil(Math.sqrt(n));
-      const rows = Math.ceil(n / cols);
-      const cellW = (2 * X_JITTER_RANGE) / cols;
-      const cellH = (2 * Y_RANGE) / rows;
+      const positions = scatterPositions(n, col.x);
       col.items.forEach((it, i) => {
-        const row = Math.floor(i / cols);
-        const c = i % cols;
-        const xJitter = -X_JITTER_RANGE + c * cellW + cellW / 2;
-        const y = -Y_RANGE + row * cellH + cellH / 2;
-        out.push({ item: it.item, x: it.x + xJitter, y });
+        out.push({ item: it.item, x: positions[i].x, y: positions[i].y });
       });
     }
   }

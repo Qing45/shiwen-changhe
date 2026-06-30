@@ -24,6 +24,10 @@ export function getPoemsByPoet(poetId: string): Poem[] {
     });
 }
 
+export function getPoemCount(poetId: string): number {
+  return poems.filter((p) => p.poetId === poetId).length;
+}
+
 export function getPoem(poemId: string): Poem | undefined {
   return poems.find((p) => p.id === poemId);
 }
