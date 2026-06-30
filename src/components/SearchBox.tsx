@@ -34,7 +34,6 @@ export function SearchBox() {
   }, [open]);
 
   const result = useMemo(() => index.query(query), [query]);
-  const totalHits = result.poets.length + result.poems.length + result.verses.length;
 
   return (
     <div ref={ref} style={{ position: 'relative', flex: 1, maxWidth: 440 }}>

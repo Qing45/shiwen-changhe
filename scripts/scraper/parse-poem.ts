@@ -44,7 +44,7 @@ function parseAnnotations(text: string): RawAnnotation[] {
   // plus spaces. Must be short (<=20 chars) so we don't swallow explanations.
   const termChar = '[\\u4e00-\\u9fff（）a-zà-ÿ\\s]{1,20}';
   const re = new RegExp(
-    `(${termChar})：((?:(?!${termChar}：).)+)`,
+    `(${termChar})[：:]((?:(?!${termChar}[：:]).)+)`,
     'g',
   );
 
