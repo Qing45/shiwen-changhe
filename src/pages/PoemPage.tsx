@@ -104,23 +104,23 @@ export function PoemPage() {
         }}>
           {prev ? (
             <Link to={`/poem/${prev.id}`} style={navCardStyle}>
-              <div style={{ color: colors.textDim, fontSize: 14, letterSpacing: 2 }}>← 上一首</div>
+              <div style={{ color: colors.textDim, fontFamily: fontFamilies.chinese, fontSize: 14, letterSpacing: 2 }}>← 上一首</div>
               <div style={{ color: colors.textSecondary, fontFamily: fontFamilies.chinese, fontSize: 16, marginTop: 6 }}>{prev.title}</div>
             </Link>
           ) : (
             <div style={{ ...navCardStyle, opacity: 0.3, pointerEvents: 'none' }}>
-              <div style={{ color: colors.textDim, fontSize: 14, letterSpacing: 2 }}>← 上一首</div>
+              <div style={{ color: colors.textDim, fontFamily: fontFamilies.chinese, fontSize: 14, letterSpacing: 2 }}>← 上一首</div>
               <div style={{ color: colors.textSecondary, fontFamily: fontFamilies.chinese, fontSize: 16, marginTop: 6 }}>（已是第一首）</div>
             </div>
           )}
           {next ? (
             <Link to={`/poem/${next.id}`} style={{ ...navCardStyle, textAlign: 'right' }}>
-              <div style={{ color: colors.textDim, fontSize: 14, letterSpacing: 2 }}>下一首 →</div>
+              <div style={{ color: colors.textDim, fontFamily: fontFamilies.chinese, fontSize: 14, letterSpacing: 2 }}>下一首 →</div>
               <div style={{ color: colors.textSecondary, fontFamily: fontFamilies.chinese, fontSize: 16, marginTop: 6 }}>{next.title}</div>
             </Link>
           ) : (
             <div style={{ ...navCardStyle, textAlign: 'right', opacity: 0.3, pointerEvents: 'none' }}>
-              <div style={{ color: colors.textDim, fontSize: 14, letterSpacing: 2 }}>下一首 →</div>
+              <div style={{ color: colors.textDim, fontFamily: fontFamilies.chinese, fontSize: 14, letterSpacing: 2 }}>下一首 →</div>
               <div style={{ color: colors.textSecondary, fontFamily: fontFamilies.chinese, fontSize: 16, marginTop: 6 }}>（已是最后一首）</div>
             </div>
           )}

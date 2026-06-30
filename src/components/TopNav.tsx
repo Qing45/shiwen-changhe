@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { colors, fontFamilies, fontSizes } from '../theme';
 import type { Poet, Poem } from '../types';
 
@@ -109,6 +110,5 @@ function DynastyLabel() {
 }
 
 function BackLink({ to, label }: { to: string; label: string }) {
-  // Use plain anchor for now — react-router Link wiring added in Task 12
-  return <a href={to} style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>← {label}</a>;
+  return <Link to={to} style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>← {label}</Link>;
 }
