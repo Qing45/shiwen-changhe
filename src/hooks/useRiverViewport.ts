@@ -30,16 +30,38 @@ export function useRiverViewport() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const dragMovedRef = useRef(false);
+  // Refs mirror zoom/pan so the wheel handler (registered once) can read
+  // current values without re-binding on every state change.
+  const zoomRef = useRef(zoom);
+  const panRef = useRef(pan);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { panRef.current = pan; }, [pan]);
 
   // Non-passive wheel listener so we can preventDefault to stop the page from
   // scrolling. React's synthetic onWheel is passive by default.
+  // Zoom is anchored at the cursor: the canvas point under the cursor stays
+  // under the cursor as zoom changes.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const handler = (e: WheelEvent) => {
       e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
       const factor = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
-      setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z * factor)));
+      const oldZoom = zoomRef.current;
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * factor));
+      if (newZoom === oldZoom) return;
+      const realFactor = newZoom / oldZoom;
+      const oldPan = panRef.current;
+      // Keep the canvas point under the cursor fixed: solve for new pan such
+      // that (cx - pan.x) / oldZoom == (cx - pan_new.x) / newZoom, and same for y.
+      setPan({
+        x: cx - (cx - oldPan.x) * realFactor,
+        y: cy - (cy - oldPan.y) * realFactor,
+      });
+      setZoom(newZoom);
     };
     el.addEventListener('wheel', handler, { passive: false });
     return () => el.removeEventListener('wheel', handler);
@@ -91,7 +113,7 @@ export function useRiverViewport() {
     },
     canvasStyle: {
       transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-      transformOrigin: '0 50%',
+      transformOrigin: '0 0',
       transition: dragging ? 'none' : 'transform 0.05s linear',
       willChange: 'transform',
     },
