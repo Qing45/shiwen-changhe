@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { colors, fontFamilies, fontSizes } from '../theme';
+import { SearchBox } from './SearchBox';
 import type { Poet, Poem } from '../types';
 
 interface BaseProps {
@@ -36,13 +37,7 @@ export function TopNav(props: Props) {
             fontSize: 22, letterSpacing: 6,
             textShadow: '0 0 12px rgba(216,224,240,0.5)',
           }}>诗文长河</div>
-          <div style={{
-            flex: 1, maxWidth: 440,
-            background: 'rgba(216,224,240,0.08)',
-            border: '1px solid rgba(216,224,240,0.25)',
-            borderRadius: 4, padding: '10px 16px',
-            color: colors.textTertiary, fontSize: 15,
-          }}>🔍 搜索诗人、诗名、诗句……</div>
+          <SearchBox />
           <DynastyLabel />
         </>
       )}
