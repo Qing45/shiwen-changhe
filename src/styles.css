@@ -7,3 +7,8 @@ body {
   overflow: hidden;
 }
 button { font-family: inherit; cursor: pointer; }
+
+@keyframes river-flow {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}

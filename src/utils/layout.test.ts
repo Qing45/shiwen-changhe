@@ -35,6 +35,35 @@ describe('layoutPoets', () => {
     expect(result[2].poet.id).toBe('c');
     expect(result[2].x).toBeCloseTo(95, 5);
   });
+
+  it('places poets in distinct columns at y=0', () => {
+    const result = layoutPoets(poets, { minYear: 618, maxYear: 907, leftPadding: 5, rightPadding: 5 });
+    expect(result.every((p) => p.y === 0)).toBe(true);
+  });
+
+  it('spreads poets vertically when they share an X column', () => {
+    // All birthYear 700 → all in one column → must spread across [-35, +35]
+    const clustered: Poet[] = [
+      { id: 'a', name: 'A', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
+      { id: 'b', name: 'B', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
+      { id: 'c', name: 'C', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
+    ];
+    const result = layoutPoets(clustered, { minYear: 618, maxYear: 907, leftPadding: 5, rightPadding: 5 });
+    const ys = result.map((p) => p.y);
+    expect(ys[0]).toBeCloseTo(-35, 5);
+    expect(ys[1]).toBeCloseTo(0, 5);
+    expect(ys[2]).toBeCloseTo(35, 5);
+    // Same X column → all xs equal
+    expect(result.every((p) => p.x === result[0].x)).toBe(true);
+  });
+
+  it('keeps single-poet columns on the center line', () => {
+    const single: Poet[] = [
+      { id: 'solo', name: 'Solo', birthYear: 762, deathYear: 800, dynastyId: 'tang', familiarity: 1 },
+    ];
+    const result = layoutPoets(single, { minYear: 618, maxYear: 907, leftPadding: 5, rightPadding: 5 });
+    expect(result[0].y).toBe(0);
+  });
 });
 
 describe('layoutPoems', () => {

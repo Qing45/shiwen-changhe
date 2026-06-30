@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { getPoets } from '../data/load';
 import { layoutPoets } from '../utils/layout';
+import { useRiverViewport } from '../hooks/useRiverViewport';
 import { RiverBackground } from '../components/RiverBackground';
 import { RiverLine } from '../components/RiverLine';
 import { TimeAxis } from '../components/TimeAxis';
@@ -10,27 +11,43 @@ import { colors, fontFamilies, fontSizes, nodeSizes } from '../theme';
 export function RiverPage() {
   const poets = getPoets();
   const positioned = layoutPoets(poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
+  const vp = useRiverViewport();
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
-      <div style={{
-        position: 'relative', flex: 1,
-        background: colors.bgGradient, overflowX: 'auto', overflowY: 'hidden',
-      }}>
-        {/* Inner canvas is wider than viewport to enable horizontal scroll */}
-        <div style={{ position: 'relative', width: '600%', height: '100%' }}>
+      <div
+        {...vp.containerProps}
+        style={{
+          position: 'relative', flex: 1,
+          background: colors.bgGradient, overflow: 'hidden',
+          ...vp.containerProps.style,
+        }}
+      >
+        {/* Inner canvas is wider than viewport; wheel zooms, drag pans */}
+        <div style={{
+          position: 'relative', width: '600%', height: '100%',
+          ...vp.canvasStyle,
+        }}>
           <RiverBackground />
           <RiverLine />
-          {positioned.map(({ poet, x }) => {
+          {positioned.map(({ poet, x, y }) => {
             const size = nodeSizes[poet.familiarity] ?? nodeSizes[2];
             const isFocal = poet.familiarity >= 4;
             return (
               <Link
                 key={poet.id}
                 to={`/poet/${poet.id}`}
+                onClickCapture={(e) => {
+                  if (vp.dragMovedRef.current) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
                 style={{
-                  position: 'absolute', top: '50%', left: `${x}%`,
+                  position: 'absolute',
+                  top: `calc(50% + ${y}%)`,
+                  left: `${x}%`,
                   transform: 'translate(-50%, -50%)',
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
                   textDecoration: 'none',

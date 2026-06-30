@@ -15,6 +15,11 @@ body {
 }
 button { font-family: inherit; cursor: pointer; }
 
+@keyframes river-flow {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
   </style>
 </head>
 <body>
@@ -9981,7 +9986,7 @@ button { font-family: inherit; cursor: pointer; }
   <!-- App source (NOT executed as-is — bootstrap below compiles it with classic JSX runtime) -->
   <script type="text/plain" id="app-source">
 
-const { useState, useMemo, useRef, useEffect } = React;
+const { useState, useMemo, useRef, useEffect, useCallback } = React;
 
 
 // ---- Mini hash router ----
@@ -10187,19 +10192,44 @@ function splitVerses(content) {
 
 
 // ===== utils/layout.ts =====
+const COLUMN_THRESHOLD = 1.5;
+const Y_RANGE = 35;
+
 function computePercent(year, minYear, maxYear) {
   if (year <= minYear) return 0;
   if (year >= maxYear) return 100;
   return ((year - minYear) / (maxYear - minYear)) * 100;
 }
 
+function assignY(items) {
+  const columns = [];
+  for (const it of items) {
+    const last = columns[columns.length - 1];
+    if (last && Math.abs(it.x - last.x) < COLUMN_THRESHOLD) {
+      last.items.push(it);
+    } else {
+      columns.push({ x: it.x, items: [it] });
+    }
+  }
+  const out = [];
+  for (const col of columns) {
+    const n = col.items.length;
+    col.items.forEach((it, i) => {
+      const y = n === 1 ? 0 : -Y_RANGE + (i / (n - 1)) * 2 * Y_RANGE;
+      out.push({ item: it.item, x: it.x, y });
+    });
+  }
+  return out;
+}
+
 function layoutPoets(poets, range) {
   const sorted = [...poets].sort((a, b) => a.birthYear - b.birthYear);
   const span = 100 - range.leftPadding - range.rightPadding;
-  return sorted.map((poet) => {
+  const withX = sorted.map((poet) => {
     const pct = computePercent(poet.birthYear, range.minYear, range.maxYear);
-    return { poet, x: range.leftPadding + (pct / 100) * span };
+    return { item: poet, x: range.leftPadding + (pct / 100) * span };
   });
+  return assignY(withX).map(({ item: poet, x, y }) => ({ poet, x, y }));
 }
 
 function layoutPoems(poems, poet, padding) {
@@ -10214,15 +10244,17 @@ function layoutPoems(poems, poet, padding) {
   const minYear = poet.birthYear;
   const maxYear = poet.deathYear;
 
-  return sorted.map((poem, idx) => {
+  const withX = sorted.map((poem, idx) => {
     let pct;
     if (poem.creationYear != null) {
       pct = computePercent(poem.creationYear, minYear, maxYear);
     } else {
       pct = (sorted.length === 1) ? 50 : (idx / (sorted.length - 1)) * 100;
     }
-    return { poem, x: padding.leftPadding + (pct / 100) * span };
+    return { item: poem, x: padding.leftPadding + (pct / 100) * span };
   });
+
+  return assignY(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
 }
 
 
@@ -10282,8 +10314,87 @@ function RiverLine() {
         filter: 'blur(3px)',
         pointerEvents: 'none',
       }} />
+      <div style={{
+        position: 'absolute', top: '50%', left: 0, right: 0, height: 2,
+        background: 'linear-gradient(90deg, transparent 30%, rgba(255,255,255,0.65) 50%, transparent 70%)',
+        backgroundSize: '200% 100%',
+        animation: 'river-flow 6s linear infinite',
+        pointerEvents: 'none',
+      }} />
     </>
   );
+}
+
+
+// ===== hooks/useRiverViewport.ts =====
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 3;
+const ZOOM_FACTOR = 1.1;
+const DRAG_THRESHOLD = 4;
+
+function useRiverViewport() {
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const containerRef = useRef(null);
+  const dragRef = useRef(null);
+  const dragMovedRef = useRef(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+      setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z * factor)));
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, []);
+
+  const onMouseDown = useCallback((e) => {
+    if (e.button !== 0) return;
+    dragRef.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y, moved: false };
+    dragMovedRef.current = false;
+  }, [pan]);
+
+  const onMouseMove = useCallback((e) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    d.moved = true;
+    dragMovedRef.current = true;
+    setDragging(true);
+    setPan({ x: d.panX + dx, y: d.panY + dy });
+  }, []);
+
+  const onMouseUp = useCallback(() => {
+    dragRef.current = null;
+    setDragging(false);
+  }, []);
+
+  return {
+    zoom,
+    pan,
+    dragging,
+    dragMovedRef,
+    containerProps: {
+      ref: containerRef,
+      onMouseDown,
+      onMouseMove,
+      onMouseUp,
+      onMouseLeave: onMouseUp,
+      style: { cursor: dragging ? 'grabbing' : 'grab' },
+    },
+    canvasStyle: {
+      transform: 'translate(' + pan.x + 'px,' + pan.y + 'px) scale(' + zoom + ')',
+      transformOrigin: '0 50%',
+      transition: dragging ? 'none' : 'transform 0.05s linear',
+      willChange: 'transform',
+    },
+  };
 }
 
 
@@ -10539,26 +10650,42 @@ function BackLink({ to, label }) {
 function RiverPage() {
   const poets = getPoets();
   const positioned = layoutPoets(poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
+  const vp = useRiverViewport();
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
-      <div style={{
-        position: 'relative', flex: 1,
-        background: colors.bgGradient, overflowX: 'auto', overflowY: 'hidden',
-      }}>
-        <div style={{ position: 'relative', width: '600%', height: '100%' }}>
+      <div
+        {...vp.containerProps}
+        style={{
+          position: 'relative', flex: 1,
+          background: colors.bgGradient, overflow: 'hidden',
+          ...vp.containerProps.style,
+        }}
+      >
+        <div style={{
+          position: 'relative', width: '600%', height: '100%',
+          ...vp.canvasStyle,
+        }}>
           <RiverBackground />
           <RiverLine />
-          {positioned.map(({ poet, x }) => {
+          {positioned.map(({ poet, x, y }) => {
             const size = nodeSizes[poet.familiarity] ?? nodeSizes[2];
             const isFocal = poet.familiarity >= 4;
             return (
               <Link
                 key={poet.id}
                 to={`/poet/${poet.id}`}
+                onClickCapture={(e) => {
+                  if (vp.dragMovedRef.current) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
                 style={{
-                  position: 'absolute', top: '50%', left: `${x}%`,
+                  position: 'absolute',
+                  top: `calc(50% + ${y}%)`,
+                  left: `${x}%`,
                   transform: 'translate(-50%, -50%)',
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
                   textDecoration: 'none',
@@ -10597,6 +10724,7 @@ function RiverPage() {
 function PoetPage() {
   const { poetId } = useParams();
   const poet = poetId ? getPoet(poetId) : undefined;
+  const vp = useRiverViewport();
   if (!poet) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>诗人未找到</div>;
   }
@@ -10607,22 +10735,37 @@ function PoetPage() {
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="poet" poet={poet} />
-      <div style={{
-        position: 'relative', flex: 1,
-        background: colors.bgGradient, overflowX: 'auto', overflowY: 'hidden',
-      }}>
-        <div style={{ position: 'relative', width: '600%', height: '100%' }}>
+      <div
+        {...vp.containerProps}
+        style={{
+          position: 'relative', flex: 1,
+          background: colors.bgGradient, overflow: 'hidden',
+          ...vp.containerProps.style,
+        }}
+      >
+        <div style={{
+          position: 'relative', width: '600%', height: '100%',
+          ...vp.canvasStyle,
+        }}>
           <RiverBackground />
           <RiverLine />
-          {positioned.map(({ poem, x }) => {
+          {positioned.map(({ poem, x, y }) => {
             const size = nodeSizes[poem.familiarity] ?? nodeSizes[2];
             const isFocal = poem.familiarity >= 5;
             return (
               <Link
                 key={poem.id}
                 to={`/poem/${poem.id}`}
+                onClickCapture={(e) => {
+                  if (vp.dragMovedRef.current) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
                 style={{
-                  position: 'absolute', top: '50%', left: `${x}%`,
+                  position: 'absolute',
+                  top: `calc(50% + ${y}%)`,
+                  left: `${x}%`,
                   transform: 'translate(-50%, -50%)',
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
                   textDecoration: 'none',
