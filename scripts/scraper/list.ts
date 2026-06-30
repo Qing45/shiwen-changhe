@@ -36,10 +36,6 @@ export function parsePoemList(html: string): PoemListEntry[] {
   });
 }
 
-async function rateLimitedDelay(ms = 1000): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
 export async function fetchPoemList(): Promise<PoemListEntry[]> {
   const url = `${BASE}/gushi/tangshi.aspx`;
   const res = await fetch(url, {

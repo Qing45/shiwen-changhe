@@ -20,7 +20,10 @@ export interface RawPoem {
  * Falls back to the original string if no bracket is found.
  */
 function cleanPoetName(raw: string): string {
-  const m = raw.match(/^([^[【〈（(〈<]+)/);
+  // Strip any dynasty/affix that follows the poet name. gushiwen.cn uses the
+  // full-width tortoise-shell bracket 〔〕 (U+3014/U+3015), so match up to any
+  // of the common opening brackets incl. 〔.
+  const m = raw.match(/^([^[【〈（(〈<〔〖]+)/);
   return (m ? m[1] : raw).trim();
 }
 
