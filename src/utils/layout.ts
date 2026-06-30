@@ -15,6 +15,17 @@ const COLUMN_THRESHOLD = 1.5;
 // At viewport height 800px, ±35% = ±280px, enough for ~14 legible rows.
 const Y_RANGE = 35;
 
+// Above PURE_Y_MAX items in one column, switch from pure vertical spread to
+// a 2D grid (X jitter + Y spread) so labels don't overlap. 10 fits at ~14%
+// per row in a 700px viewport; above that labels start touching.
+const PURE_Y_MAX = 10;
+
+// Half-width of the X jitter for grid layout. ±6% of canvas width = ±36% of
+// viewport at zoom 1 (canvas is 600% wide). A 63-poet cluster spreads to a
+// 8×8 grid where each cell is ~1.5% canvas = ~126px, comfortably larger than
+// a 4-char label.
+const X_JITTER_RANGE = 6;
+
 export function computePercent(year: number, minYear: number, maxYear: number): number {
   if (year <= minYear) return 0;
   if (year >= maxYear) return 100;
@@ -22,11 +33,13 @@ export function computePercent(year: number, minYear: number, maxYear: number): 
 }
 
 /**
- * Spread positions vertically within each X-column. Items already sorted by X
- * (chronologically) get evenly distributed across [-Y_RANGE, +Y_RANGE]; a
- * column of one gets y = 0 (on the center line).
+ * Spread items within each X-column. Small columns (≤ PURE_Y_MAX) distribute
+ * vertically across [-Y_RANGE, +Y_RANGE]. Larger columns form a 2D grid with
+ * X jitter so labels don't overlap — the cluster appears as a "constellation"
+ * around the nominal X position rather than an impossibly dense vertical
+ * stack.
  */
-function assignY<T>(items: { item: T; x: number }[]): { item: T; x: number; y: number }[] {
+function assignPositions<T>(items: { item: T; x: number }[]): { item: T; x: number; y: number }[] {
   const columns: { x: number; items: { item: T; x: number }[] }[] = [];
   for (const it of items) {
     const last = columns[columns.length - 1];
@@ -40,10 +53,27 @@ function assignY<T>(items: { item: T; x: number }[]): { item: T; x: number; y: n
   const out: { item: T; x: number; y: number }[] = [];
   for (const col of columns) {
     const n = col.items.length;
-    col.items.forEach((it, i) => {
-      const y = n === 1 ? 0 : -Y_RANGE + (i / (n - 1)) * 2 * Y_RANGE;
-      out.push({ item: it.item, x: it.x, y });
-    });
+    if (n === 1) {
+      const it = col.items[0];
+      out.push({ item: it.item, x: it.x, y: 0 });
+    } else if (n <= PURE_Y_MAX) {
+      col.items.forEach((it, i) => {
+        const y = -Y_RANGE + (i / (n - 1)) * 2 * Y_RANGE;
+        out.push({ item: it.item, x: it.x, y });
+      });
+    } else {
+      const cols = Math.ceil(Math.sqrt(n));
+      const rows = Math.ceil(n / cols);
+      const cellW = (2 * X_JITTER_RANGE) / cols;
+      const cellH = (2 * Y_RANGE) / rows;
+      col.items.forEach((it, i) => {
+        const row = Math.floor(i / cols);
+        const c = i % cols;
+        const xJitter = -X_JITTER_RANGE + c * cellW + cellW / 2;
+        const y = -Y_RANGE + row * cellH + cellH / 2;
+        out.push({ item: it.item, x: it.x + xJitter, y });
+      });
+    }
   }
   return out;
 }
@@ -55,7 +85,7 @@ export function layoutPoets(poets: Poet[], range: LayoutRange): { poet: Poet; x:
     const pct = computePercent(poet.birthYear, range.minYear, range.maxYear);
     return { item: poet, x: range.leftPadding + (pct / 100) * span };
   });
-  return assignY(withX).map(({ item: poet, x, y }) => ({ poet, x, y }));
+  return assignPositions(withX).map(({ item: poet, x, y }) => ({ poet, x, y }));
 }
 
 export function layoutPoems(poems: Poem[], poet: Poet, padding: { leftPadding: number; rightPadding: number }): { poem: Poem; x: number; y: number }[] {
@@ -83,5 +113,5 @@ export function layoutPoems(poems: Poem[], poet: Poet, padding: { leftPadding: n
     return { item: poem, x: padding.leftPadding + (pct / 100) * span };
   });
 
-  return assignY(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
+  return assignPositions(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
 }

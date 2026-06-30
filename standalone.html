@@ -10194,6 +10194,8 @@ function splitVerses(content) {
 // ===== utils/layout.ts =====
 const COLUMN_THRESHOLD = 1.5;
 const Y_RANGE = 35;
+const PURE_Y_MAX = 10;
+const X_JITTER_RANGE = 6;
 
 function computePercent(year, minYear, maxYear) {
   if (year <= minYear) return 0;
@@ -10201,7 +10203,7 @@ function computePercent(year, minYear, maxYear) {
   return ((year - minYear) / (maxYear - minYear)) * 100;
 }
 
-function assignY(items) {
+function assignPositions(items) {
   const columns = [];
   for (const it of items) {
     const last = columns[columns.length - 1];
@@ -10214,10 +10216,27 @@ function assignY(items) {
   const out = [];
   for (const col of columns) {
     const n = col.items.length;
-    col.items.forEach((it, i) => {
-      const y = n === 1 ? 0 : -Y_RANGE + (i / (n - 1)) * 2 * Y_RANGE;
-      out.push({ item: it.item, x: it.x, y });
-    });
+    if (n === 1) {
+      const it = col.items[0];
+      out.push({ item: it.item, x: it.x, y: 0 });
+    } else if (n <= PURE_Y_MAX) {
+      col.items.forEach((it, i) => {
+        const y = -Y_RANGE + (i / (n - 1)) * 2 * Y_RANGE;
+        out.push({ item: it.item, x: it.x, y });
+      });
+    } else {
+      const cols = Math.ceil(Math.sqrt(n));
+      const rows = Math.ceil(n / cols);
+      const cellW = (2 * X_JITTER_RANGE) / cols;
+      const cellH = (2 * Y_RANGE) / rows;
+      col.items.forEach((it, i) => {
+        const row = Math.floor(i / cols);
+        const c = i % cols;
+        const xJitter = -X_JITTER_RANGE + c * cellW + cellW / 2;
+        const y = -Y_RANGE + row * cellH + cellH / 2;
+        out.push({ item: it.item, x: it.x + xJitter, y });
+      });
+    }
   }
   return out;
 }
@@ -10229,7 +10248,7 @@ function layoutPoets(poets, range) {
     const pct = computePercent(poet.birthYear, range.minYear, range.maxYear);
     return { item: poet, x: range.leftPadding + (pct / 100) * span };
   });
-  return assignY(withX).map(({ item: poet, x, y }) => ({ poet, x, y }));
+  return assignPositions(withX).map(({ item: poet, x, y }) => ({ poet, x, y }));
 }
 
 function layoutPoems(poems, poet, padding) {
@@ -10254,7 +10273,7 @@ function layoutPoems(poems, poet, padding) {
     return { item: poem, x: padding.leftPadding + (pct / 100) * span };
   });
 
-  return assignY(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
+  return assignPositions(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
 }
 
 

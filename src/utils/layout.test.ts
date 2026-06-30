@@ -64,6 +64,26 @@ describe('layoutPoets', () => {
     const result = layoutPoets(single, { minYear: 618, maxYear: 907, leftPadding: 5, rightPadding: 5 });
     expect(result[0].y).toBe(0);
   });
+
+  it('switches to a 2D grid when a column exceeds PURE_Y_MAX, scattering poets on X and Y', () => {
+    // 12 poets in one column — beyond PURE_Y_MAX (10), triggers grid layout.
+    const cluster: Poet[] = Array.from({ length: 12 }, (_, i) => ({
+      id: String(i), name: String(i), birthYear: 700, deathYear: 750, dynastyId: 'tang', familiarity: 1,
+    }));
+    const result = layoutPoets(cluster, { minYear: 618, maxYear: 907, leftPadding: 5, rightPadding: 5 });
+    // Every position must be unique (no overlap)
+    const keys = new Set(result.map((p) => `${p.x.toFixed(3)}|${p.y.toFixed(3)}`));
+    expect(keys.size).toBe(12);
+    // X jitter applied: at least two distinct X values
+    const xs = new Set(result.map((p) => p.x.toFixed(3)));
+    expect(xs.size).toBeGreaterThan(1);
+    // Cluster stays centered around the nominal X (≈28.4%) — every X within ±6% of it
+    const nominalX = result[0].x; // first item also has jitter; instead compute expected nominal
+    const expectedNominal = 5 + (((700 - 618) / (907 - 618)) * 100) * 0.9;
+    result.forEach((p) => {
+      expect(Math.abs(p.x - expectedNominal)).toBeLessThanOrEqual(6.5);
+    });
+  });
 });
 
 describe('layoutPoems', () => {
