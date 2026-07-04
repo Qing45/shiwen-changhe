@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Verse } from './types';
 import { KEYWORDS, KEYWORD_GROUPS } from './keywords';
-
-// 仅有类型导入被使用时，确保 Verse 类型确实存在并可被引用（编译期校验）。
-const _sampleVerse: Verse = { poemId: '', line: '', poemTitle: '', poetName: '' };
-void _sampleVerse;
 
 describe('KEYWORDS', () => {
   it('has exactly 50 characters', () => {
