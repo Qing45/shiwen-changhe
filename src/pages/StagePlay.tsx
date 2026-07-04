@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { TopNav } from '../components/TopNav';
 import { PaperScroll } from '../components/PaperScroll';
+import { NineGrid } from '../components/NineGrid';
 import { colors, fontFamilies } from '../theme';
-import { pickStageQuestion } from '../play/engine';
+import { pickStageQuestion, buildNineGrid } from '../play/engine';
 import { beginStage, loadProgress } from '../play/progress';
 import { STAGE_GOAL, STAGE_BLOOD, type Verse } from '../play/types';
 
@@ -32,6 +33,27 @@ export function StagePlay() {
     if (!kw) return null;
     return pickStageQuestion(kw, used);
   });
+
+  // 九宫格字块与玩家已填字符
+  const [nineGrid, setNineGrid] = useState(() =>
+    question ? buildNineGrid(question.verse.line, question.blanks) : null
+  );
+  const [filled, setFilled] = useState<string[]>([]);
+
+  // 当 question 改变时重置 nineGrid 与 filled
+  useEffect(() => {
+    if (question) {
+      setNineGrid(buildNineGrid(question.verse.line, question.blanks));
+      setFilled([]);
+    }
+  }, [question]);
+
+  const handleChar = (c: string) => {
+    if (filled.length >= (question?.blanks.length ?? 0)) return;
+    setFilled([...filled, c]);
+    // 答完所有空位时不立即判定（Task 9 处理）
+  };
+  const handleUndo = () => setFilled(filled.slice(0, -1));
 
   if (!kw || !stage) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>关键字缺失</div>;
@@ -111,16 +133,17 @@ export function StagePlay() {
             </div>
           )}
 
-          {/* 输入区占位（Task 8 实现九宫格） */}
-          <div style={{
-            marginTop: 40,
-            textAlign: 'center',
-            color: PAPER_TEXT_DIM,
-            fontFamily: fontFamilies.chinese,
-            fontSize: 14,
-            letterSpacing: 2,
-          }}>
-            （九宫格输入待实现）
+          {/* 九宫格输入 */}
+          <div style={{ marginTop: 40 }}>
+            {nineGrid && (
+              <NineGrid
+                chars={nineGrid.chars}
+                blankCount={nineGrid.blankCount}
+                filled={filled}
+                onChar={handleChar}
+                onUndo={handleUndo}
+              />
+            )}
           </div>
         </PaperScroll>
       </div>
