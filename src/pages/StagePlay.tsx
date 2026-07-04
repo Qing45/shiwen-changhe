@@ -11,6 +11,7 @@ import {
   commitStageCorrect,
   commitStageBlood,
   markCleared,
+  clearCurrent,
 } from '../play/progress';
 import { STAGE_GOAL, STAGE_BLOOD, STAGE_TIMEBOX, type Verse } from '../play/types';
 import { KEYWORDS } from '../play/keywords';
@@ -76,13 +77,23 @@ export function StagePlay() {
     }
   }, [question]);
 
+  // Esc 返回大厅但不调用 clearCurrent —— 保留进度供下次续传
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        navigate('/play');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [navigate]);
+
   // 把最新 stage / question 通过 ref 暴露给 effect 内的 handler，避免闭包陈旧。
   const stageRef = useRef(stage);
   stageRef.current = stage;
   const questionRef = useRef(question);
   questionRef.current = question;
-  const gradingRef = useRef(grading);
-  gradingRef.current = grading;
 
   // 答对处理：记录、判定是否通关、否则切下一题
   const handleCorrect = () => {
@@ -285,7 +296,15 @@ export function StagePlay() {
                   : '血尽于此，下次再来'}
               </div>
               <div style={{ display: 'flex', gap: 16 }}>
-                <button onClick={() => navigate('/play')} style={btnStyle}>返回大厅</button>
+                <button
+                  onClick={() => {
+                    if (result.kind === 'failed') clearCurrent();
+                    navigate('/play');
+                  }}
+                  style={btnStyle}
+                >
+                  返回大厅
+                </button>
                 {result.kind === 'cleared' && !isLastKeyword && (
                   <button
                     onClick={() => navigate(`/play/stage/${KEYWORDS[kwIndex + 1]}`)}
