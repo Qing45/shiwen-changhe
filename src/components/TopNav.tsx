@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { colors, fontFamilies, fontSizes } from '../theme';
 import { SearchBox } from './SearchBox';
+import { getPoets, getPoems } from '../data/load';
 import type { Poet, Poem } from '../types';
 
 interface BaseProps {
@@ -18,6 +19,8 @@ interface PoemVariantProps extends BaseProps {
   variant: 'poem';
   poet: Poet;
   poem: Poem;
+  backTo?: string;
+  backLabel?: string;
 }
 
 type Props = MainVariantProps | PoetVariantProps | PoemVariantProps;
@@ -37,6 +40,7 @@ export function TopNav(props: Props) {
             fontSize: 22, letterSpacing: 6,
             textShadow: '0 0 12px rgba(216,224,240,0.5)',
           }}>诗文长河</div>
+          <RiverToggle />
           <SearchBox />
           <DynastyLabel />
         </>
@@ -66,7 +70,10 @@ export function TopNav(props: Props) {
 
       {props.variant === 'poem' && (
         <>
-          <BackLink to={`/poet/${props.poet.id}`} label={`返回${props.poet.name}`} />
+          <BackLink
+            to={props.backTo ?? `/poet/${props.poet.id}`}
+            label={props.backLabel ?? `返回${props.poet.name}`}
+          />
           <div style={{
             fontFamily: fontFamilies.chinese, color: colors.textPrimary,
             fontSize: 20, letterSpacing: 4,
@@ -80,6 +87,36 @@ export function TopNav(props: Props) {
             : props.poet.name}</div>
         </>
       )}
+    </div>
+  );
+}
+
+function RiverToggle() {
+  const loc = useLocation();
+  const btn = (to: string, label: string, count: number) => {
+    const on = loc.pathname === to;
+    const showCount = count > 0;
+    const text = on && showCount ? `${label}·${count}` : label;
+    return (
+      <Link to={to} style={{
+        color: on ? '#fff' : colors.textTertiary,
+        fontFamily: fontFamilies.chinese,
+        fontSize: 16,
+        letterSpacing: 3,
+        padding: '6px 14px',
+        textDecoration: 'none',
+        borderBottom: on ? '2px solid #fff' : '2px solid transparent',
+        textShadow: on ? '0 0 10px rgba(216,224,240,0.6)' : 'none',
+        boxShadow: on ? '0 2px 8px -2px rgba(212,175,106,0.55)' : 'none',
+        transition: 'color 0.15s, border-color 0.15s, box-shadow 0.15s',
+      }}>{text}</Link>
+    );
+  };
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {btn('/', '诗人', getPoets().length)}
+      {btn('/poems', '诗文', getPoems().length)}
+      {btn('/play', '飞花令', 0)}
     </div>
   );
 }
