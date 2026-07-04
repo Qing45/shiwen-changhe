@@ -37,7 +37,8 @@ const fontSizes = {
   nodeLarge: 20,
   nodeFocal: 26,
   poemTitle: 26,
-  poemText: 18,
+  poemTextShort: 20,
+  poemTextLong: 17,
   sectionTitle: 16,
 };
 
@@ -53,8 +54,12 @@ function poemCountToSize(count) {
   return Math.max(8, Math.min(24, 6 + Math.sqrt(count) * 3));
 }
 
+function contentLengthToSize(len) {
+  return Math.max(8, Math.min(24, 6 + Math.sqrt(len) * 1.2));
+}
+
 const fontFamilies = {
-  chinese: "'KaiTi', 'STKaiti', serif",
+  chinese: "'KaiTi', 'STKaiti', 'STZhongsong', 'SimSun', serif",
 };
 `;
 
@@ -66,6 +71,10 @@ const poems = window.__POEMS__;
 
 function getPoets() {
   return poets;
+}
+
+function getPoems() {
+  return poems;
 }
 
 function getPoet(poetId) {
@@ -101,6 +110,20 @@ function getNeighbors(poemId) {
     next: idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : undefined,
   };
 }
+
+function getGlobalPoemNeighbors(poemId) {
+  const sorted = poems.slice().sort(function(a, b) {
+    const ya = a.creationYear != null ? a.creationYear : (getPoet(a.poetId) ? getPoet(a.poetId).birthYear : 0);
+    const yb = b.creationYear != null ? b.creationYear : (getPoet(b.poetId) ? getPoet(b.poetId).birthYear : 0);
+    return ya - yb;
+  });
+  const idx = sorted.findIndex(function(p) { return p.id === poemId; });
+  if (idx < 0) return {};
+  return {
+    prev: idx > 0 ? sorted[idx - 1] : undefined,
+    next: idx < sorted.length - 1 ? sorted[idx + 1] : undefined,
+  };
+}
 `;
 
 // utils/layout.ts (types dropped)
@@ -108,11 +131,13 @@ const layoutCode = `
 // ===== utils/layout.ts =====
 const COLUMN_THRESHOLD = 1.5;
 const Y_RANGE = 35;
-const PURE_Y_MAX = 10;
-const X_JITTER_RANGE = 6;
-const SCATTER_MIN_DX = 1.6;
-const SCATTER_MIN_DY = 6.5;
-const SCATTER_ATTEMPTS = 60;
+const SCATTER_Y_RANGE = 40;
+const X_JITTER_RANGE = 9;
+const SCATTER_MIN_DX = 1.5;
+const SCATTER_MIN_DY = 10;
+const SCATTER_ATTEMPTS = 1000;
+const SCATTER_X_RANGE_CAP = 75;
+const SCATTER_BOUND_PAD = 1;
 
 function computePercent(year, minYear, maxYear) {
   if (year <= minYear) return 0;
@@ -130,23 +155,29 @@ function mulberry32(seed) {
   };
 }
 
-function scatterPositions(count, nominalX) {
+function scatterPositions(count, nominalX, existing) {
+  const baseRange = Math.min(SCATTER_X_RANGE_CAP, Math.max(X_JITTER_RANGE, Math.sqrt(count) * 12));
+  const edgeLimit = Math.max(X_JITTER_RANGE, Math.min(nominalX, 100 - nominalX) - SCATTER_BOUND_PAD);
+  const xRange = Math.min(baseRange, edgeLimit);
   const rand = mulberry32(Math.floor(nominalX * 1000) + count * 37);
-  const placed = [];
+  const placed = existing ? existing.slice() : [];
+  const added = [];
   for (let i = 0; i < count; i++) {
-    let x = nominalX;
-    let y = 0;
+    let bestX = nominalX, bestY = 0, bestCollisions = Infinity;
     for (let attempt = 0; attempt < SCATTER_ATTEMPTS; attempt++) {
-      x = nominalX + (rand() * 2 - 1) * X_JITTER_RANGE;
-      y = -Y_RANGE + rand() * 2 * Y_RANGE;
-      const collides = placed.some(
-        (p) => Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY
-      );
-      if (!collides) break;
+      const x = nominalX + (rand() * 2 - 1) * xRange;
+      const y = -SCATTER_Y_RANGE + rand() * 2 * SCATTER_Y_RANGE;
+      let collisions = 0;
+      for (const p of placed) {
+        if (Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY) collisions++;
+      }
+      if (collisions === 0) { bestX = x; bestY = y; bestCollisions = 0; break; }
+      if (collisions < bestCollisions) { bestX = x; bestY = y; bestCollisions = collisions; }
     }
-    placed.push({ x, y });
+    placed.push({ x: bestX, y: bestY });
+    added.push({ x: bestX, y: bestY });
   }
-  return placed;
+  return added;
 }
 
 function assignPositions(items) {
@@ -160,20 +191,36 @@ function assignPositions(items) {
     }
   }
   const out = [];
+  const placed = [];
+  const collides = (x, y) =>
+    placed.some((p) => Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY);
+  const countCollisions = (x, y) =>
+    placed.reduce((sum, p) => sum + ((Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY) ? 1 : 0), 0);
   for (const col of columns) {
     const n = col.items.length;
     if (n === 1) {
       const it = col.items[0];
-      out.push({ item: it.item, x: it.x, y: 0 });
-    } else if (n <= PURE_Y_MAX) {
-      col.items.forEach((it, i) => {
-        const y = -Y_RANGE + (i / (n - 1)) * 2 * Y_RANGE;
-        out.push({ item: it.item, x: it.x, y });
-      });
+      let y = 0;
+      if (collides(it.x, 0)) {
+        const rand = mulberry32(Math.floor(it.x * 1000) + 1);
+        let bestY = 0;
+        let bestCollisions = countCollisions(it.x, 0);
+        for (let attempt = 0; attempt < SCATTER_ATTEMPTS; attempt++) {
+          const candidate = -Y_RANGE + rand() * 2 * Y_RANGE;
+          const collisions = countCollisions(it.x, candidate);
+          if (collisions === 0) { bestY = candidate; break; }
+          if (collisions < bestCollisions) { bestY = candidate; bestCollisions = collisions; }
+        }
+        y = bestY;
+      }
+      out.push({ item: it.item, x: it.x, y });
+      placed.push({ x: it.x, y });
     } else {
-      const positions = scatterPositions(n, col.x);
-      col.items.forEach((it, i) => {
-        out.push({ item: it.item, x: positions[i].x, y: positions[i].y });
+      const positions = scatterPositions(n, col.x, placed);
+      positions.forEach((pos, i) => {
+        const it = col.items[i];
+        out.push({ item: it.item, x: pos.x, y: pos.y });
+        placed.push({ x: pos.x, y: pos.y });
       });
     }
   }
@@ -213,6 +260,61 @@ function layoutPoems(poems, poet, padding) {
   });
 
   return assignPositions(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
+}
+
+function layoutAllPoems(poems, poets, range) {
+  const poetMap = new Map(poets.map((p) => [p.id, p]));
+  const sorted = [...poems].sort((a, b) => {
+    const ya = a.creationYear != null ? a.creationYear : (poetMap.get(a.poetId) ? poetMap.get(a.poetId).birthYear : 0);
+    const yb = b.creationYear != null ? b.creationYear : (poetMap.get(b.poetId) ? poetMap.get(b.poetId).birthYear : 0);
+    return ya - yb;
+  });
+  const span = 100 - range.leftPadding - range.rightPadding;
+  const withX = sorted.map((poem) => {
+    const year = poem.creationYear != null
+      ? poem.creationYear
+      : (poetMap.get(poem.poetId) ? poetMap.get(poem.poetId).birthYear : range.minYear);
+    const pct = computePercent(year, range.minYear, range.maxYear);
+    return { item: poem, x: range.leftPadding + (pct / 100) * span };
+  });
+  return assignPositions(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
+}
+`;
+
+// utils/poemText.ts (types dropped)
+const poemTextCode = `
+// ===== utils/poemText.ts =====
+function extractVariants(content) {
+  const variants = [];
+  const cleanText = content.replace(/\\(([^()]+)\\)/g, function(full, inside) {
+    const pieces = inside.split(/[；;]/).map(function(s) { return s.trim(); });
+    const parsed = [];
+    for (let i = 0; i < pieces.length; i++) {
+      const m = pieces[i].match(/^(.+?)\\s+(一作|通)\\s*[：:]\\s*(.+)$/);
+      if (!m) return full;
+      parsed.push({ original: m[1].trim(), kind: m[2], variant: m[3].trim() });
+    }
+    if (parsed.length === 0) return full;
+    for (let i = 0; i < parsed.length; i++) variants.push(parsed[i]);
+    return '';
+  });
+  return { cleanText: cleanText, variants: variants };
+}
+
+function getPoemMode(cleanText) {
+  return cleanText.length <= 80 ? 'short' : 'long';
+}
+
+function splitIntoLines(content, mode) {
+  const re = mode === 'short'
+    ? /[^，。？！；]*[，。？！；]/g
+    : /[^。？！]*[。？！]/g;
+  const matches = content.match(re) || [];
+  const consumed = matches.join('');
+  const trailing = content.slice(consumed.length).trim();
+  const lines = matches.map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+  if (trailing) lines.push(trailing);
+  return lines.length > 0 ? lines : [content.trim()].filter(function(s) { return s.length > 0; });
 }
 `;
 
@@ -278,6 +380,7 @@ function splitVerses(content) {
 const miniRouterCode = `
 // ---- Mini hash router ----
 const RouterContext = React.createContext({ path: '/', params: {} });
+let _navState = null;
 
 function HashRouter({ children }) {
   const [path, setPath] = useState(() => {
@@ -329,18 +432,29 @@ function useParams() {
   return React.useContext(RouterContext).params;
 }
 
+function useLocation() {
+  const ctx = React.useContext(RouterContext);
+  return { pathname: ctx.path, state: _navState };
+}
+
 function useNavigate() {
-  return (to) => {
+  return (to, opts) => {
+    _navState = opts ? opts.state : null;
     window.location.hash = to;
   };
 }
 
-function Link({ to, children, ...rest }) {
+function Link({ to, children, state, onClick, ...rest }) {
   const navigate = useNavigate();
   return (
     <a
       href={'#' + to}
-      onClick={(e) => { e.preventDefault(); navigate(to); }}
+      onClick={(e) => {
+        if (onClick) onClick(e);
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+        navigate(to, { state: state });
+      }}
       {...rest}
     >{children}</a>
   );
@@ -351,72 +465,255 @@ function Link({ to, children, ...rest }) {
 // components/RiverBackground.tsx
 const riverBgCode = `
 // ===== components/RiverBackground.tsx =====
-function RiverBackground() {
+const NEBULA_CLOUDS = [
+  { x: 18, y: 50, w: 700, h: 240, color: 'rgba(180,140,220,0.20)', dur: 50, delay: 0 },
+  { x: 50, y: 45, w: 820, h: 280, color: 'rgba(150,180,230,0.18)', dur: 62, delay: -15 },
+  { x: 78, y: 52, w: 600, h: 220, color: 'rgba(220,160,180,0.16)', dur: 55, delay: -25 },
+  { x: 35, y: 55, w: 520, h: 180, color: 'rgba(200,180,140,0.14)', dur: 48, delay: -8 },
+];
+
+const STARS = Array.from({ length: 60 }, function () {
+  const inBand = Math.random() < 0.6;
+  return {
+    top: inBand ? 28 + Math.random() * 44 : Math.random() * 100,
+    left: Math.random() * 100,
+    size: 0.6 + Math.random() * 1.4,
+    duration: 2 + Math.random() * 4,
+    delay: -Math.random() * 6,
+  };
+});
+
+const STARS_LAYER2 = Array.from({ length: 40 }, function () {
+  const inBand = Math.random() < 0.5;
+  return {
+    top: inBand ? 35 + Math.random() * 30 : Math.random() * 100,
+    left: Math.random() * 100,
+    size: 0.5 + Math.random() * 1.0,
+    duration: 3 + Math.random() * 5,
+    delay: -Math.random() * 6,
+  };
+});
+
+const TWINKLE_DOTS = Array.from({ length: 7 }, function (i) {
+  return {
+    top: 10 + Math.random() * 80,
+    left: 8 + Math.random() * 84,
+    size: 1 + Math.random() * 1,
+    delay: -(i * 0.85 + Math.random() * 6),
+  };
+});
+
+const PARALLAX_COEFS = {
+  moon: 12,
+  nebula: 6,
+  stars: 3.6,
+  starsLayer2: 2.4,
+};
+
+function RiverBackground({ dragging }) {
+  const [mouse, setMouse] = useState({ x: 0, y: 0 });
+  const mouseRef = useRef({ x: 0, y: 0 });
+  const rafRef = useRef(null);
+  const draggingRef = useRef(dragging);
+
+  useEffect(() => { draggingRef.current = dragging; }, [dragging]);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (draggingRef.current) return;
+      mouseRef.current = {
+        x: (e.clientX / window.innerWidth - 0.5) * 2,
+        y: (e.clientY / window.innerHeight - 0.5) * 2,
+      };
+      if (rafRef.current == null) {
+        rafRef.current = requestAnimationFrame(() => {
+          rafRef.current = null;
+          setMouse(mouseRef.current);
+        });
+      }
+    };
+    window.addEventListener('mousemove', handler);
+    return () => {
+      window.removeEventListener('mousemove', handler);
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  const parallax = (coef) =>
+    \`translate(\${(mouse.x * coef).toFixed(1)}px, \${(mouse.y * coef).toFixed(1)}px)\`;
+
+  const layer2Bg = \`
+    radial-gradient(circle at 12% 22%, rgba(255,255,255,0.35) 0px, transparent 1.5px),
+    radial-gradient(circle at 33% 78%, rgba(216,224,240,0.3) 0px, transparent 1.5px),
+    radial-gradient(circle at 55% 18%, rgba(255,255,255,0.25) 0px, transparent 1.5px),
+    radial-gradient(circle at 72% 60%, rgba(216,224,240,0.32) 0px, transparent 1.5px),
+    radial-gradient(circle at 88% 35%, rgba(255,255,255,0.28) 0px, transparent 1.5px),
+    radial-gradient(circle at 22% 50%, rgba(216,224,240,0.22) 0px, transparent 1.5px)
+  \`;
+
   return (
     <>
-      {/* 远山墨影 */}
+      {/* 星云气尘 — parallax wrapper */}
       <div style={{
         position: 'absolute', inset: 0,
-        background: \`
-          radial-gradient(ellipse 320px 60px at 12% 78%, rgba(60,80,120,0.35) 0%, transparent 60%),
-          radial-gradient(ellipse 380px 80px at 45% 85%, rgba(50,70,110,0.4) 0%, transparent 60%),
-          radial-gradient(ellipse 280px 50px at 78% 75%, rgba(70,90,130,0.3) 0%, transparent 60%)
-        \`,
+        transform: parallax(PARALLAX_COEFS.nebula),
+        willChange: 'transform',
         pointerEvents: 'none',
-      }} />
+      }}>
+        {NEBULA_CLOUDS.map((c, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            top: \`\${c.y}%\`,
+            left: \`\${c.x}%\`,
+            transform: 'translate(-50%, -50%)',
+          }}>
+            <div style={{
+              width: c.w,
+              height: c.h,
+              background: \`radial-gradient(ellipse, \${c.color} 0%, transparent 70%)\`,
+              filter: 'blur(40px)',
+              animation: \`nebula-drift \${c.dur}s ease-in-out \${c.delay}s infinite alternate\`,
+            }} />
+          </div>
+        ))}
+      </div>
+
+      {/* 星点 layer 1 — outer parallax + inner drift + per-star twinkle */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        transform: parallax(PARALLAX_COEFS.stars),
+        willChange: 'transform',
+        pointerEvents: 'none',
+      }}>
+        <div style={{
+          position: 'absolute', inset: 0,
+          animation: 'stars-drift 360s ease-in-out infinite alternate',
+        }}>
+          {STARS.map((s, i) => (
+            <div key={i} style={{
+              position: 'absolute',
+              top: \`\${s.top}%\`,
+              left: \`\${s.left}%\`,
+              width: s.size,
+              height: s.size,
+              borderRadius: '50%',
+              background: '#fff',
+              boxShadow: \`0 0 \${s.size * 2}px rgba(255,255,255,0.7)\`,
+              animation: \`twinkle \${s.duration}s ease-in-out \${s.delay}s infinite alternate\`,
+            }} />
+          ))}
+        </div>
+      </div>
+
+      {/* 星点 layer 2 — slower parallax + drift background pattern */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        transform: parallax(PARALLAX_COEFS.starsLayer2),
+        willChange: 'transform',
+        pointerEvents: 'none',
+      }}>
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: layer2Bg,
+          backgroundSize: '320px 320px',
+          animation: 'star-drift-slow 180s linear infinite alternate',
+        }} />
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: layer2Bg,
+          backgroundSize: '480px 480px',
+          backgroundPosition: '120px 60px',
+          animation: 'star-drift-slower 240s linear infinite alternate',
+        }} />
+        {STARS_LAYER2.map((s, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            top: \`\${s.top}%\`,
+            left: \`\${s.left}%\`,
+            width: s.size,
+            height: s.size,
+            borderRadius: '50%',
+            background: '#fff',
+            boxShadow: \`0 0 \${s.size * 2}px rgba(255,255,255,0.55)\`,
+            animation: \`twinkle \${s.duration}s ease-in-out \${s.delay}s infinite alternate\`,
+          }} />
+        ))}
+      </div>
+
+      {/* Rare twinkle dots */}
+      {TWINKLE_DOTS.map(function(d, i) {
+        return (
+          <div key={\`tw-\${i}\`} style={{
+            position: 'absolute',
+            top: d.top + '%',
+            left: d.left + '%',
+            width: d.size,
+            height: d.size,
+            borderRadius: '50%',
+            background: '#fff',
+            boxShadow: '0 0 ' + (d.size * 3) + 'px rgba(255,255,255,0.85)',
+            animation: 'twinkle 4s ease-in-out ' + d.delay + 's infinite alternate',
+            pointerEvents: 'none',
+          }} />
+        );
+      })}
+
       {/* 月亮 */}
       <div style={{
         position: 'absolute', top: '8%', right: '6%',
         width: 72, height: 72, borderRadius: '50%',
         background: 'radial-gradient(circle, #f0f4ff 0%, #d8e0f0 40%, rgba(216,224,240,0.2) 70%, transparent 100%)',
         boxShadow: '0 0 60px rgba(216,224,240,0.3)',
+        transform: parallax(PARALLAX_COEFS.moon),
         pointerEvents: 'none',
-      }} />
-      {/* 星点 */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: \`
-          radial-gradient(circle at 5% 18%, #fff 0.8px, transparent 2px),
-          radial-gradient(circle at 15% 8%, #fff 0.6px, transparent 1.5px),
-          radial-gradient(circle at 28% 22%, #e8f0ff 0.7px, transparent 1.8px),
-          radial-gradient(circle at 42% 12%, #fff 0.6px, transparent 1.5px),
-          radial-gradient(circle at 58% 25%, #e8f0ff 0.8px, transparent 2px),
-          radial-gradient(circle at 72% 15%, #fff 0.6px, transparent 1.5px),
-          radial-gradient(circle at 88% 28%, #fff 0.7px, transparent 1.8px)
-        \`,
-        pointerEvents: 'none',
+        willChange: 'transform',
       }} />
     </>
   );
 }
 `;
 
-// components/RiverLine.tsx
-const riverLineCode = `
-// ===== components/RiverLine.tsx =====
-function RiverLine() {
-  return (
-    <>
-      <div style={{
-        position: 'absolute', top: '50%', left: 0, right: 0, height: 2,
-        background: colors.riverLine,
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute', top: '48%', left: 0, right: 0, height: 10,
-        background: colors.riverGlow,
-        filter: 'blur(3px)',
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'absolute', top: '50%', left: 0, right: 0, height: 2,
-        background: 'linear-gradient(90deg, transparent 30%, rgba(255,255,255,0.65) 50%, transparent 70%)',
-        backgroundSize: '200% 100%',
-        animation: 'river-flow 6s linear infinite',
-        pointerEvents: 'none',
-      }} />
-    </>
-  );
+// hooks/useVisited.ts
+const useVisitedCode = `
+// ===== hooks/useVisited.ts =====
+function readVisitedIds() {
+  try {
+    var raw = window.localStorage.getItem('shiwen-visited');
+    if (!raw) return new Set();
+    var parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter(function(v) { return typeof v === 'string'; }));
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function writeVisitedIds(ids) {
+  try {
+    window.localStorage.setItem('shiwen-visited', JSON.stringify(Array.from(ids)));
+  } catch (e) {
+    // localStorage unavailable — silently fail
+  }
+}
+
+function useVisited() {
+  const [ids, setIds] = useState(function() { return new Set(); });
+
+  useEffect(function() {
+    setIds(readVisitedIds());
+  }, []);
+
+  function markVisited(id) {
+    setIds(function(prev) {
+      if (prev.has(id)) return prev;
+      var next = new Set(prev);
+      next.add(id);
+      writeVisitedIds(next);
+      return next;
+    });
+  }
+
+  return { visited: ids, markVisited: markVisited };
 }
 `;
 
@@ -513,7 +810,8 @@ function useRiverViewport() {
 // components/TimeAxis.tsx
 const timeAxisCode = `
 // ===== components/TimeAxis.tsx =====
-function TimeAxis({ left, right }) {
+function TimeAxis({ left, right, ticks }) {
+  if (!Array.isArray(ticks)) ticks = [];
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, height: 36,
@@ -523,9 +821,37 @@ function TimeAxis({ left, right }) {
     }}>
       <div style={{ color: colors.textDim, fontSize: 14, letterSpacing: 1, fontFamily: fontFamilies.chinese }}>{left}</div>
       <div style={{
-        flex: 1, height: 1, margin: '0 12px',
+        flex: 1, position: 'relative', height: 1, margin: '0 12px',
         background: 'linear-gradient(90deg, rgba(216,224,240,0.4), rgba(216,224,240,0.6), rgba(216,224,240,0.4))',
-      }} />
+      }}>
+        {ticks.map(function(t) {
+          var isMajor = !!t.label;
+          var opacity = isMajor ? 0.4 : 0.2;
+          return (
+            <div key={t.year} style={{
+              position: 'absolute',
+              top: -8,
+              left: t.pos + '%',
+              transform: 'translateX(-50%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              pointerEvents: 'none',
+            }}>
+              <div style={{
+                width: 1, height: isMajor ? 16 : 10,
+                background: 'rgba(216,224,240,' + opacity + ')',
+              }} />
+              {isMajor && t.label && (
+                <div style={{
+                  position: 'absolute', top: 18,
+                  color: colors.textDim, fontSize: 12, letterSpacing: 1,
+                  fontFamily: fontFamilies.chinese,
+                  whiteSpace: 'nowrap',
+                }}>{t.label}</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
       <div style={{ color: colors.textDim, fontSize: 14, letterSpacing: 1, fontFamily: fontFamilies.chinese }}>{right}</div>
     </div>
   );
@@ -693,6 +1019,7 @@ function TopNav(props) {
             fontSize: 22, letterSpacing: 6,
             textShadow: '0 0 12px rgba(216,224,240,0.5)',
           }}>诗文长河</div>
+          <RiverToggle />
           <SearchBox />
           <DynastyLabel />
         </>
@@ -722,7 +1049,10 @@ function TopNav(props) {
 
       {props.variant === 'poem' && (
         <>
-          <BackLink to={\`/poet/\${props.poet.id}\`} label={\`返回\${props.poet.name}\`} />
+          <BackLink
+            to={props.backTo != null ? props.backTo : \`/poet/\${props.poet.id}\`}
+            label={props.backLabel != null ? props.backLabel : \`返回\${props.poet.name}\`}
+          />
           <div style={{
             fontFamily: fontFamilies.chinese, color: colors.textPrimary,
             fontSize: 20, letterSpacing: 4,
@@ -736,6 +1066,35 @@ function TopNav(props) {
             : props.poet.name}</div>
         </>
       )}
+    </div>
+  );
+}
+
+function RiverToggle() {
+  const loc = useLocation();
+  const btn = (to, label, count) => {
+    const on = loc.pathname === to;
+    const showCount = count > 0;
+    const text = on && showCount ? label + '·' + count : label;
+    return (
+      <Link to={to} style={{
+        color: on ? '#fff' : colors.textTertiary,
+        fontFamily: fontFamilies.chinese,
+        fontSize: 16,
+        letterSpacing: 3,
+        padding: '6px 14px',
+        textDecoration: 'none',
+        borderBottom: on ? '2px solid #fff' : '2px solid transparent',
+        textShadow: on ? '0 0 10px rgba(216,224,240,0.6)' : 'none',
+        boxShadow: on ? '0 2px 8px -2px rgba(212,175,106,0.55)' : 'none',
+      }}>{text}</Link>
+    );
+  };
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {btn('/', '诗人', getPoets().length)}
+      {btn('/poems', '诗文', getPoems().length)}
+      {btn('/play', '飞花令', 0)}
     </div>
   );
 }
@@ -768,10 +1127,21 @@ function BackLink({ to, label }) {
 // pages/RiverPage.tsx
 const riverPageCode = `
 // ===== pages/RiverPage.tsx =====
+const RIVER_TICKS = (function () {
+  const out = [];
+  for (let y = 618; y <= 897; y += 30) {
+    const isMajor = y % 30 === 0;
+    out.push({ year: y, label: isMajor ? String(y) : undefined, pos: ((y - 618) / (907 - 618)) * 100 });
+  }
+  return out;
+})();
+
 function RiverPage() {
   const poets = getPoets();
   const positioned = layoutPoets(poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
   const vp = useRiverViewport();
+  const { visited, markVisited } = useVisited();
+  const [hoverId, setHoverId] = useState(null);
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -788,11 +1158,14 @@ function RiverPage() {
           position: 'relative', width: '600%', height: '100%',
           ...vp.canvasStyle,
         }}>
-          <RiverBackground />
-          <RiverLine />
-          {positioned.map(({ poet, x, y }) => {
+          <RiverBackground dragging={vp.dragging} />
+          {positioned.map(({ poet, x, y }, i) => {
             const size = poemCountToSize(getPoemCount(poet.id));
             const isFocal = poet.familiarity >= 4;
+            const isVisited = visited.has(poet.id);
+            const floatDuration = 4 + (i % 3);
+            const floatDelay = -((i % 7) * 0.5);
+            const highlightCore = isVisited ? '#d8e0f0' : '#fff';
             return (
               <Link
                 key={poet.id}
@@ -803,36 +1176,244 @@ function RiverPage() {
                     e.stopPropagation();
                   }
                 }}
+                onClick={() => markVisited(poet.id)}
                 style={{
                   position: 'absolute',
                   top: \`calc(50% + \${y}%)\`,
                   left: \`\${x}%\`,
                   transform: 'translate(-50%, -50%)',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
                   textDecoration: 'none',
                 }}
               >
-                <div style={{
-                  color: isFocal ? '#fff' : colors.textPrimary,
-                  fontFamily: fontFamilies.chinese,
-                  fontSize: isFocal ? fontSizes.nodeFocal : fontSizes.nodeDefault,
-                  textShadow: isFocal ? '0 0 14px rgba(216,224,240,0.8), 0 0 4px #fff' : '0 0 6px rgba(216,224,240,0.4)',
-                  marginBottom: 8,
-                  fontWeight: isFocal ? 600 : undefined,
-                  letterSpacing: isFocal ? 4 : undefined,
-                }}>{poet.name}</div>
-                <div style={{
-                  width: size, height: size, borderRadius: '50%',
-                  background: 'radial-gradient(circle, #fff 0%, #d8e0f0 60%, transparent 100%)',
-                  boxShadow: isFocal
-                    ? \`0 0 \${size}px rgba(216,224,240,0.9), 0 0 6px #fff\`
-                    : \`0 0 \${size}px rgba(216,224,240,0.7)\`,
-                }} />
+                <div
+                  onMouseEnter={() => setHoverId(poet.id)}
+                  onMouseLeave={() => setHoverId((id) => (id === poet.id ? null : id))}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    animation: \`node-float \${floatDuration}s ease-in-out \${floatDelay}s infinite\`,
+                    position: 'relative',
+                  }}
+                >
+                  <div style={{ position: 'relative' }}>
+                    <div style={{
+                      color: isFocal ? '#fff' : colors.textPrimary,
+                      fontFamily: fontFamilies.chinese,
+                      fontSize: isFocal ? fontSizes.nodeFocal : fontSizes.nodeDefault,
+                      textShadow: isFocal ? '0 0 14px rgba(216,224,240,0.8), 0 0 4px #fff' : '0 0 6px rgba(216,224,240,0.4)',
+                      marginBottom: 8,
+                      fontWeight: isFocal ? 600 : undefined,
+                      letterSpacing: isFocal ? 4 : undefined,
+                    }}>{poet.name}</div>
+                    {isFocal && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: '15%', right: '15%',
+                        height: 1, marginTop: 2,
+                        background: 'linear-gradient(90deg, transparent, rgba(216,224,240,0.7), transparent)',
+                      }} />
+                    )}
+                  </div>
+                  <div style={{
+                    position: 'relative',
+                    width: size, height: size, borderRadius: '50%',
+                    background: \`radial-gradient(circle, \${highlightCore} 0%, #d8e0f0 60%, transparent 100%)\`,
+                    border: '1px solid rgba(216,224,240,0.45)',
+                    boxShadow: isFocal
+                      ? \`0 0 \${size}px rgba(216,224,240,0.9), 0 0 6px #fff\`
+                      : \`0 0 \${size}px rgba(216,224,240,0.7)\`,
+                    animation: isFocal ? 'focal-pulse 3.2s ease-in-out infinite' : 'none',
+                  }}>
+                    <div style={{
+                      position: 'absolute', inset: '25%',
+                      borderRadius: '50%',
+                      background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.9) 0%, transparent 60%)',
+                    }} />
+                  </div>
+                  {hoverId === poet.id && (
+                    <div style={{
+                      position: 'absolute', bottom: '100%', left: '50%',
+                      transform: 'translate(-50%, -12px)',
+                      background: 'rgba(8,12,28,0.92)',
+                      border: '1px solid rgba(216,224,240,0.25)',
+                      borderRadius: 4, padding: 8,
+                      whiteSpace: 'nowrap',
+                      color: colors.textPrimary, fontSize: 12,
+                      fontFamily: fontFamilies.chinese,
+                      pointerEvents: 'none', zIndex: 10,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>{poet.birthYear}—{poet.deathYear}</span>
+                        <span style={{ color: colors.textDim }}>·</span>
+                        <span style={{ color: colors.textSecondary }}>唐</span>
+                      </div>
+                      <div style={{
+                        position: 'absolute', bottom: -5, left: '50%',
+                        transform: 'translateX(-50%) rotate(45deg)',
+                        width: 8, height: 8,
+                        background: 'rgba(8,12,28,0.92)',
+                        borderRight: '1px solid rgba(216,224,240,0.25)',
+                        borderBottom: '1px solid rgba(216,224,240,0.25)',
+                      }} />
+                    </div>
+                  )}
+                </div>
               </Link>
             );
           })}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-            <TimeAxis left="618 · 唐" right="907" />
+            <TimeAxis left="618 · 唐" right="907" ticks={RIVER_TICKS} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+
+// pages/PoemsRiverPage.tsx
+const poemsRiverPageCode = `
+// ===== pages/PoemsRiverPage.tsx =====
+const POEMS_RIVER_TICKS = (function () {
+  const out = [];
+  for (let y = 618; y <= 897; y += 30) {
+    const isMajor = y % 30 === 0;
+    out.push({ year: y, label: isMajor ? String(y) : undefined, pos: ((y - 618) / (907 - 618)) * 100 });
+  }
+  return out;
+})();
+
+function truncateStr(s, n) {
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+function PoemsRiverPage() {
+  const poems = getPoems();
+  const poets = getPoets();
+  const positioned = layoutAllPoems(poems, poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
+  const vp = useRiverViewport();
+  const { visited, markVisited } = useVisited();
+  const [hoverId, setHoverId] = useState(null);
+
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <TopNav variant="main" />
+      <div
+        {...vp.containerProps}
+        style={{
+          position: 'relative', flex: 1,
+          background: colors.bgGradient, overflow: 'hidden',
+          ...vp.containerProps.style,
+        }}
+      >
+        <div style={{
+          position: 'relative', width: '600%', height: '100%',
+          ...vp.canvasStyle,
+        }}>
+          <RiverBackground dragging={vp.dragging} />
+          {positioned.map(({ poem, x, y }, i) => {
+            const size = contentLengthToSize(poem.content.length);
+            const isFocal = poem.familiarity >= 5;
+            const isVisited = visited.has(poem.id);
+            const floatDuration = 4 + (i % 3);
+            const floatDelay = -((i % 7) * 0.5);
+            const highlightCore = isVisited ? '#d8e0f0' : '#fff';
+            return (
+              <Link
+                key={poem.id}
+                to={\`/poem/\${poem.id}\`}
+                state={{ from: '/poems' }}
+                onClickCapture={(e) => {
+                  if (vp.dragMovedRef.current) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }}
+                onClick={() => markVisited(poem.id)}
+                style={{
+                  position: 'absolute',
+                  top: \`calc(50% + \${y}%)\`,
+                  left: \`\${x}%\`,
+                  transform: 'translate(-50%, -50%)',
+                  textDecoration: 'none',
+                }}
+              >
+                <div
+                  onMouseEnter={() => setHoverId(poem.id)}
+                  onMouseLeave={() => setHoverId((id) => (id === poem.id ? null : id))}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    animation: \`node-float \${floatDuration}s ease-in-out \${floatDelay}s infinite\`,
+                    position: 'relative',
+                  }}
+                >
+                  <div style={{ position: 'relative' }}>
+                    <div style={{
+                      color: isFocal ? '#fff' : colors.textPrimary,
+                      fontFamily: fontFamilies.chinese,
+                      fontSize: isFocal ? fontSizes.nodeLarge : fontSizes.body,
+                      textShadow: isFocal ? '0 0 12px rgba(216,224,240,0.8)' : 'none',
+                      marginBottom: 6,
+                      fontWeight: isFocal ? 600 : undefined,
+                      letterSpacing: isFocal ? 2 : undefined,
+                      maxWidth: 120,
+                      lineHeight: 1.3,
+                      textAlign: 'center',
+                      whiteSpace: 'normal',
+                    }}>{poem.title}</div>
+                    {isFocal && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: '15%', right: '15%',
+                        height: 1, marginTop: 2,
+                        background: 'linear-gradient(90deg, transparent, rgba(216,224,240,0.7), transparent)',
+                      }} />
+                    )}
+                  </div>
+                  <div style={{
+                    position: 'relative',
+                    width: size, height: size, borderRadius: '50%',
+                    background: \`radial-gradient(circle, \${highlightCore} 0%, #d8e0f0 60%, transparent 100%)\`,
+                    border: '1px solid rgba(216,224,240,0.45)',
+                    boxShadow: isFocal
+                      ? \`0 0 \${size}px rgba(216,224,240,0.9), 0 0 4px #fff\`
+                      : \`0 0 \${size}px rgba(216,224,240,0.6)\`,
+                    animation: isFocal ? 'focal-pulse 3.2s ease-in-out infinite' : 'none',
+                  }}>
+                    <div style={{
+                      position: 'absolute', inset: '25%',
+                      borderRadius: '50%',
+                      background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.9) 0%, transparent 60%)',
+                    }} />
+                  </div>
+                  {hoverId === poem.id && (
+                    <div style={{
+                      position: 'absolute', bottom: '100%', left: '50%',
+                      transform: 'translate(-50%, -12px)',
+                      background: 'rgba(8,12,28,0.92)',
+                      border: '1px solid rgba(216,224,240,0.25)',
+                      borderRadius: 4, padding: 8,
+                      whiteSpace: 'nowrap',
+                      color: colors.textPrimary, fontSize: 12,
+                      fontFamily: fontFamilies.chinese,
+                      pointerEvents: 'none', zIndex: 10,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                    }}>
+                      <div>{truncateStr(poem.content, 12)}</div>
+                      <div style={{
+                        position: 'absolute', bottom: -5, left: '50%',
+                        transform: 'translateX(-50%) rotate(45deg)',
+                        width: 8, height: 8,
+                        background: 'rgba(8,12,28,0.92)',
+                        borderRight: '1px solid rgba(216,224,240,0.25)',
+                        borderBottom: '1px solid rgba(216,224,240,0.25)',
+                      }} />
+                    </div>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+            <TimeAxis left="618 · 唐" right="907" ticks={POEMS_RIVER_TICKS} />
           </div>
         </div>
       </div>
@@ -844,16 +1425,35 @@ function RiverPage() {
 // pages/PoetPage.tsx
 const poetPageCode = `
 // ===== pages/PoetPage.tsx =====
+function buildPoetTicks(birth, death) {
+  const out = [];
+  const start = Math.ceil(birth / 10) * 10;
+  const end = Math.floor(death / 10) * 10;
+  const span = Math.max(1, death - birth);
+  for (let y = start; y <= end; y += 10) {
+    const isMajor = y % 30 === 0;
+    out.push({ year: y, label: isMajor ? String(y) : undefined, pos: ((y - birth) / span) * 100 });
+  }
+  return out;
+}
+
+function truncateStrPoet(s, n) {
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
 function PoetPage() {
   const { poetId } = useParams();
   const poet = poetId ? getPoet(poetId) : undefined;
   const vp = useRiverViewport();
+  const { visited, markVisited } = useVisited();
+  const [hoverId, setHoverId] = useState(null);
   if (!poet) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>诗人未找到</div>;
   }
 
   const poems = getPoemsByPoet(poet.id);
   const positioned = layoutPoems(poems, poet, { leftPadding: 6, rightPadding: 6 });
+  const ticks = buildPoetTicks(poet.birthYear, poet.deathYear);
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -870,51 +1470,111 @@ function PoetPage() {
           position: 'relative', width: '600%', height: '100%',
           ...vp.canvasStyle,
         }}>
-          <RiverBackground />
-          <RiverLine />
-          {positioned.map(({ poem, x, y }) => {
-            const size = nodeSizes[poem.familiarity] ?? nodeSizes[2];
+          <RiverBackground dragging={vp.dragging} />
+          {positioned.map(({ poem, x, y }, i) => {
+            const size = contentLengthToSize(poem.content.length);
             const isFocal = poem.familiarity >= 5;
+            const isVisited = visited.has(poem.id);
+            const floatDuration = 4 + (i % 3);
+            const floatDelay = -((i % 7) * 0.5);
+            const highlightCore = isVisited ? '#d8e0f0' : '#fff';
             return (
               <Link
                 key={poem.id}
                 to={\`/poem/\${poem.id}\`}
+                state={{ from: \`/poet/\${poet.id}\` }}
                 onClickCapture={(e) => {
                   if (vp.dragMovedRef.current) {
                     e.preventDefault();
                     e.stopPropagation();
                   }
                 }}
+                onClick={() => markVisited(poem.id)}
                 style={{
                   position: 'absolute',
                   top: \`calc(50% + \${y}%)\`,
                   left: \`\${x}%\`,
                   transform: 'translate(-50%, -50%)',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
                   textDecoration: 'none',
                 }}
               >
-                <div style={{
-                  color: isFocal ? '#fff' : colors.textPrimary,
-                  fontFamily: fontFamilies.chinese,
-                  fontSize: isFocal ? fontSizes.nodeLarge : fontSizes.body,
-                  textShadow: isFocal ? '0 0 12px rgba(216,224,240,0.8)' : 'none',
-                  marginBottom: 6,
-                  fontWeight: isFocal ? 600 : undefined,
-                  letterSpacing: isFocal ? 2 : undefined,
-                }}>{poem.title}</div>
-                <div style={{
-                  width: size, height: size, borderRadius: '50%',
-                  background: 'radial-gradient(circle, #fff 0%, #d8e0f0 60%, transparent 100%)',
-                  boxShadow: isFocal
-                    ? \`0 0 \${size}px rgba(216,224,240,0.9), 0 0 4px #fff\`
-                    : \`0 0 \${size}px rgba(216,224,240,0.6)\`,
-                }} />
+                <div
+                  onMouseEnter={() => setHoverId(poem.id)}
+                  onMouseLeave={() => setHoverId((id) => (id === poem.id ? null : id))}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    animation: \`node-float \${floatDuration}s ease-in-out \${floatDelay}s infinite\`,
+                    position: 'relative',
+                  }}
+                >
+                  <div style={{ position: 'relative' }}>
+                    <div style={{
+                      color: isFocal ? '#fff' : colors.textPrimary,
+                      fontFamily: fontFamilies.chinese,
+                      fontSize: isFocal ? fontSizes.nodeLarge : fontSizes.body,
+                      textShadow: isFocal ? '0 0 12px rgba(216,224,240,0.8)' : 'none',
+                      marginBottom: 6,
+                      fontWeight: isFocal ? 600 : undefined,
+                      letterSpacing: isFocal ? 2 : undefined,
+                      maxWidth: 120,
+                      lineHeight: 1.3,
+                      textAlign: 'center',
+                      whiteSpace: 'normal',
+                    }}>{poem.title}</div>
+                    {isFocal && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: '15%', right: '15%',
+                        height: 1, marginTop: 2,
+                        background: 'linear-gradient(90deg, transparent, rgba(216,224,240,0.7), transparent)',
+                      }} />
+                    )}
+                  </div>
+                  <div style={{
+                    position: 'relative',
+                    width: size, height: size, borderRadius: '50%',
+                    background: \`radial-gradient(circle, \${highlightCore} 0%, #d8e0f0 60%, transparent 100%)\`,
+                    border: '1px solid rgba(216,224,240,0.45)',
+                    boxShadow: isFocal
+                      ? \`0 0 \${size}px rgba(216,224,240,0.9), 0 0 4px #fff\`
+                      : \`0 0 \${size}px rgba(216,224,240,0.6)\`,
+                    animation: isFocal ? 'focal-pulse 3.2s ease-in-out infinite' : 'none',
+                  }}>
+                    <div style={{
+                      position: 'absolute', inset: '25%',
+                      borderRadius: '50%',
+                      background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.9) 0%, transparent 60%)',
+                    }} />
+                  </div>
+                  {hoverId === poem.id && (
+                    <div style={{
+                      position: 'absolute', bottom: '100%', left: '50%',
+                      transform: 'translate(-50%, -12px)',
+                      background: 'rgba(8,12,28,0.92)',
+                      border: '1px solid rgba(216,224,240,0.25)',
+                      borderRadius: 4, padding: 8,
+                      whiteSpace: 'nowrap',
+                      color: colors.textPrimary, fontSize: 12,
+                      fontFamily: fontFamilies.chinese,
+                      pointerEvents: 'none', zIndex: 10,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                    }}>
+                      <div>{truncateStrPoet(poem.content, 12)}</div>
+                      <div style={{
+                        position: 'absolute', bottom: -5, left: '50%',
+                        transform: 'translateX(-50%) rotate(45deg)',
+                        width: 8, height: 8,
+                        background: 'rgba(8,12,28,0.92)',
+                        borderRight: '1px solid rgba(216,224,240,0.25)',
+                        borderBottom: '1px solid rgba(216,224,240,0.25)',
+                      }} />
+                    </div>
+                  )}
+                </div>
               </Link>
             );
           })}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-            <TimeAxis left={\`\${poet.birthYear} · 生\`} right={\`\${poet.deathYear} · 卒\`} />
+            <TimeAxis left={\`\${poet.birthYear} · 生\`} right={\`\${poet.deathYear} · 卒\`} ticks={ticks} />
           </div>
         </div>
       </div>
@@ -923,12 +1583,32 @@ function PoetPage() {
 }
 `;
 
-// pages/PoemPage.tsx (local helpers navCardStyle/Divider/SectionTitle stay top-level in shared scope;
+// pages/PoemPage.tsx (local helpers navCardStyle/SectionTitle stay top-level in shared scope;
 // no collision with other files since they're unique names)
 const poemPageCode = `
 // ===== pages/PoemPage.tsx =====
+// 纸张面板配色 — 暖米黄底，纯黑字。仅用于诗文阅读区
+var PAPER_BG = 'rgba(245, 235, 210, 0.85)';
+var PAPER_TEXT = '#000000';        // 正文 / 标题 / 注释释义：纯黑
+var PAPER_TEXT_SOFT = '#000000';   // 元信息：纯黑（与正文统一）
+var PAPER_TEXT_DIM = '#8b7355';    // 段落标题：暖灰褐（保留层次）
+
+var SIZE_MODE_KEY = 'shiwen-size-mode';
+
+function readSizeMode() {
+  try {
+    var v = window.localStorage.getItem(SIZE_MODE_KEY);
+    if (v === 'small' || v === 'medium' || v === 'large') return v;
+  } catch (e) {}
+  return 'medium';
+}
+
 function PoemPage() {
+  const [sizeMode, setSizeMode] = useState(readSizeMode);
   const { poemId } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const fromPath = location.state ? location.state.from : null;
   const poem = poemId ? getPoem(poemId) : undefined;
   if (!poem) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>诗未找到</div>;
@@ -937,15 +1617,56 @@ function PoemPage() {
   if (!poet) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>作者未找到</div>;
   }
-  const { prev, next } = getNeighbors(poem.id);
+  const neighbors = fromPath === '/poems' ? getGlobalPoemNeighbors(poem.id) : getNeighbors(poem.id);
+  const prev = neighbors.prev;
+  const next = neighbors.next;
+  const backTo = fromPath != null ? fromPath : \`/poet/\${poet.id}\`;
+  const backLabel = fromPath === '/poems' ? '返回诗文' : \`返回\${poet.name}\`;
+  const linkState = { from: fromPath };
+
+  useEffect(function () {
+    try { window.localStorage.setItem(SIZE_MODE_KEY, sizeMode); } catch (e) {}
+  }, [sizeMode]);
+
+  useEffect(function () {
+    function onKey(e) {
+      var t = e.target;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || (t && t.isContentEditable)) return;
+      if (e.key === 'ArrowLeft' && prev) {
+        e.preventDefault();
+        navigate('/poem/' + prev.id, { state: linkState });
+      } else if (e.key === 'ArrowRight' && next) {
+        e.preventDefault();
+        navigate('/poem/' + next.id, { state: linkState });
+      } else if (e.key === 'Escape') {
+        navigate(backTo);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return function () { window.removeEventListener('keydown', onKey); };
+  }, [prev, next, navigate, fromPath, backTo]);
+
+  const extracted = extractVariants(poem.content);
+  const cleanText = extracted.cleanText;
+  const variants = extracted.variants;
+  const mode = getPoemMode(cleanText);
+  const lines = splitIntoLines(cleanText, mode);
+  const sizeOffset = sizeMode === 'small' ? 0 : sizeMode === 'large' ? 6 : 3;
+  const poemFontSize = (mode === 'short' ? fontSizes.poemTextShort : fontSizes.poemTextLong) + sizeOffset;
+  const metaFontSize = fontSizes.body + sizeOffset;
+  const titleFontSize = fontSizes.poemTitle + sizeOffset;
+  const sectionTitleFontSize = fontSizes.sectionTitle + sizeOffset;
+  const buttonFontSize = 13 + sizeOffset;
+
+  const hasAnnotations = poem.annotations.length > 0;
+  const hasVariants = variants.length > 0;
+  const hasBackground = Boolean(poem.background);
+  const hasRightContent = hasAnnotations || hasVariants || hasBackground;
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <TopNav variant="poem" poet={poet} poem={poem} />
-      <div style={{
-        flex: 1, overflowY: 'auto',
-        background: colors.bgGradient,
-      }}>
+      <TopNav variant="poem" poet={poet} poem={poem} backTo={backTo} backLabel={backLabel} />
+      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient }}>
         <div style={{ position: 'relative', height: 70, overflow: 'hidden' }}>
           <div style={{
             position: 'absolute', top: 16, right: '14%',
@@ -964,65 +1685,177 @@ function PoemPage() {
           }} />
         </div>
 
-        <div style={{ padding: '8px 32px 28px', textAlign: 'center' }}>
+        <div style={{ padding: '0 32px 28px' }}>
           <div style={{
-            fontFamily: fontFamilies.chinese, color: '#fff',
-            fontSize: fontSizes.poemTitle, letterSpacing: 8,
-            marginBottom: 8, fontWeight: 600,
-            textShadow: '0 0 14px rgba(216,224,240,0.6)',
-          }}>{poem.title}</div>
-          <div style={{
-            color: colors.textDim, fontFamily: fontFamilies.chinese,
-            fontSize: fontSizes.body, letterSpacing: 3, marginBottom: 28,
-          }}>{poet.name} · 唐</div>
-          <div style={{
-            fontFamily: fontFamilies.chinese, color: colors.textPrimary,
-            fontSize: fontSizes.poemText, lineHeight: 2.6, letterSpacing: 2,
-            whiteSpace: 'pre-wrap',
-          }}>{poem.content}</div>
-        </div>
+            maxWidth: 1400,
+            margin: '0 auto',
+            display: 'flex',
+            borderRadius: 8,
+            overflow: 'hidden',
+            boxShadow: '0 4px 32px rgba(0, 0, 0, 0.25)',
+          }}>
+            <div style={{
+              width: 10,
+              background: 'linear-gradient(180deg, #4a2f16 0%, #6b4a2b 50%, #4a2f16 100%)',
+              boxShadow: 'inset -1px 0 0 rgba(0,0,0,0.3)',
+            }} />
+            <div style={{
+              position: 'relative',
+              flex: 1,
+              background: PAPER_BG,
+              padding: '32px 40px',
+            }}>
+              <div style={{ position: 'absolute', inset: 4, border: '1px solid #b08a4a', pointerEvents: 'none' }} />
+              <div style={{ position: 'absolute', inset: 8, border: '1px solid #d4af6a', pointerEvents: 'none' }} />
 
-        <Divider />
-
-        {poem.annotations.length > 0 && (
-          <>
-            <section style={{ padding: '24px 32px' }}>
-              <SectionTitle>注 释</SectionTitle>
-              <div style={{
-                color: colors.textSecondary, fontFamily: fontFamilies.chinese,
-                fontSize: fontSizes.body, lineHeight: 1.9,
-              }}>
-                {poem.annotations.map((a, i) => (
-                  <div key={i} style={{ marginBottom: 12 }}>
-                    <span style={{ color: colors.textPrimary }}>{a.term}：</span>
-                    {a.explanation}
-                  </div>
-                ))}
+              <div style={{ position: 'absolute', top: 14, left: 22, zIndex: 2 }}>
+                <svg width="32" height="32" viewBox="0 0 32 32" style={{
+                  transform: 'rotate(-3deg)',
+                  filter: 'drop-shadow(0.5px 0.5px 1.2px rgba(60,20,15,0.45))',
+                }}>
+                  <rect x="2" y="2" width="28" height="28" rx="1.5"
+                    fill="#a8302a" stroke="#7a1f15" strokeWidth="0.6" />
+                  <text x="16" y="23" textAnchor="middle"
+                    fontFamily="'STKaiti', 'KaiTi', serif" fontSize="18"
+                    fill="#f5ebd2" fontWeight="700">诗</text>
+                </svg>
               </div>
-            </section>
-            <Divider />
-          </>
-        )}
 
-        {poem.background && (
-          <>
-            <section style={{ padding: '24px 32px' }}>
-              <SectionTitle>创 作 背 景</SectionTitle>
+              <div style={{ position: 'absolute', top: 14, right: 18, display: 'flex', gap: 4, zIndex: 2 }}>
+                {['small', 'medium', 'large'].map(function(s) {
+                  var label = s === 'small' ? '小' : s === 'medium' ? '中' : '大';
+                  var active = sizeMode === s;
+                  return (
+                    <button
+                      key={s}
+                      onClick={function() { setSizeMode(s); }}
+                      style={{
+                        padding: '3px 10px',
+                        background: active ? PAPER_TEXT : 'transparent',
+                        color: active ? '#f5ebd2' : PAPER_TEXT_DIM,
+                        border: '1px solid ' + PAPER_TEXT_DIM,
+                        borderRadius: 3,
+                        cursor: 'pointer',
+                        fontFamily: fontFamilies.chinese,
+                        fontSize: buttonFontSize,
+                        letterSpacing: 2,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ textAlign: 'center', marginBottom: 28, paddingTop: 16 }}>
+                <div style={{
+                  fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
+                  fontSize: titleFontSize, letterSpacing: 12,
+                  marginBottom: 8, fontWeight: 600,
+                }}>{poem.title}</div>
+                <div style={{
+                  color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
+                  fontSize: metaFontSize, letterSpacing: 3,
+                }}>{poet.name} · 唐</div>
+                <div style={{
+                  marginTop: 14,
+                  height: 1,
+                  background: 'linear-gradient(90deg, transparent, rgba(176,138,74,0.55), transparent)',
+                }} />
+              </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: hasRightContent ? '60fr 40fr' : '1fr',
+              gap: 48,
+            }}>
               <div style={{
-                color: colors.textSecondary, fontFamily: fontFamilies.chinese,
-                fontSize: fontSizes.body, lineHeight: 2,
-              }}>{poem.background}</div>
-            </section>
-            <Divider />
-          </>
-        )}
+                fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
+                fontSize: poemFontSize,
+                lineHeight: mode === 'short' ? 2.4 : 2.0,
+                letterSpacing: mode === 'short' ? 4 : 2,
+                textAlign: 'center',
+              }}>
+                {lines.map(function(line, i) { return <div key={i}>{line}</div>; })}
+              </div>
+
+              {hasRightContent && (
+                <div style={{ textAlign: 'left' }}>
+                  {hasAnnotations && (
+                    <section>
+                      <SectionTitle fontSize={sectionTitleFontSize} bold>注 释</SectionTitle>
+                      <div style={{
+                        color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
+                        fontSize: metaFontSize, lineHeight: 1.9,
+                      }}>
+                        {poem.annotations.map(function(a, i) {
+                          return (
+                            <div key={i} style={{ marginBottom: 12, textIndent: '2em' }}>
+                              <span style={{ color: PAPER_TEXT }}>{a.term}：</span>
+                              {a.explanation}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+
+                  {hasAnnotations && hasVariants && (
+                    <div style={{ height: 24 }} />
+                  )}
+
+                  {hasVariants && (
+                    <section>
+                      <SectionTitle fontSize={sectionTitleFontSize}>异 文</SectionTitle>
+                      <div style={{
+                        color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
+                        fontSize: metaFontSize, lineHeight: 1.9,
+                      }}>
+                        {variants.map(function(v, i) {
+                          return (
+                            <div key={i} style={{ marginBottom: 12, textIndent: '2em' }}>
+                              <span style={{ color: PAPER_TEXT }}>{v.original}：</span>
+                              {v.kind}「{v.variant}」
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+
+                  {(hasAnnotations || hasVariants) && hasBackground && (
+                    <div style={{ height: 24 }} />
+                  )}
+
+                  {hasBackground && (
+                    <section>
+                      <SectionTitle fontSize={sectionTitleFontSize} bold>创 作 背 景</SectionTitle>
+                      <div style={{
+                        color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
+                        fontSize: metaFontSize, lineHeight: 2, textIndent: '2em',
+                      }}>{poem.background}</div>
+                    </section>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{
+            width: 10,
+            background: 'linear-gradient(180deg, #4a2f16 0%, #6b4a2b 50%, #4a2f16 100%)',
+            boxShadow: 'inset 1px 0 0 rgba(0,0,0,0.3)',
+          }} />
+          </div>
+        </div>
 
         <nav style={{
           padding: '20px 32px',
           display: 'flex', alignItems: 'stretch', justifyContent: 'space-between', gap: 14,
+          maxWidth: 1400,
+          margin: '0 auto',
         }}>
           {prev ? (
-            <Link to={\`/poem/\${prev.id}\`} style={navCardStyle}>
+            <Link to={\`/poem/\${prev.id}\`} state={linkState} style={navCardStyle}>
               <div style={{ color: colors.textDim, fontFamily: fontFamilies.chinese, fontSize: 14, letterSpacing: 2 }}>← 上一首</div>
               <div style={{ color: colors.textSecondary, fontFamily: fontFamilies.chinese, fontSize: 16, marginTop: 6 }}>{prev.title}</div>
             </Link>
@@ -1033,7 +1866,7 @@ function PoemPage() {
             </div>
           )}
           {next ? (
-            <Link to={\`/poem/\${next.id}\`} style={{ ...navCardStyle, textAlign: 'right' }}>
+            <Link to={\`/poem/\${next.id}\`} state={linkState} style={{ ...navCardStyle, textAlign: 'right' }}>
               <div style={{ color: colors.textDim, fontFamily: fontFamilies.chinese, fontSize: 14, letterSpacing: 2 }}>下一首 →</div>
               <div style={{ color: colors.textSecondary, fontFamily: fontFamilies.chinese, fontSize: 16, marginTop: 6 }}>{next.title}</div>
             </Link>
@@ -1057,16 +1890,780 @@ const navCardStyle = {
   textDecoration: 'none',
 };
 
-function Divider() {
-  return <div style={{ margin: '0 32px', borderTop: '1px dashed rgba(216,224,240,0.18)' }} />;
-}
-
-function SectionTitle({ children }) {
+function SectionTitle({ children, fontSize, bold }) {
   return (
     <div style={{
-      color: colors.textTertiary, fontFamily: fontFamilies.chinese,
-      fontSize: fontSizes.sectionTitle, letterSpacing: 4, marginBottom: 14,
+      color: PAPER_TEXT, fontFamily: fontFamilies.chinese,
+      fontSize: fontSize, letterSpacing: 4, marginBottom: 14,
+      fontWeight: bold ? 700 : undefined,
+      textAlign: 'center',
     }}>{children}</div>
+  );
+}
+`;
+
+// play/types.ts
+const feihuaTypesCode = `
+// ===== play/types.ts =====
+var STAGE_GOAL = 5;
+var STAGE_BLOOD = 3;
+var STAGE_TIMEBOX = 120;
+var INITIAL_PROGRESS = { unlockedIndex: 0, cleared: [], current: null };
+`;
+
+// play/keywords.ts
+const feihuaKeywordsCode = `
+// ===== play/keywords.ts =====
+var KEYWORD_GROUPS = {
+  entry: ['春','月','花','风','山','水','云','天','人','心'],
+  mid: ['夜','秋','年','日','雪','酒','梦','愁','思','江',
+        '河','雨','柳','草','木','落','竹','松','飞','楼'],
+  advanced: ['寒','桃','燕','鸟','马','衣','书','剑','琴','笛',
+             '钟','灯','影','台','城','海','舟','桥','鹤','霜'],
+};
+var KEYWORDS = [].concat(KEYWORD_GROUPS.entry, KEYWORD_GROUPS.mid, KEYWORD_GROUPS.advanced);
+var FREE_KEYWORDS = ['春','月','花','风','雪'];
+`;
+
+// play/engine.ts
+const feihuaEngineCode = `
+// ===== play/engine.ts =====
+function buildKeywordIndex() {
+  const index = new Map();
+  for (const k of KEYWORDS) index.set(k, []);
+
+  for (const poem of getPoems()) {
+    const poet = getPoet(poem.poetId);
+    if (!poet) continue;
+    const { cleanText } = extractVariants(poem.content);
+    const mode = getPoemMode(cleanText);
+    const lines = splitIntoLines(cleanText, mode);
+
+    for (const line of lines) {
+      const stripped = line.replace(/[，。？！；：、,\\.\\?!;:]/g, '');
+      for (const k of KEYWORDS) {
+        if (stripped.includes(k)) {
+          index.get(k).push({
+            poemId: poem.id,
+            line: line.trim(),
+            poemTitle: poem.title,
+            poetName: poet.name,
+          });
+        }
+      }
+    }
+  }
+
+  return index;
+}
+
+var _cache = null;
+
+function getKeywordIndex() {
+  if (_cache === null) _cache = buildKeywordIndex();
+  return _cache;
+}
+
+function getVersesFor(keyword) {
+  return getKeywordIndex().get(keyword) || [];
+}
+
+var DISTRACTOR_POOL =
+  '一二三四五六七八九十百千万里外古今南北东西上下左右中青山河颜色红绿黄白青紫玉石金铁风雨霜露天地秋冬夏时光影梦魂';
+
+var PUNCT_RE = /[，。？！；：、,\\.\\?!;:]/;
+
+function pickStageQuestion(keyword, used) {
+  const pool = getVersesFor(keyword).filter(v => !used.has(v.line));
+  if (pool.length === 0) return null;
+  const verse = pool[Math.floor(Math.random() * pool.length)];
+
+  const kwPositions = [];
+  for (let i = 0; i < verse.line.length; i++) {
+    if (verse.line[i] === keyword) kwPositions.push(i);
+  }
+  const blanks = new Set([kwPositions[0]]);
+
+  const candidates = [];
+  for (let i = 0; i < verse.line.length; i++) {
+    if (kwPositions.includes(i)) continue;
+    if (PUNCT_RE.test(verse.line[i])) continue;
+    candidates.push(i);
+  }
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = candidates[i];
+    candidates[i] = candidates[j];
+    candidates[j] = tmp;
+  }
+  const extra = candidates.length === 0 ? 0 : Math.random() < 0.5 ? 1 : 2;
+  for (let i = 0; i < extra && i < candidates.length; i++) {
+    blanks.add(candidates[i]);
+  }
+
+  return { verse, blanks: Array.from(blanks).sort((a, b) => a - b) };
+}
+
+function buildNineGrid(answer, blanks) {
+  const answerChars = blanks.map(i => answer[i]);
+  const distractors = [];
+  let attempts = 0;
+  const maxAttempts = DISTRACTOR_POOL.length * 20;
+  while (
+    distractors.length < 12 - blanks.length &&
+    attempts < maxAttempts
+  ) {
+    const c = DISTRACTOR_POOL[Math.floor(Math.random() * DISTRACTOR_POOL.length)];
+    if (!answer.includes(c) && !distractors.includes(c)) {
+      distractors.push(c);
+    }
+    attempts++;
+  }
+
+  const all = answerChars.concat(distractors);
+  for (let j = all.length - 1; j > 0; j--) {
+    const k = Math.floor(Math.random() * (j + 1));
+    const tmp = all[j];
+    all[j] = all[k];
+    all[k] = tmp;
+  }
+  return { chars: all, blankCount: blanks.length };
+}
+
+function validateStageInput(filled, answer, blanks) {
+  if (filled.length !== blanks.length) return false;
+  for (let i = 0; i < blanks.length; i++) {
+    if (answer[blanks[i]] !== filled[i]) return false;
+  }
+  return true;
+}
+`;
+
+// play/progress.ts
+const feihuaProgressCode = `
+// ===== play/progress.ts =====
+var FEIHUA_STORAGE_KEY = 'shiwen-feihua-progress';
+
+function loadProgress() {
+  try {
+    const raw = window.localStorage.getItem(FEIHUA_STORAGE_KEY);
+    if (!raw) return { ...INITIAL_PROGRESS };
+    const parsed = JSON.parse(raw);
+    return {
+      unlockedIndex: typeof parsed.unlockedIndex === 'number' ? parsed.unlockedIndex : 0,
+      cleared: Array.isArray(parsed.cleared)
+        ? parsed.cleared.filter(s => typeof s === 'string')
+        : [],
+      current:
+        parsed.current && typeof parsed.current === 'object'
+          ? {
+              keyword: String(parsed.current.keyword != null ? parsed.current.keyword : ''),
+              correct: Array.isArray(parsed.current.correct) ? parsed.current.correct : [],
+              blood:
+                typeof parsed.current.blood === 'number'
+                  ? parsed.current.blood
+                  : STAGE_BLOOD,
+            }
+          : null,
+    };
+  } catch (e) {
+    return { ...INITIAL_PROGRESS };
+  }
+}
+
+function saveProgress(p) {
+  try {
+    window.localStorage.setItem(FEIHUA_STORAGE_KEY, JSON.stringify(p));
+  } catch (e) {
+    // localStorage 不可用或配额满 — 静默失败
+  }
+}
+
+function markCleared(keyword) {
+  const p = loadProgress();
+  if (p.cleared.includes(keyword)) {
+    p.current = null;
+    saveProgress(p);
+    return p;
+  }
+  p.cleared.push(keyword);
+  const idx = KEYWORDS.indexOf(keyword);
+  if (idx >= 0 && idx + 1 > p.unlockedIndex) p.unlockedIndex = idx + 1;
+  p.current = null;
+  saveProgress(p);
+  return p;
+}
+
+function beginStage(keyword) {
+  const p = loadProgress();
+  p.current = { keyword, correct: [], blood: STAGE_BLOOD };
+  saveProgress(p);
+  return p;
+}
+
+function commitStageCorrect(keyword, line) {
+  const p = loadProgress();
+  if (!p.current || p.current.keyword !== keyword) return p;
+  if (!p.current.correct.includes(line)) p.current.correct.push(line);
+  saveProgress(p);
+  return p;
+}
+
+function commitStageBlood(keyword, blood) {
+  const p = loadProgress();
+  if (!p.current || p.current.keyword !== keyword) return p;
+  p.current.blood = blood;
+  saveProgress(p);
+  return p;
+}
+
+function clearCurrent() {
+  const p = loadProgress();
+  p.current = null;
+  saveProgress(p);
+  return p;
+}
+`;
+
+// components/KeywordSeal.tsx
+const keywordSealCode = `
+// ===== components/KeywordSeal.tsx =====
+var SEAL_COLORS = {
+  cleared: { bg: '#a8302a', border: '#7a1f15', text: '#f5ebd2', shadow: '0 2px 8px rgba(168,48,42,0.4)' },
+  current: { bg: '#a8302a', border: '#d4af6a', text: '#f5ebd2', shadow: '0 0 16px rgba(212,175,106,0.7)' },
+  locked: { bg: 'rgba(216,224,240,0.08)', border: 'rgba(216,224,240,0.2)', text: 'rgba(216,224,240,0.3)', shadow: 'none' },
+};
+
+function KeywordSeal(props) {
+  const keyword = props.keyword;
+  const state = props.state;
+  const onClick = props.onClick;
+  const c = SEAL_COLORS[state];
+  const interactive = state !== 'locked';
+  return (
+    <button
+      onClick={interactive ? onClick : undefined}
+      disabled={!interactive}
+      style={{
+        width: 64,
+        height: 64,
+        background: c.bg,
+        border: '2px solid ' + c.border,
+        borderRadius: 4,
+        color: c.text,
+        fontFamily: fontFamilies.chinese,
+        fontSize: 32,
+        fontWeight: 700,
+        cursor: interactive ? 'pointer' : 'default',
+        boxShadow: c.shadow,
+        animation: state === 'current' ? 'focal-pulse 2s ease-in-out infinite' : undefined,
+        transform: state === 'current' ? 'rotate(-3deg)' : 'none',
+        transition: 'transform 0.15s',
+      }}
+    >
+      {state === 'locked' ? '？' : keyword}
+    </button>
+  );
+}
+`;
+
+// components/PaperScroll.tsx
+const paperScrollCode = `
+// ===== components/PaperScroll.tsx =====
+var PAPER_SCROLL_BG = 'rgba(245, 235, 210, 0.85)';
+
+function PaperScroll(props) {
+  const children = props.children;
+  return (
+    <div style={{
+      maxWidth: 1100,
+      margin: '0 auto',
+      display: 'flex',
+      borderRadius: 8,
+      overflow: 'hidden',
+      boxShadow: '0 4px 32px rgba(0, 0, 0, 0.25)',
+    }}>
+      <div style={{
+        width: 10,
+        background: 'linear-gradient(180deg, #4a2f16 0%, #6b4a2b 50%, #4a2f16 100%)',
+        boxShadow: 'inset -1px 0 0 rgba(0,0,0,0.3)',
+      }} />
+      <div style={{
+        position: 'relative',
+        flex: 1,
+        background: PAPER_SCROLL_BG,
+        padding: '32px 40px',
+      }}>
+        <div style={{ position: 'absolute', inset: 4, border: '1px solid #b08a4a', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 8, border: '1px solid #d4af6a', pointerEvents: 'none' }} />
+        {children}
+      </div>
+      <div style={{
+        width: 10,
+        background: 'linear-gradient(180deg, #4a2f16 0%, #6b4a2b 50%, #4a2f16 100%)',
+        boxShadow: 'inset 1px 0 0 rgba(0,0,0,0.3)',
+      }} />
+    </div>
+  );
+}
+`;
+
+// components/NineGrid.tsx
+const nineGridCode = `
+// ===== components/NineGrid.tsx =====
+function NineGrid(props) {
+  const chars = props.chars;
+  const blankCount = props.blankCount;
+  const filled = props.filled;
+  const onChar = props.onChar;
+  const onUndo = props.onUndo;
+  return (
+    <div style={{ maxWidth: 480, margin: '0 auto' }}>
+      <div style={{
+        display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 20,
+        flexWrap: 'wrap', alignItems: 'center',
+      }}>
+        {Array.from({ length: blankCount }).map((_, i) => (
+          <div key={i} style={{
+            width: 48, height: 48,
+            border: '2px solid #8b7355', borderRadius: 4,
+            background: filled[i] ? '#f5ebd2' : 'transparent',
+            color: '#000', fontFamily: fontFamilies.chinese,
+            fontSize: 28, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>{filled[i] != null ? filled[i] : ''}</div>
+        ))}
+        <button
+          onClick={onUndo}
+          disabled={filled.length === 0}
+          style={{
+            marginLeft: 12, padding: '0 16px',
+            background: 'transparent', color: '#8b7355',
+            border: '1px solid #8b7355', borderRadius: 3,
+            fontFamily: fontFamilies.chinese, fontSize: 14,
+            cursor: filled.length === 0 ? 'default' : 'pointer',
+            opacity: filled.length === 0 ? 0.4 : 1,
+            height: 40,
+          }}>退字</button>
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 8,
+      }}>
+        {chars.map((c, idx) => {
+          const disabled = filled.length >= blankCount;
+          return (
+            <button
+              key={idx}
+              onClick={() => onChar(c, idx)}
+              disabled={disabled}
+              style={{
+                height: 56,
+                background: 'transparent',
+                border: '1px solid #8b7355', borderRadius: 3,
+                color: '#000', fontFamily: fontFamilies.chinese,
+                fontSize: 26, fontWeight: 700,
+                cursor: disabled ? 'default' : 'pointer',
+                opacity: disabled ? 0.5 : 1,
+                transition: 'background 0.15s',
+              }}>{c}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+`;
+
+// pages/PlayHall.tsx
+const playHallCode = `
+// ===== pages/PlayHall.tsx =====
+var GROUP_LABEL = {
+  entry: '入 门',
+  mid: '进 阶',
+  advanced: '高 阶',
+};
+
+function PlayHall() {
+  const progress = loadProgress();
+  const totalCleared = progress.cleared.length;
+
+  const stateOf = (kw, idx) => {
+    if (progress.cleared.includes(kw)) return 'cleared';
+    if (idx === progress.unlockedIndex) return 'current';
+    return 'locked';
+  };
+
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <TopNav variant="main" />
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          background: colors.bgGradient,
+          padding: '32px 28px 64px',
+        }}
+      >
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div
+              style={{
+                fontFamily: fontFamilies.chinese,
+                color: colors.textPrimary,
+                fontSize: 32,
+                letterSpacing: 12,
+                marginBottom: 8,
+                textShadow: '0 0 16px rgba(216,224,240,0.6)',
+              }}
+            >
+              飞 花 令
+            </div>
+            <div
+              style={{
+                color: colors.textTertiary,
+                fontFamily: fontFamilies.chinese,
+                fontSize: 16,
+                letterSpacing: 4,
+              }}
+            >
+              已通 {totalCleared} / 50 关
+            </div>
+          </div>
+
+          {['entry', 'mid', 'advanced'].map((group) => (
+            <div key={group} style={{ marginBottom: 36 }}>
+              <div
+                style={{
+                  color: colors.textTertiary,
+                  fontFamily: fontFamilies.chinese,
+                  fontSize: 14,
+                  letterSpacing: 6,
+                  marginBottom: 14,
+                  textAlign: 'center',
+                }}
+              >
+                {GROUP_LABEL[group]}
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(10, 64px)',
+                  gap: 12,
+                  justifyContent: 'center',
+                }}
+              >
+                {KEYWORD_GROUPS[group].map((kw) => {
+                  const globalIdx = KEYWORDS.indexOf(kw);
+                  const state = stateOf(kw, globalIdx);
+                  return (
+                    <Link
+                      key={kw}
+                      to={state === 'locked' ? '#' : '/play/stage/' + kw}
+                      style={{ textDecoration: 'none' }}
+                    >
+                      <KeywordSeal keyword={kw} state={state} />
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+
+// pages/StagePlay.tsx
+const stagePlayCode = `
+// ===== pages/StagePlay.tsx =====
+var FEIHUA_PAPER_TEXT = '#000000';
+var FEIHUA_PAPER_TEXT_DIM = '#8b7355';
+
+var feihuaBtnStyle = {
+  padding: '8px 20px',
+  background: 'transparent',
+  color: FEIHUA_PAPER_TEXT,
+  border: '1px solid ' + FEIHUA_PAPER_TEXT,
+  borderRadius: 3,
+  fontFamily: fontFamilies.chinese,
+  fontSize: 14,
+  cursor: 'pointer',
+};
+
+function StagePlay() {
+  const params = useParams();
+  const kw = params.kw;
+  const navigate = useNavigate();
+
+  const [stage, setStage] = useState(() => {
+    if (!kw) return null;
+    const progress = loadProgress();
+    if (progress.current && progress.current.keyword === kw) {
+      return progress.current;
+    }
+    return beginStage(kw).current;
+  });
+
+  const used = useMemo(() => new Set(stage != null ? (stage.correct || []) : []), [stage]);
+
+  const [question, setQuestion] = useState(() => {
+    if (!kw) return null;
+    return pickStageQuestion(kw, used);
+  });
+
+  const [nineGrid, setNineGrid] = useState(() =>
+    question ? buildNineGrid(question.verse.line, question.blanks) : null
+  );
+  const [filled, setFilled] = useState([]);
+
+  const [secondsLeft, setSecondsLeft] = useState(STAGE_TIMEBOX);
+  const [grading, setGrading] = useState(false);
+
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    if (question) {
+      setNineGrid(buildNineGrid(question.verse.line, question.blanks));
+      setFilled([]);
+    }
+  }, [question]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        navigate('/play');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [navigate]);
+
+  const stageRef = useRef(stage);
+  stageRef.current = stage;
+  const questionRef = useRef(question);
+  questionRef.current = question;
+
+  const handleCorrect = () => {
+    if (!kw || !questionRef.current || !stageRef.current) return;
+    const cur = stageRef.current;
+    const line = questionRef.current.verse.line;
+    const newCorrect = [].concat(cur.correct, [line]);
+
+    commitStageCorrect(kw, line);
+    setStage(loadProgress().current);
+
+    if (newCorrect.length >= STAGE_GOAL) {
+      markCleared(kw);
+      setStage(loadProgress().current);
+      setResult({ kind: 'cleared', correct: newCorrect });
+      return;
+    }
+    setGrading(true);
+    setTimeout(() => {
+      const nextUsed = new Set(newCorrect);
+      setQuestion(pickStageQuestion(kw, nextUsed));
+      setSecondsLeft(STAGE_TIMEBOX);
+      setGrading(false);
+    }, 800);
+  };
+
+  const handleWrong = () => {
+    if (!kw || !stageRef.current) return;
+    const cur = stageRef.current;
+    const newBlood = cur.blood - 1;
+
+    commitStageBlood(kw, newBlood);
+    setStage(loadProgress().current);
+
+    if (newBlood <= 0) {
+      setResult({ kind: 'failed', correct: cur.correct });
+      return;
+    }
+    setGrading(true);
+    setTimeout(() => {
+      setFilled([]);
+      setSecondsLeft(STAGE_TIMEBOX);
+      setGrading(false);
+    }, 1500);
+  };
+
+  useEffect(() => {
+    if (result) return;
+    if (secondsLeft <= 0) {
+      handleWrong();
+      return;
+    }
+    const t = setTimeout(() => setSecondsLeft(s => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [secondsLeft, result]);
+
+  useEffect(() => {
+    if (grading) return;
+    if (!question || filled.length !== question.blanks.length) return;
+    const ok = validateStageInput(filled.join(''), question.verse.line, question.blanks);
+    if (ok) handleCorrect();
+    else handleWrong();
+  }, [filled, question]);
+
+  const handleChar = (c) => {
+    if (grading) return;
+    if (filled.length >= (question ? question.blanks.length : 0)) return;
+    setFilled([].concat(filled, [c]));
+  };
+  const handleUndo = () => {
+    if (grading) return;
+    setFilled(filled.slice(0, -1));
+  };
+
+  if (!kw || !stage) {
+    return <div style={{ padding: 40, color: colors.textPrimary }}>关键字缺失</div>;
+  }
+
+  const displayLine = question
+    ? Array.from(question.verse.line)
+        .map((ch, i) => (question.blanks.includes(i) ? '□' : ch))
+        .join('')
+    : '';
+
+  const kwIndex = KEYWORDS.indexOf(kw);
+  const isLastKeyword = kwIndex < 0 || kwIndex + 1 >= KEYWORDS.length;
+
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <TopNav variant="main" />
+      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: '24px 28px' }}>
+        <div style={{ marginBottom: 16 }}>
+          <Link
+            to="/play"
+            style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}
+          >
+            ← 返回大厅
+          </Link>
+        </div>
+
+        <PaperScroll>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
+            <div style={{ color: FEIHUA_PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 2 }}>
+              {'❤'.repeat(stage.blood)}{'♡'.repeat(STAGE_BLOOD - stage.blood)}
+            </div>
+            <div style={{ color: FEIHUA_PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 2 }}>
+              ⏱ {secondsLeft}s
+            </div>
+            <div style={{ color: FEIHUA_PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 4 }}>
+              {stage.correct.length} / {STAGE_GOAL}
+            </div>
+          </div>
+
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{
+              fontFamily: fontFamilies.chinese,
+              color: FEIHUA_PAPER_TEXT,
+              fontSize: 120,
+              fontWeight: 700,
+              lineHeight: 1,
+              marginBottom: 8,
+            }}>{kw}</div>
+            <div style={{
+              color: FEIHUA_PAPER_TEXT_DIM,
+              fontFamily: fontFamilies.chinese,
+              fontSize: 14,
+              letterSpacing: 6,
+            }}>飞 花 · 关 键 字</div>
+          </div>
+
+          <div style={{
+            textAlign: 'center',
+            padding: '24px 0',
+            fontFamily: fontFamilies.chinese,
+            color: FEIHUA_PAPER_TEXT,
+            fontSize: 32,
+            letterSpacing: 6,
+            lineHeight: 2,
+          }}>
+            {displayLine || '（题库已空）'}
+          </div>
+          {question && (
+            <div style={{
+              textAlign: 'center',
+              color: FEIHUA_PAPER_TEXT_DIM,
+              fontFamily: fontFamilies.chinese,
+              fontSize: 14,
+              letterSpacing: 2,
+            }}>
+              出自《{question.verse.poemTitle}》· {question.verse.poetName}
+            </div>
+          )}
+
+          <div style={{ marginTop: 40 }}>
+            {nineGrid && (
+              <NineGrid
+                chars={nineGrid.chars}
+                blankCount={nineGrid.blankCount}
+                filled={filled}
+                onChar={handleChar}
+                onUndo={handleUndo}
+              />
+            )}
+          </div>
+
+          {result && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'rgba(245,235,210,0.95)',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              textAlign: 'center', padding: 40,
+            }}>
+              <div style={{
+                fontFamily: fontFamilies.chinese, color: FEIHUA_PAPER_TEXT,
+                fontSize: 48, letterSpacing: 12, marginBottom: 24,
+              }}>{result.kind === 'cleared' ? '通 关' : '失 败'}</div>
+              <div style={{
+                color: FEIHUA_PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
+                fontSize: 16, marginBottom: 32,
+              }}>
+                {result.kind === 'cleared'
+                  ? '已答出 ' + result.correct.length + ' 句含「' + kw + '」的诗'
+                  : '血尽于此，下次再来'}
+              </div>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <button
+                  onClick={() => {
+                    if (result.kind === 'failed') clearCurrent();
+                    navigate('/play');
+                  }}
+                  style={feihuaBtnStyle}
+                >
+                  返回大厅
+                </button>
+                {result.kind === 'cleared' && !isLastKeyword && (
+                  <button
+                    onClick={() => navigate('/play/stage/' + KEYWORDS[kwIndex + 1])}
+                    style={feihuaBtnStyle}
+                  >
+                    下一关
+                  </button>
+                )}
+                {result.kind === 'cleared' && isLastKeyword && (
+                  <div style={{
+                    color: FEIHUA_PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
+                    fontSize: 14, alignSelf: 'center', letterSpacing: 4,
+                  }}>
+                    全 部 通 关
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </PaperScroll>
+      </div>
+    </div>
   );
 }
 `;
@@ -1079,8 +2676,11 @@ function App() {
     <HashRouter>
       <Routes>
         <Route path="/" element={<RiverPage />} />
+        <Route path="/poems" element={<PoemsRiverPage />} />
         <Route path="/poet/:poetId" element={<PoetPage />} />
         <Route path="/poem/:poemId" element={<PoemPage />} />
+        <Route path="/play" element={<PlayHall />} />
+        <Route path="/play/stage/:kw" element={<StagePlay />} />
       </Routes>
     </HashRouter>
   );
@@ -1101,15 +2701,26 @@ ${themeCode}
 ${loadCode}
 ${searchCode}
 ${layoutCode}
+${poemTextCode}
 ${riverBgCode}
-${riverLineCode}
+${useVisitedCode}
 ${viewportHookCode}
 ${timeAxisCode}
 ${searchBoxCode}
 ${topNavCode}
 ${riverPageCode}
+${poemsRiverPageCode}
 ${poetPageCode}
 ${poemPageCode}
+${feihuaTypesCode}
+${feihuaKeywordsCode}
+${feihuaEngineCode}
+${feihuaProgressCode}
+${keywordSealCode}
+${paperScrollCode}
+${nineGridCode}
+${playHallCode}
+${stagePlayCode}
 ${appCode}
 `;
 
