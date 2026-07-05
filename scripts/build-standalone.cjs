@@ -1968,8 +1968,10 @@ function getVersesFor(keyword) {
   return getKeywordIndex().get(keyword) || [];
 }
 
-var DISTRACTOR_POOL =
+var DISTRACTOR_POOL_SOURCE =
   '一二三四五六七八九十百千万里外古今南北东西上下左右中青山河颜色红绿黄白青紫玉石金铁风雨霜露天地秋冬夏时光影梦魂';
+
+var DISTRACTOR_POOL = Array.from(new Set(DISTRACTOR_POOL_SOURCE.split(''))).join('');
 
 var PUNCT_RE = /[，。？！；：、,\\.\\?!;:]/;
 
@@ -2018,6 +2020,9 @@ function buildNineGrid(answer, blanks) {
       distractors.push(c);
     }
     attempts++;
+  }
+  if (distractors.length !== 12 - blanks.length) {
+    throw new Error('九宫格去重失败');
   }
 
   const all = answerChars.concat(distractors);
