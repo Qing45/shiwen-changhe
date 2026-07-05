@@ -69,7 +69,7 @@ describe('pickStageQuestion', () => {
   });
 
   it('returns null when keyword has no verses (empty pool, no crash)', () => {
-    expect(pickStageQuestion(' nonexistent ', new Set())).toBeNull();
+    expect(pickStageQuestion('不存在', new Set())).toBeNull();
   });
 
   it('blanks array contains a position where keyword occurs', () => {
@@ -77,14 +77,8 @@ describe('pickStageQuestion', () => {
     for (let attempt = 0; attempt < 20; attempt++) {
       const q = pickStageQuestion('春', new Set());
       if (!q) continue;
-      for (const pos of q.blanks) {
-        // blanks 指向原句；关键字位置必须挖空
-      }
-      const kwAtBlanks = q.blanks.every(pos => q.verse.line[pos] === '春');
       // 至少一处 blanks 指向 '春'（关键字必挖）
       expect(q.blanks.some(pos => q.verse.line[pos] === '春')).toBe(true);
-      // 验证 kwAtBlanks 描述：blanks 中任何位置都不是标点
-      void kwAtBlanks;
     }
   });
 

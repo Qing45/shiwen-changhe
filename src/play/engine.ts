@@ -56,8 +56,10 @@ export function getVersesFor(keyword: string): Verse[] {
 //     所以标点天然被排除在外（不会出现在 blanks 中），无需额外 strip。
 //   - buildNineGrid:   答案只取 blanks 位置的字，不会包含标点。
 
-const DISTRACTOR_POOL =
+const DISTRACTOR_POOL_SOURCE =
   '一二三四五六七八九十百千万里外古今南北东西上下左右中青山河颜色红绿黄白青紫玉石金铁风雨霜露天地秋冬夏时光影梦魂';
+
+const DISTRACTOR_POOL = Array.from(new Set(DISTRACTOR_POOL_SOURCE.split(''))).join('');
 
 const PUNCT_RE = /[，。？！；：、,\.\?!;:]/;
 
@@ -119,6 +121,9 @@ export function buildNineGrid(
       distractors.push(c);
     }
     attempts++;
+  }
+  if (distractors.length !== 12 - blanks.length) {
+    throw new Error('九宫格去重失败');
   }
 
   const all = [...answerChars, ...distractors];
