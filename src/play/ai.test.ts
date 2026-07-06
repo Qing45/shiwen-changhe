@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { buildChoiceBoard, aiPickAnswer, rollFirstTurn } from './ai';
 import { getVersesFor } from './engine';
 
