@@ -150,6 +150,7 @@ export function CombatResultModal({ result }: { result: CombatResult }) {
       <div style={{ display: 'flex', justifyContent: 'center', gap: 16 }}>
         <button onClick={result.onPlayAgain} style={btnStyle}>再来一局</button>
         <button onClick={result.onPickKeyword} style={btnStyle}>换关键字</button>
+        <button onClick={result.onPickKeyword} style={btnStyle}>返回大厅</button>
       </div>
     </div>
   );

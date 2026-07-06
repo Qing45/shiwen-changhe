@@ -399,12 +399,15 @@ function HashRouter({ children }) {
 }
 
 function matchPath(pattern, path) {
+  // Strip query string suffix before matching — otherwise /play?tab=combat
+  // fails to match ^/play$ and :kw captures "春?difficulty=qingdeng".
+  var cleanPath = String(path).split('?')[0];
   const paramNames = [];
   const regexStr = '^' + pattern.replace(/:([^/]+)/g, (_, name) => {
     paramNames.push(name);
     return '([^/]+)';
   }) + '$';
-  const m = new RegExp(regexStr).exec(path);
+  const m = new RegExp(regexStr).exec(cleanPath);
   if (!m) return null;
   const params = {};
   paramNames.forEach((n, i) => { params[n] = decodeURIComponent(m[i + 1]); });
@@ -2449,7 +2452,8 @@ function CombatResultModal(props) {
 
     React.createElement('div', { style: { display: 'flex', justifyContent: 'center', gap: 16 } },
       React.createElement('button', { onClick: r.onPlayAgain, style: btnStyleCombat }, '再来一局'),
-      React.createElement('button', { onClick: r.onPickKeyword, style: btnStyleCombat }, '换关键字')
+      React.createElement('button', { onClick: r.onPickKeyword, style: btnStyleCombat }, '换关键字'),
+      React.createElement('button', { onClick: r.onPickKeyword, style: btnStyleCombat }, '返回大厅')
     )
   );
 }
@@ -2493,17 +2497,20 @@ function AiPlay() {
   var result = resultState[0]; var setResult = resultState[1];
   var startTimeRef = useRef(Date.now());
 
-  function finish(winner) {
+  function finish(winner, snapshots) {
     if (result) return;
     var elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
     if (winner === 'player') recordWin(difficulty);
     else recordLoss(difficulty);
-    var allUnused = getVersesFor(kw || '').filter(function(v) { return !used.has(v.line); });
+    var pp = (snapshots && snapshots.playerPicks) ? snapshots.playerPicks : playerPicks;
+    var ap = (snapshots && snapshots.aiPicks) ? snapshots.aiPicks : aiPicks;
+    var usedSet = (snapshots && snapshots.used) ? snapshots.used : used;
+    var allUnused = getVersesFor(kw || '').filter(function(v) { return !usedSet.has(v.line); });
     setResult({
       winner: winner,
       elapsedSec: elapsed,
-      playerPicks: playerPicks,
-      aiPicks: aiPicks,
+      playerPicks: pp,
+      aiPicks: ap,
       unused: allUnused,
       keyword: kw || '',
       onPlayAgain: function() { navigate('/play/ai/' + kw + '?difficulty=' + difficulty, { replace: true }); },
@@ -2526,12 +2533,13 @@ function AiPlay() {
     var t = setTimeout(function() {
       var pick = aiPickAnswer(kw, used, difficulty);
       if (!pick.picked) { finish('player'); return; }
-      setAiPicks(function(prev) { return prev.concat([pick.verse]); });
+      var nextAiPicks = aiPicks.concat([pick.verse]);
+      setAiPicks(nextAiPicks);
       var nextUsed = new Set(used);
       nextUsed.add(pick.verse.line);
       setUsed(nextUsed);
       var nextBoard = buildChoiceBoard(nextUsed, kw, 4);
-      if (nextBoard.length === 0) { finish('player'); return; }
+      if (nextBoard.length === 0) { finish('player', { aiPicks: nextAiPicks, used: nextUsed }); return; }
       setBoard(nextBoard);
       setSecondsLeft(TURN_SECONDS);
       setRound('player');
@@ -2553,12 +2561,13 @@ function AiPlay() {
 
   function onSelect(v) {
     if (result || round !== 'player') return;
-    setPlayerPicks(function(prev) { return prev.concat([v]); });
+    var nextPlayerPicks = playerPicks.concat([v]);
+    setPlayerPicks(nextPlayerPicks);
     var nextUsed = new Set(used);
     nextUsed.add(v.line);
     setUsed(nextUsed);
     var aiBoard = buildChoiceBoard(nextUsed, kw || '', 1);
-    if (aiBoard.length === 0) { finish('player'); return; }
+    if (aiBoard.length === 0) { finish('player', { playerPicks: nextPlayerPicks, used: nextUsed }); return; }
     setRound('ai');
   }
 

@@ -61,6 +61,21 @@ button { font-family: inherit; cursor: pointer; }
   50%      { transform: scale(1.08); }
 }
 
+@keyframes scroll-enter {
+  from { transform: scaleY(0.92) translateY(12px); opacity: 0; }
+  to   { transform: scaleY(1) translateY(0); opacity: 1; }
+}
+
+@keyframes dot-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40%           { transform: translateY(-6px); opacity: 1; }
+}
+
+@keyframes result-fade-scale {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
   </style>
 </head>
 <body>
@@ -10372,12 +10387,15 @@ function HashRouter({ children }) {
 }
 
 function matchPath(pattern, path) {
+  // Strip query string suffix before matching — otherwise /play?tab=combat
+  // fails to match ^/play$ and :kw captures "春?difficulty=qingdeng".
+  var cleanPath = String(path).split('?')[0];
   const paramNames = [];
   const regexStr = '^' + pattern.replace(/:([^/]+)/g, (_, name) => {
     paramNames.push(name);
     return '([^/]+)';
   }) + '$';
-  const m = new RegExp(regexStr).exec(path);
+  const m = new RegExp(regexStr).exec(cleanPath);
   if (!m) return null;
   const params = {};
   paramNames.forEach((n, i) => { params[n] = decodeURIComponent(m[i + 1]); });
@@ -10432,6 +10450,38 @@ function Link({ to, children, state, onClick, ...rest }) {
     >{children}</a>
   );
 }
+
+// 给 mini-router 扩展 search params 访问，供 PlayHall tab 持久化
+var useSearchParams = function() {
+  var parseCurrent = function() {
+    var hash = window.location.hash || '#/';
+    var queryStr = '';
+    var qIdx = hash.indexOf('?');
+    if (qIdx >= 0) queryStr = hash.slice(qIdx + 1);
+    var sp = new URLSearchParams(queryStr);
+    var get = function(k) { return sp.get(k); };
+    var has = function(k) { return sp.has(k); };
+    var entries = function() { return sp.entries(); };
+    var setParam = function(next) {
+      var base = hash.split('?')[0];
+      var qs = next.toString();
+      var newHash = qs ? base + '?' + qs : base;
+      window.location.hash = newHash;
+    };
+    return { get: get, has: has, entries: entries, toString: function() { return sp.toString(); }, setParam: setParam };
+  };
+  var sp = parseCurrent();
+  var setSearchParams = function(next, options) {
+    var replace = options && options.replace;
+    var url = (next instanceof URLSearchParams) ? next : new URLSearchParams(next);
+    var base = (window.location.hash || '#/').split('?')[0];
+    var qs = url.toString();
+    var newHash = qs ? base + '?' + qs : base;
+    if (replace) window.location.replace(window.location.pathname + window.location.search + newHash);
+    else window.location.hash = newHash;
+  };
+  return [sp, setSearchParams];
+};
 // ---- end mini router ----
 
 
@@ -12207,6 +12257,16 @@ var STAGE_GOAL = 5;
 var STAGE_BLOOD = 3;
 var STAGE_TIMEBOX = 120;
 var INITIAL_PROGRESS = { unlockedIndex: 0, cleared: [], current: null };
+var DIFFICULTY_META = {
+  qingdeng: { label: '青灯', missRate: 0.30, thinkMs: 3000 },
+  mohe:     { label: '墨客', missRate: 0.10, thinkMs: 1500 },
+  shisheng: { label: '诗圣', missRate: 0.00, thinkMs: 800  },
+};
+var INITIAL_RECORD = {
+  qingdeng: { win: 0, lose: 0 },
+  mohe:     { win: 0, lose: 0 },
+  shisheng: { win: 0, lose: 0 },
+};
 
 
 // ===== play/keywords.ts =====
@@ -12422,6 +12482,89 @@ function clearCurrent() {
 }
 
 
+// ===== play/ai.ts =====
+var buildChoiceBoard = function(used, keyword, count) {
+  if (count === undefined) count = 4;
+  var pool = getVersesFor(keyword).filter(function(v) { return !used.has(v.line); });
+  var n = Math.min(count, pool.length);
+  if (n <= 0) return [];
+  var arr = pool.slice();
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+  return arr.slice(0, n);
+};
+
+var aiPickAnswer = function(keyword, used, difficulty) {
+  var pool = getVersesFor(keyword).filter(function(v) { return !used.has(v.line); });
+  if (pool.length === 0) return { picked: false };
+  var missRate = DIFFICULTY_META[difficulty].missRate;
+  if (Math.random() < missRate) return { picked: false };
+  var verse = pool[Math.floor(Math.random() * pool.length)];
+  return { picked: true, verse: verse };
+};
+
+var rollFirstTurn = function() {
+  return Math.random() < 0.5 ? 'player' : 'ai';
+};
+
+
+// ===== play/record.ts =====
+var STORAGE_KEY_RECORD = 'shiwen-feihua-record';
+
+var emptyBucket = function() { return { win: 0, lose: 0 }; };
+
+var normalizeRecord = function(parsed) {
+  var base = { qingdeng: emptyBucket(), mohe: emptyBucket(), shisheng: emptyBucket() };
+  if (parsed && typeof parsed === 'object') {
+    ['qingdeng','mohe','shisheng'].forEach(function(key){
+      var slot = parsed[key];
+      if (slot && typeof slot === 'object') {
+        var w = typeof slot.win === 'number' ? slot.win : 0;
+        var l = typeof slot.lose === 'number' ? slot.lose : 0;
+        base[key] = { win: w, lose: l };
+      }
+    });
+  }
+  return base;
+};
+
+var loadRecord = function() {
+  try {
+    var raw = window.localStorage.getItem(STORAGE_KEY_RECORD);
+    if (!raw) return normalizeRecord(null);
+    var parsed = JSON.parse(raw);
+    return normalizeRecord(parsed);
+  } catch(e) {
+    return normalizeRecord(null);
+  }
+};
+
+var saveRecord = function(r) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY_RECORD, JSON.stringify(r));
+  } catch(e) {}
+};
+
+var bumpRecord = function(difficulty, field) {
+  var r = loadRecord();
+  var slot = r[difficulty];
+  var next = {
+    qingdeng: { win: r.qingdeng.win, lose: r.qingdeng.lose },
+    mohe:     { win: r.mohe.win,     lose: r.mohe.lose },
+    shisheng: { win: r.shisheng.win, lose: r.shisheng.lose },
+  };
+  next[difficulty] = { win: slot.win, lose: slot.lose };
+  next[difficulty][field] = slot[field] + 1;
+  saveRecord(next);
+  return next;
+};
+
+var recordWin = function(difficulty) { return bumpRecord(difficulty, 'win'); };
+var recordLoss = function(difficulty) { return bumpRecord(difficulty, 'lose'); };
+
+
 // ===== components/KeywordSeal.tsx =====
 var SEAL_COLORS = {
   cleared: { bg: '#a8302a', border: '#7a1f15', text: '#f5ebd2', shadow: '0 2px 8px rgba(168,48,42,0.4)' },
@@ -12430,16 +12573,21 @@ var SEAL_COLORS = {
 };
 
 function KeywordSeal(props) {
-  const keyword = props.keyword;
-  const state = props.state;
-  const onClick = props.onClick;
-  const c = SEAL_COLORS[state];
-  const interactive = state !== 'locked';
-  return (
-    <button
-      onClick={interactive ? onClick : undefined}
-      disabled={!interactive}
-      style={{
+  var keyword = props.keyword;
+  var state = props.state;
+  var onClick = props.onClick;
+  var c = SEAL_COLORS[state];
+  var interactive = state !== 'locked';
+  return React.createElement('div', {
+    style: {
+      transform: state === 'current' ? 'rotate(-3deg)' : 'rotate(0)',
+      transition: 'transform 0.15s',
+    },
+  },
+    React.createElement('button', {
+      onClick: interactive ? onClick : undefined,
+      disabled: !interactive,
+      style: {
         width: 64,
         height: 64,
         background: c.bg,
@@ -12452,12 +12600,8 @@ function KeywordSeal(props) {
         cursor: interactive ? 'pointer' : 'default',
         boxShadow: c.shadow,
         animation: state === 'current' ? 'focal-pulse 2s ease-in-out infinite' : undefined,
-        transform: state === 'current' ? 'rotate(-3deg)' : 'none',
-        transition: 'transform 0.15s',
-      }}
-    >
-      {state === 'locked' ? '？' : keyword}
-    </button>
+      },
+    }, state === 'locked' ? '？' : keyword)
   );
 }
 
@@ -12466,7 +12610,8 @@ function KeywordSeal(props) {
 var PAPER_SCROLL_BG = 'rgba(245, 235, 210, 0.85)';
 
 function PaperScroll(props) {
-  const children = props.children;
+  var children = props.children;
+  var enter = props.enter === undefined ? true : props.enter;
   return (
     <div style={{
       maxWidth: 1100,
@@ -12475,6 +12620,8 @@ function PaperScroll(props) {
       borderRadius: 8,
       overflow: 'hidden',
       boxShadow: '0 4px 32px rgba(0, 0, 0, 0.25)',
+      animation: enter ? 'scroll-enter 0.6s ease-out' : undefined,
+      transformOrigin: 'top center',
     }}>
       <div style={{
         width: 10,
@@ -12497,6 +12644,416 @@ function PaperScroll(props) {
         boxShadow: 'inset 1px 0 0 rgba(0,0,0,0.3)',
       }} />
     </div>
+  );
+}
+
+
+// ===== components/AiSilhouette.tsx =====
+function AiSilhouette(props) {
+  var difficulty = props.difficulty;
+  var W = 80, H = 120;
+  if (difficulty === 'qingdeng') {
+    return React.createElement('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, 'aria-hidden': true },
+      React.createElement('g', { fill: '#1a1a2e', opacity: 0.85 },
+        React.createElement('circle', { cx: W/2, cy: 18, r: 10 }),
+        React.createElement('path', { d: 'M ' + (W/2 - 18) + ' ' + (H - 8) + ' L ' + (W/2 - 18) + ' 36 Q ' + W/2 + ' 28 ' + (W/2 + 18) + ' 36 L ' + (W/2 + 18) + ' ' + (H - 8) + ' Z' }),
+        React.createElement('line', { x1: W/2 - 16, y1: 50, x2: W/2 - 26, y2: 70, stroke: '#1a1a2e', strokeWidth: 2, opacity: 0.85 }),
+        React.createElement('circle', { cx: W/2 - 28, cy: 74, r: 6, opacity: 0.85 }),
+        React.createElement('circle', { cx: W/2 - 28, cy: 74, r: 3, fill: '#d4af6a' })
+      )
+    );
+  }
+  if (difficulty === 'mohe') {
+    return React.createElement('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, 'aria-hidden': true },
+      React.createElement('g', { fill: '#1a1a2e', opacity: 0.85 },
+        React.createElement('circle', { cx: 42, cy: 20, r: 10 }),
+        React.createElement('path', { d: 'M 26 ' + (H - 8) + ' L 26 36 Q 42 28 58 36 L 58 ' + (H - 8) + ' Z' }),
+        React.createElement('rect', { x: 48, y: 56, width: 26, height: 16, rx: 1 })
+      )
+    );
+  }
+  return React.createElement('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, 'aria-hidden': true },
+    React.createElement('g', { fill: '#1a1a2e', opacity: 0.85 },
+      React.createElement('circle', { cx: W/2, cy: 18, r: 10 }),
+      React.createElement('path', { d: 'M ' + (W/2 - 16) + ' ' + (H - 8) + ' L ' + (W/2 - 16) + ' 36 Q ' + W/2 + ' 28 ' + (W/2 + 16) + ' 36 L ' + (W/2 + 16) + ' ' + (H - 8) + ' Z' }),
+      React.createElement('line', { x1: W/2 + 14, y1: 42, x2: W/2 + 22, y2: 28, stroke: '#1a1a2e', strokeWidth: 2, opacity: 0.85 }),
+      React.createElement('circle', { cx: W/2 + 23, cy: 26, r: 4, fill: '#d4af6a' })
+    )
+  );
+}
+
+
+// ===== components/ChoiceBoard.tsx =====
+var LABELS_CHOICE = ['A','B','C','D'];
+
+function ChoiceBoard(props) {
+  var verses = props.verses;
+  var secondsLeft = props.secondsLeft;
+  var onSelect = props.onSelect;
+  var disabled = props.disabled === true;
+  return React.createElement('div', { style: { position: 'relative' } },
+    React.createElement('div', {
+      style: {
+        position: 'absolute', top: -8, right: 0,
+        color: secondsLeft <= 10 ? '#a8302a' : '#000',
+        fontFamily: fontFamilies.chinese, fontSize: 18, fontWeight: 700,
+      },
+    }, '⏱ ' + secondsLeft + 's'),
+    React.createElement('div', {
+      style: {
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 16,
+      },
+    },
+      LABELS_CHOICE.map(function(label, i) {
+        var v = verses[i];
+        if (!v) {
+          return React.createElement('div', {
+            key: label,
+            style: {
+              padding: 16,
+              border: '1px dashed rgba(139,115,85,0.3)',
+              borderRadius: 4, minHeight: 64,
+            },
+          });
+        }
+        return React.createElement('button', {
+          key: label,
+          onClick: function() { onSelect(v); },
+          disabled: disabled,
+          style: {
+            padding: 16,
+            background: disabled ? 'rgba(0,0,0,0.04)' : 'transparent',
+            border: '1px solid #8b7355', borderRadius: 4, color: '#000',
+            fontFamily: fontFamilies.chinese, fontSize: 16, textAlign: 'left',
+            cursor: disabled ? 'default' : 'pointer',
+            opacity: disabled ? 0.6 : 1,
+            transition: 'background 0.15s',
+          },
+        },
+          React.createElement('span', { style: { marginRight: 8, fontWeight: 700 } }, label + '.'),
+          v.line,
+          React.createElement('div', { style: { fontSize: 12, color: '#8b7355', marginTop: 4 } },
+            '《' + v.poemTitle + '》· ' + v.poetName
+          )
+        );
+      })
+    )
+  );
+}
+
+
+// ===== components/CombatResultModal.tsx =====
+function formatTimeCombat(sec) {
+  var m = Math.floor(sec / 60);
+  var s = sec % 60;
+  return (m < 10 ? '0' + m : '' + m) + ':' + (s < 10 ? '0' + s : '' + s);
+}
+
+function poemLinkCombat(v, label) {
+  return React.createElement(Link, {
+    key: v.poemId + '-' + v.line,
+    to: '/poem/' + v.poemId,
+    style: {
+      display: 'block', padding: '4px 0', color: '#000',
+      textDecoration: 'none', fontFamily: fontFamilies.chinese, fontSize: 14,
+    },
+  },
+    React.createElement('span', { style: { color: '#8b7355', marginRight: 8 } }, label),
+    v.line,
+    React.createElement('span', { style: { color: '#8b7355', fontSize: 12, marginLeft: 8 } },
+      '《' + v.poemTitle + '》· ' + v.poetName
+    )
+  );
+}
+
+var btnStyleCombat = {
+  padding: '8px 20px',
+  background: 'transparent', color: '#000',
+  border: '1px solid #000', borderRadius: 3,
+  fontFamily: fontFamilies.chinese, fontSize: 14, cursor: 'pointer',
+};
+
+function CombatResultModal(props) {
+  var r = props.result;
+  return React.createElement('div', {
+    style: { animation: 'result-fade-scale 0.4s ease-out', padding: 24 },
+  },
+    React.createElement('div', {
+      style: {
+        textAlign: 'center', fontFamily: fontFamilies.chinese,
+        fontSize: 48, letterSpacing: 12, marginBottom: 8, color: '#000',
+      },
+    }, r.winner === 'player' ? '你 胜' : 'AI 胜'),
+    React.createElement('div', {
+      style: {
+        textAlign: 'center', color: '#8b7355',
+        fontFamily: fontFamilies.chinese, fontSize: 14, marginBottom: 24,
+      },
+    }, '用时 ' + formatTimeCombat(r.elapsedSec) + ' · 关键字「' + r.keyword + '」'),
+
+    React.createElement('div', {
+      style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 },
+    },
+      React.createElement('div', null,
+        React.createElement('div', {
+          style: {
+            fontFamily: fontFamilies.chinese, fontSize: 16, color: '#000',
+            borderBottom: '1px solid #8b7355', paddingBottom: 6, marginBottom: 8,
+          },
+        }, '你的诗囊（' + r.playerPicks.length + '）'),
+        r.playerPicks.length === 0
+          ? React.createElement('div', { style: { color: '#8b7355', fontSize: 13, padding: '8px 0' } }, '（未答出）')
+          : r.playerPicks.map(function(v, i) { return poemLinkCombat(v, (i + 1) + '.'); })
+      ),
+      React.createElement('div', null,
+        React.createElement('div', {
+          style: {
+            fontFamily: fontFamilies.chinese, fontSize: 16, color: '#000',
+            borderBottom: '1px solid #8b7355', paddingBottom: 6, marginBottom: 8,
+          },
+        }, 'AI 诗囊（' + r.aiPicks.length + '）'),
+        r.aiPicks.length === 0
+          ? React.createElement('div', { style: { color: '#8b7355', fontSize: 13, padding: '8px 0' } }, '（未答出）')
+          : r.aiPicks.map(function(v, i) { return poemLinkCombat(v, (i + 1) + '.'); })
+      )
+    ),
+
+    React.createElement('div', { style: { marginBottom: 24 } },
+      React.createElement('div', {
+        style: {
+          fontFamily: fontFamilies.chinese, fontSize: 16, color: '#000',
+          borderBottom: '1px solid #8b7355', paddingBottom: 6, marginBottom: 8,
+        },
+      }, '未答出的诗句（' + r.unused.length + '）'),
+      r.unused.length === 0
+        ? React.createElement('div', { style: { color: '#8b7355', fontSize: 13, padding: '8px 0' } }, '（题库已尽）')
+        : r.unused.map(function(v, i) { return poemLinkCombat(v, (i + 1) + '.'); })
+    ),
+
+    React.createElement('div', { style: { display: 'flex', justifyContent: 'center', gap: 16 } },
+      React.createElement('button', { onClick: r.onPlayAgain, style: btnStyleCombat }, '再来一局'),
+      React.createElement('button', { onClick: r.onPickKeyword, style: btnStyleCombat }, '换关键字'),
+      React.createElement('button', { onClick: r.onPickKeyword, style: btnStyleCombat }, '返回大厅')
+    )
+  );
+}
+
+
+// ===== pages/AiPlay.tsx =====
+var TURN_SECONDS = 30;
+
+function isDifficulty(s) {
+  return s === 'qingdeng' || s === 'mohe' || s === 'shisheng';
+}
+
+function AiPlay() {
+  var params = useParams();
+  var search = useSearchParams();
+  var sp = search[0];
+  var navigate = useNavigate();
+  var kw = params.kw;
+  var diffParam = sp.get('difficulty');
+  var difficulty = isDifficulty(diffParam) ? diffParam : 'qingdeng';
+
+  var initialTurnRef = useRef(null);
+  if (initialTurnRef.current === null) initialTurnRef.current = rollFirstTurn();
+  var firstRound = initialTurnRef.current;
+
+  var roundState = useState(firstRound);
+  var round = roundState[0]; var setRound = roundState[1];
+  var playerPicksState = useState([]);
+  var playerPicks = playerPicksState[0]; var setPlayerPicks = playerPicksState[1];
+  var aiPicksState = useState([]);
+  var aiPicks = aiPicksState[0]; var setAiPicks = aiPicksState[1];
+  var usedState = useState(new Set());
+  var used = usedState[0]; var setUsed = usedState[1];
+  var boardState = useState(buildChoiceBoard(new Set(), kw || '', 4));
+  var board = boardState[0]; var setBoard = boardState[1];
+  var secState = useState(TURN_SECONDS);
+  var secondsLeft = secState[0]; var setSecondsLeft = secState[1];
+  var resultState = useState(null);
+  var result = resultState[0]; var setResult = resultState[1];
+  var startTimeRef = useRef(Date.now());
+
+  function finish(winner, snapshots) {
+    if (result) return;
+    var elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+    if (winner === 'player') recordWin(difficulty);
+    else recordLoss(difficulty);
+    var pp = (snapshots && snapshots.playerPicks) ? snapshots.playerPicks : playerPicks;
+    var ap = (snapshots && snapshots.aiPicks) ? snapshots.aiPicks : aiPicks;
+    var usedSet = (snapshots && snapshots.used) ? snapshots.used : used;
+    var allUnused = getVersesFor(kw || '').filter(function(v) { return !usedSet.has(v.line); });
+    setResult({
+      winner: winner,
+      elapsedSec: elapsed,
+      playerPicks: pp,
+      aiPicks: ap,
+      unused: allUnused,
+      keyword: kw || '',
+      onPlayAgain: function() { navigate('/play/ai/' + kw + '?difficulty=' + difficulty, { replace: true }); },
+      onPickKeyword: function() { navigate('/play?tab=combat'); },
+    });
+  }
+
+  // 玩家回合倒计时
+  useEffect(function() {
+    if (result || round !== 'player') return;
+    if (secondsLeft <= 0) { finish('ai'); return; }
+    var t = setTimeout(function() { setSecondsLeft(function(s) { return s - 1; }); }, 1000);
+    return function() { clearTimeout(t); };
+  }, [secondsLeft, round, result]);
+
+  // AI 回合
+  useEffect(function() {
+    if (result || round !== 'ai' || !kw) return;
+    var meta = DIFFICULTY_META[difficulty];
+    var t = setTimeout(function() {
+      var pick = aiPickAnswer(kw, used, difficulty);
+      if (!pick.picked) { finish('player'); return; }
+      var nextAiPicks = aiPicks.concat([pick.verse]);
+      setAiPicks(nextAiPicks);
+      var nextUsed = new Set(used);
+      nextUsed.add(pick.verse.line);
+      setUsed(nextUsed);
+      var nextBoard = buildChoiceBoard(nextUsed, kw, 4);
+      if (nextBoard.length === 0) { finish('player', { aiPicks: nextAiPicks, used: nextUsed }); return; }
+      setBoard(nextBoard);
+      setSecondsLeft(TURN_SECONDS);
+      setRound('player');
+    }, meta.thinkMs);
+    return function() { clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [round]);
+
+  // 玩家回合进入时建题板
+  useEffect(function() {
+    if (round !== 'player' || result || !kw) return;
+    if (board.length === 0) {
+      var b = buildChoiceBoard(used, kw, 4);
+      if (b.length === 0) { finish('ai'); return; }
+      setBoard(b);
+      setSecondsLeft(TURN_SECONDS);
+    }
+  }, [round, result, kw]);
+
+  function onSelect(v) {
+    if (result || round !== 'player') return;
+    var nextPlayerPicks = playerPicks.concat([v]);
+    setPlayerPicks(nextPlayerPicks);
+    var nextUsed = new Set(used);
+    nextUsed.add(v.line);
+    setUsed(nextUsed);
+    var aiBoard = buildChoiceBoard(nextUsed, kw || '', 1);
+    if (aiBoard.length === 0) { finish('player', { playerPicks: nextPlayerPicks, used: nextUsed }); return; }
+    setRound('ai');
+  }
+
+  if (!kw) {
+    return React.createElement('div', { style: { padding: 40, color: colors.textPrimary } }, '关键字缺失');
+  }
+  var meta = DIFFICULTY_META[difficulty];
+
+  return React.createElement('div', { style: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column' } },
+    React.createElement(TopNav, { variant: 'main' }),
+    React.createElement('div', { style: { flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: '24px 28px' } },
+      React.createElement('div', { style: { marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        React.createElement('button', {
+          onClick: function() { navigate('/play?tab=combat'); },
+          style: {
+            background: 'transparent', border: 'none', color: colors.textTertiary,
+            fontSize: 14, fontFamily: fontFamilies.chinese, cursor: 'pointer',
+          },
+        }, '← 返回大厅'),
+        React.createElement('div', {
+          style: { color: colors.textTertiary, fontSize: 14, fontFamily: fontFamilies.chinese },
+        }, round === 'player' ? '你的回合' : 'AI 思考中…')
+      ),
+
+      React.createElement(PaperScroll, null,
+        React.createElement('div', { style: { textAlign: 'center', marginBottom: 24 } },
+          React.createElement('div', {
+            style: {
+              fontFamily: fontFamilies.chinese, color: '#000',
+              fontSize: 80, fontWeight: 700, lineHeight: 1, marginBottom: 8,
+            },
+          }, kw)
+        ),
+
+        React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 } },
+          // 左
+          React.createElement('div', null,
+            React.createElement('div', {
+              style: {
+                fontFamily: fontFamilies.chinese, color: '#000', fontSize: 16,
+                borderBottom: '1px solid #8b7355', paddingBottom: 6, marginBottom: 8,
+              },
+            }, '你的诗囊（' + playerPicks.length + '）'),
+            playerPicks.length === 0
+              ? React.createElement('div', { style: { color: '#8b7355', fontSize: 13 } }, '（尚未出招）')
+              : playerPicks.map(function(v, i) {
+                  return React.createElement('div', {
+                    key: v.poemId + '-' + i,
+                    style: { color: '#000', fontSize: 14, padding: '4px 0', fontFamily: fontFamilies.chinese },
+                  }, (i + 1) + '. ' + v.line);
+                })
+          ),
+          // 右
+          React.createElement('div', null,
+            React.createElement('div', {
+              style: {
+                fontFamily: fontFamilies.chinese, color: '#000', fontSize: 16,
+                borderBottom: '1px solid #8b7355', paddingBottom: 6, marginBottom: 8,
+                display: 'flex', alignItems: 'center', gap: 12,
+              },
+            },
+              React.createElement(AiSilhouette, { difficulty: difficulty }),
+              React.createElement('div', null,
+                React.createElement('div', null, meta.label),
+                React.createElement('div', {
+                  style: { fontSize: 12, color: '#8b7355' },
+                }, Math.round(meta.missRate * 100) + '% 漏答 · ' + (meta.thinkMs / 1000).toFixed(1) + 's'),
+                round === 'ai' ? React.createElement('div', { style: { display: 'flex', gap: 4, marginTop: 4 } },
+                  [0, 1, 2].map(function(i) {
+                    return React.createElement('span', {
+                      key: i,
+                      style: {
+                        width: 6, height: 6, borderRadius: '50%', background: '#000',
+                        display: 'inline-block',
+                        animation: 'dot-bounce 1.2s ease-in-out ' + (i * 0.2) + 's infinite',
+                      },
+                    });
+                  })
+                ) : null
+              )
+            ),
+            React.createElement('div', {
+              style: { fontFamily: fontFamilies.chinese, color: '#000', fontSize: 14, paddingTop: 8 },
+            }, 'AI 诗囊（' + aiPicks.length + '）'),
+            aiPicks.length === 0
+              ? React.createElement('div', { style: { color: '#8b7355', fontSize: 13 } }, '（AI 尚未出招）')
+              : aiPicks.map(function(v, i) {
+                  return React.createElement('div', {
+                    key: v.poemId + '-' + i,
+                    style: { color: '#000', fontSize: 14, padding: '4px 0', fontFamily: fontFamilies.chinese },
+                  }, (i + 1) + '. ' + v.line);
+                })
+          )
+        ),
+
+        result
+          ? React.createElement(CombatResultModal, { result: result })
+          : (round === 'player'
+              ? React.createElement(ChoiceBoard, {
+                  verses: board,
+                  secondsLeft: secondsLeft,
+                  onSelect: onSelect,
+                })
+              : React.createElement('div', {
+                  style: { textAlign: 'center', color: '#8b7355', fontFamily: fontFamilies.chinese, padding: 32, fontSize: 14 },
+                }, '（AI 回合锁定中）'))
+      )
+    )
   );
 }
 
@@ -12575,11 +13132,32 @@ var GROUP_LABEL = {
   advanced: '高 阶',
 };
 
+var DIFFICULTY_ORDER = ['qingdeng', 'mohe', 'shisheng'];
+
+function PlayHall_isDifficulty(s) {
+  return s === 'qingdeng' || s === 'mohe' || s === 'shisheng';
+}
+
 function PlayHall() {
+  const searchPair = useSearchParams();
+  const searchParams = searchPair[0];
+  const setSearchParams = searchPair[1];
+  const rawTab = searchParams.get('tab');
+  const tab = rawTab === 'combat' ? 'combat' : 'stage';
+
+  const setTab = function(next) {
+    const sp = new URLSearchParams(searchParams.toString());
+    if (next === 'stage') sp.delete('tab');
+    else sp.set('tab', next);
+    setSearchParams(sp, { replace: true });
+  };
+
+  const navigate = useNavigate();
   const progress = loadProgress();
+  const record = loadRecord();
   const totalCleared = progress.cleared.length;
 
-  const stateOf = (kw, idx) => {
+  const stateOf = function(kw, idx) {
     if (progress.cleared.includes(kw)) return 'cleared';
     if (idx === progress.unlockedIndex) return 'current';
     return 'locked';
@@ -12588,80 +13166,259 @@ function PlayHall() {
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
-      <div
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          background: colors.bgGradient,
-          padding: '32px 28px 64px',
-        }}
-      >
+      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: '32px 28px 64px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 32 }}>
-            <div
-              style={{
-                fontFamily: fontFamilies.chinese,
-                color: colors.textPrimary,
-                fontSize: 32,
-                letterSpacing: 12,
-                marginBottom: 8,
-                textShadow: '0 0 16px rgba(216,224,240,0.6)',
-              }}
-            >
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{
+              fontFamily: fontFamilies.chinese, color: colors.textPrimary,
+              fontSize: 32, letterSpacing: 12, marginBottom: 8,
+              textShadow: '0 0 16px rgba(216,224,240,0.6)',
+            }}>
               飞 花 令
             </div>
-            <div
-              style={{
-                color: colors.textTertiary,
-                fontFamily: fontFamilies.chinese,
-                fontSize: 16,
-                letterSpacing: 4,
-              }}
-            >
+            <div style={{
+              color: colors.textTertiary, fontFamily: fontFamilies.chinese,
+              fontSize: 16, letterSpacing: 4,
+            }}>
               已通 {totalCleared} / 50 关
             </div>
           </div>
 
-          {['entry', 'mid', 'advanced'].map((group) => (
-            <div key={group} style={{ marginBottom: 36 }}>
-              <div
-                style={{
-                  color: colors.textTertiary,
-                  fontFamily: fontFamilies.chinese,
-                  fontSize: 14,
-                  letterSpacing: 6,
-                  marginBottom: 14,
-                  textAlign: 'center',
-                }}
-              >
-                {GROUP_LABEL[group]}
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(10, 64px)',
-                  gap: 12,
-                  justifyContent: 'center',
-                }}
-              >
-                {KEYWORD_GROUPS[group].map((kw) => {
-                  const globalIdx = KEYWORDS.indexOf(kw);
-                  const state = stateOf(kw, globalIdx);
-                  return (
-                    <Link
-                      key={kw}
-                      to={state === 'locked' ? '#' : '/play/stage/' + kw}
-                      style={{ textDecoration: 'none' }}
-                    >
-                      <KeywordSeal keyword={kw} state={state} />
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+          <div style={{
+            display: 'flex', justifyContent: 'center', gap: 24,
+            borderBottom: '1px solid rgba(216,224,240,0.15)',
+            marginBottom: 32,
+          }}>
+            <PlayHallTabButton label="闯关 · 飞花" active={tab === 'stage'} onClick={function() { setTab('stage'); }} />
+            <PlayHallTabButton label="对战 · AI"   active={tab === 'combat'} onClick={function() { setTab('combat'); }} />
+          </div>
+
+          {tab === 'stage'
+            ? <PlayHallStageTab />
+            : <PlayHallCombatTab progress={progress} record={record} navigate={navigate} stateOf={stateOf} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+function PlayHallTabButton(props) {
+  const label = props.label;
+  const active = props.active;
+  const onClick = props.onClick;
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: 'transparent',
+        border: 'none',
+        padding: '12px 8px',
+        marginBottom: -1,
+        fontFamily: fontFamilies.chinese,
+        fontSize: 18,
+        letterSpacing: 4,
+        color: active ? colors.textPrimary : colors.textTertiary,
+        borderBottom: active ? '2px solid #d4af6a' : '2px solid transparent',
+        cursor: 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function PlayHallStageTab() {
+  const progress = loadProgress();
+  const totalCleared = progress.cleared.length;
+  const stateOf = function(kw, idx) {
+    if (progress.cleared.includes(kw)) return 'cleared';
+    if (idx === progress.unlockedIndex) return 'current';
+    return 'locked';
+  };
+  return (
+    <>
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div style={{
+          color: colors.textTertiary, fontFamily: fontFamilies.chinese,
+          fontSize: 13, letterSpacing: 4,
+        }}>
+          已通 {totalCleared} / 50 关 · 按三档递进解锁
+        </div>
+      </div>
+      {['entry', 'mid', 'advanced'].map(function(group) {
+        return (
+          <div key={group} style={{ marginBottom: 36 }}>
+            <div style={{
+              color: colors.textTertiary, fontFamily: fontFamilies.chinese,
+              fontSize: 14, letterSpacing: 6, marginBottom: 14, textAlign: 'center',
+            }}>
+              {GROUP_LABEL[group]}
+            </div>
+            <div style={{
+              display: 'grid', gridTemplateColumns: 'repeat(10, 64px)',
+              gap: 12, justifyContent: 'center',
+            }}>
+              {KEYWORD_GROUPS[group].map(function(kw) {
+                const globalIdx = KEYWORDS.indexOf(kw);
+                const state = stateOf(kw, globalIdx);
+                return (
+                  <Link key={kw} to={state === 'locked' ? '#' : '/play/stage/' + kw}
+                    style={{ textDecoration: 'none' }}>
+                    <KeywordSeal keyword={kw} state={state} />
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function PlayHallCombatTab(props) {
+  const progress = props.progress;
+  const record = props.record;
+  const navigate = props.navigate;
+  const stateOf = props.stateOf;
+  const allKeywords = useMemo(function() {
+    const set = new Set(FREE_KEYWORDS);
+    for (const k of progress.cleared) set.add(k);
+    return Array.from(set);
+  }, [progress.cleared]);
+
+  const defaultKw = allKeywords.length > 0 ? allKeywords[0] : FREE_KEYWORDS[0];
+  const [selectedKw, setSelectedKw] = useState(defaultKw);
+  const [selectedDiff, setSelectedDiff] = useState('qingdeng');
+
+  const canStart = PlayHall_isDifficulty(selectedDiff) && allKeywords.indexOf(selectedKw) >= 0;
+
+  return (
+    <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      <PlayHallSectionTitle>关键字选择</PlayHallSectionTitle>
+      <PlayHallSubLabel>自由字（任何时候可玩）</PlayHallSubLabel>
+      <PlayHallKeywordRow keywords={FREE_KEYWORDS.slice()} selected={selectedKw} onSelect={setSelectedKw} clearedSet={progress.cleared} />
+
+      <PlayHallSubLabel>已通关关键字（通关解锁）</PlayHallSubLabel>
+      {progress.cleared.length === 0 ? (
+        <div style={{ textAlign: 'center', color: colors.textDim, fontFamily: fontFamilies.chinese, fontSize: 13, padding: '12px 0' }}>
+          尚无通关关键字
+        </div>
+      ) : (
+        <PlayHallKeywordRow keywords={progress.cleared} selected={selectedKw} onSelect={setSelectedKw} clearedSet={progress.cleared} />
+      )}
+
+      <PlayHallSectionTitle>AI 难度</PlayHallSectionTitle>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+        {DIFFICULTY_ORDER.map(function(d) {
+          const meta = DIFFICULTY_META[d];
+          const active = selectedDiff === d;
+          const stat = record[d];
+          return (
+            <button
+              key={d}
+              onClick={function() { setSelectedDiff(d); }}
+              style={{
+                padding: 16,
+                background: active ? 'rgba(212,175,106,0.15)' : 'rgba(216,224,240,0.04)',
+                border: '1px solid ' + (active ? '#d4af6a' : 'rgba(216,224,240,0.15)'),
+                borderRadius: 4,
+                color: active ? colors.textPrimary : colors.textSecondary,
+                fontFamily: fontFamilies.chinese,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              <div style={{ fontSize: 20, letterSpacing: 4, marginBottom: 6 }}>{meta.label}</div>
+              <div style={{ fontSize: 12, color: colors.textTertiary }}>
+                漏答 {Math.round(meta.missRate * 100)}% · {(meta.thinkMs / 1000).toFixed(1)}s
+              </div>
+              <div style={{ fontSize: 11, color: colors.textDim, marginTop: 6 }}>
+                战绩 {stat.win}胜 / {stat.lose}负
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ textAlign: 'center' }}>
+        <button
+          disabled={!canStart}
+          onClick={function() { navigate('/play/ai/' + selectedKw + '?difficulty=' + selectedDiff); }}
+          style={{
+            padding: '12px 48px',
+            background: canStart ? 'transparent' : 'rgba(0,0,0,0.2)',
+            color: canStart ? colors.textPrimary : colors.textDim,
+            border: '1px solid ' + (canStart ? '#d4af6a' : 'rgba(216,224,240,0.1)'),
+            borderRadius: 4,
+            fontFamily: fontFamilies.chinese,
+            fontSize: 18,
+            letterSpacing: 8,
+            cursor: canStart ? 'pointer' : 'not-allowed',
+          }}
+        >
+          开 战
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PlayHallSectionTitle(props) {
+  return (
+    <div style={{
+      textAlign: 'center', color: colors.textTertiary,
+      fontFamily: fontFamilies.chinese, fontSize: 14,
+      letterSpacing: 6, marginTop: 32, marginBottom: 12,
+    }}>
+      {props.children}
+    </div>
+  );
+}
+
+function PlayHallSubLabel(props) {
+  return (
+    <div style={{
+      color: colors.textDim, fontFamily: fontFamilies.chinese,
+      fontSize: 12, letterSpacing: 3, marginBottom: 8,
+    }}>
+      {props.children}
+    </div>
+  );
+}
+
+function PlayHallKeywordRow(props) {
+  const keywords = props.keywords;
+  const selected = props.selected;
+  const onSelect = props.onSelect;
+  const clearedSet = props.clearedSet;
+  const cleared = clearedSet instanceof Set ? clearedSet : new Set(clearedSet);
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16,
+    }}>
+      {keywords.map(function(kw) {
+        const active = selected === kw;
+        const isCleared = cleared.has(kw);
+        return (
+          <button
+            key={kw}
+            onClick={function() { onSelect(kw); }}
+            style={{
+              width: 48, height: 48,
+              background: active ? 'rgba(212,175,106,0.2)' : isCleared ? '#a8302a' : 'transparent',
+              border: '1px solid ' + (active ? '#d4af6a' : isCleared ? '#7a1f15' : '#d4af6a'),
+              borderRadius: 4,
+              color: active ? colors.textPrimary : isCleared ? '#f5ebd2' : colors.textSecondary,
+              fontFamily: fontFamilies.chinese,
+              fontSize: 22, fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            {kw}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -12966,6 +13723,7 @@ function App() {
         <Route path="/poem/:poemId" element={<PoemPage />} />
         <Route path="/play" element={<PlayHall />} />
         <Route path="/play/stage/:kw" element={<StagePlay />} />
+        <Route path="/play/ai/:kw" element={<AiPlay />} />
       </Routes>
     </HashRouter>
   );

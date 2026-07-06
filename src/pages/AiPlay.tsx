@@ -65,14 +65,15 @@ export function AiPlay() {
         finish('player');
         return;
       }
-      setAiPicks((prev) => [...prev, pick.verse!]);
+      const nextAiPicks = [...aiPicks, pick.verse!];
+      setAiPicks(nextAiPicks);
       const nextUsed = new Set(used);
       nextUsed.add(pick.verse!.line);
       setUsed(nextUsed);
       // 移交玩家回合
       const nextBoard = buildChoiceBoard(nextUsed, kw, 4);
       if (nextBoard.length === 0) {
-        finish('player');
+        finish('player', { aiPicks: nextAiPicks, used: nextUsed });
         return;
       }
       setBoard(nextBoard);
@@ -98,18 +99,25 @@ export function AiPlay() {
     }
   }, [round, result, kw]);
 
-  function finish(winner: 'player' | 'ai') {
+  function finish(
+    winner: 'player' | 'ai',
+    snapshots?: { playerPicks?: Verse[]; aiPicks?: Verse[]; used?: Set<string> },
+  ) {
     if (result) return;
     const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
     if (winner === 'player') recordWin(difficulty);
     else recordLoss(difficulty);
 
-    const allUnused = getVersesFor(kw ?? '').filter((v) => !used.has(v.line));
+    const pp = snapshots?.playerPicks ?? playerPicks;
+    const ap = snapshots?.aiPicks ?? aiPicks;
+    const usedSet = snapshots?.used ?? used;
+
+    const allUnused = getVersesFor(kw ?? '').filter((v) => !usedSet.has(v.line));
     setResult({
       winner,
       elapsedSec: elapsed,
-      playerPicks,
-      aiPicks,
+      playerPicks: pp,
+      aiPicks: ap,
       unused: allUnused,
       keyword: kw ?? '',
       onPlayAgain: () => navigate(`/play/ai/${kw}?difficulty=${difficulty}`, { replace: true }),
@@ -119,14 +127,15 @@ export function AiPlay() {
 
   const onSelect = (v: Verse) => {
     if (result || round !== 'player') return;
-    setPlayerPicks((prev) => [...prev, v]);
+    const nextPlayerPicks = [...playerPicks, v];
+    setPlayerPicks(nextPlayerPicks);
     const nextUsed = new Set(used);
     nextUsed.add(v.line);
     setUsed(nextUsed);
     // AI 回合前置检查：题库空就判 AI 负
     const aiBoard = buildChoiceBoard(nextUsed, kw ?? '', 1);
     if (aiBoard.length === 0) {
-      finish('player');
+      finish('player', { playerPicks: nextPlayerPicks, used: nextUsed });
       return;
     }
     setRound('ai');
