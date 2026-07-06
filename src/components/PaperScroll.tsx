@@ -4,11 +4,12 @@ const PAPER_BG = 'rgba(245, 235, 210, 0.85)';
 
 interface Props {
   children: ReactNode;
+  enter?: boolean;       // 默认 true：首次渲染卷轴展开动画
 }
 
 // 卷轴外框：左右木轴 + 双金线 + 暖米黄底。
-// 复用 PoemPage 的视觉语言，供 StagePlay / 后续页面共用。
-export function PaperScroll({ children }: Props) {
+// enter=true 时首次渲染带 scaleY + translateY + opacity 入场动画。
+export function PaperScroll({ children, enter = true }: Props) {
   return (
     <div style={{
       maxWidth: 1100,
@@ -17,6 +18,8 @@ export function PaperScroll({ children }: Props) {
       borderRadius: 8,
       overflow: 'hidden',
       boxShadow: '0 4px 32px rgba(0, 0, 0, 0.25)',
+      animation: enter ? 'scroll-enter 0.6s ease-out' : undefined,
+      transformOrigin: 'top center',
     }}>
       {/* 左木轴 */}
       <div style={{
@@ -31,7 +34,6 @@ export function PaperScroll({ children }: Props) {
         background: PAPER_BG,
         padding: '32px 40px',
       }}>
-        {/* 双金线：内 1px 暗金，外 1px 亮金，4px 间距 */}
         <div style={{ position: 'absolute', inset: 4, border: '1px solid #b08a4a', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', inset: 8, border: '1px solid #d4af6a', pointerEvents: 'none' }} />
         {children}
