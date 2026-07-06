@@ -2,7 +2,7 @@
 // 双栏对坐：左「你的诗囊」/ 右「AI 诗囊 + 剪影 + 难度」；底部 4 选 1 题板。
 // 30 秒倒计时，玩家超时判负；AI 按难度概率漏答，漏了判 AI 负。
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { TopNav } from '../components/TopNav';
 import { PaperScroll } from '../components/PaperScroll';
