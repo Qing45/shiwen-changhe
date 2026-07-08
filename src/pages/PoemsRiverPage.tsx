@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getPoets, getPoemCount } from '../data/load';
-import { layoutPoets } from '../utils/layout';
+import { getPoems, getPoets } from '../data/load';
+import { layoutAllPoems } from '../utils/layout';
 import { useRiverViewport } from '../hooks/useRiverViewport';
 import { useVisited } from '../hooks/useVisited';
 import { RiverBackground } from '../components/RiverBackground';
 import { TimeAxis } from '../components/TimeAxis';
 import { TopNav } from '../components/TopNav';
-import { colors, fontFamilies, fontSizes, poemCountToSize } from '../theme';
+import { colors, fontFamilies, fontSizes, contentLengthToSize } from '../theme';
 
-const RIVER_TICKS: { year: number; label?: string; pos: number }[] = (() => {
+const POEMS_RIVER_TICKS: { year: number; label?: string; pos: number }[] = (() => {
   const out: { year: number; label?: string; pos: number }[] = [];
   for (let y = 618; y <= 897; y += 30) {
     const isMajor = y % 30 === 0;
@@ -18,9 +18,14 @@ const RIVER_TICKS: { year: number; label?: string; pos: number }[] = (() => {
   return out;
 })();
 
-export function RiverPage() {
+function truncate(s: string, n: number): string {
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+export function PoemsRiverPage() {
+  const poems = getPoems();
   const poets = getPoets();
-  const positioned = layoutPoets(poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
+  const positioned = layoutAllPoems(poems, poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -36,30 +41,30 @@ export function RiverPage() {
           ...vp.containerProps.style,
         }}
       >
-        {/* Inner canvas is wider than viewport; wheel zooms, drag pans */}
         <div style={{
           position: 'relative', width: '600%', height: '100%',
           ...vp.canvasStyle,
         }}>
           <RiverBackground dragging={vp.dragging} />
-          {positioned.map(({ poet, x, y }, i) => {
-            const size = poemCountToSize(getPoemCount(poet.id));
-            const isFocal = poet.familiarity >= 4;
-            const isVisited = visited.has(poet.id);
+          {positioned.map(({ poem, x, y }, i) => {
+            const size = contentLengthToSize(poem.content.length);
+            const isFocal = poem.familiarity >= 5;
+            const isVisited = visited.has(poem.id);
             const floatDuration = 4 + (i % 3);
             const floatDelay = -((i % 7) * 0.5);
             const highlightCore = isVisited ? '#d8e0f0' : '#fff';
             return (
               <Link
-                key={poet.id}
-                to={`/poet/${poet.id}`}
+                key={poem.id}
+                to={`/poem/${poem.id}`}
+                state={{ from: '/poems' }}
                 onClickCapture={(e) => {
                   if (vp.dragMovedRef.current) {
                     e.preventDefault();
                     e.stopPropagation();
                   }
                 }}
-                onClick={() => markVisited(poet.id)}
+                onClick={() => markVisited(poem.id)}
                 style={{
                   position: 'absolute',
                   top: `calc(50% + ${y}%)`,
@@ -69,8 +74,8 @@ export function RiverPage() {
                 }}
               >
                 <div
-                  onMouseEnter={() => setHoverId(poet.id)}
-                  onMouseLeave={() => setHoverId((id) => (id === poet.id ? null : id))}
+                  onMouseEnter={() => setHoverId(poem.id)}
+                  onMouseLeave={() => setHoverId((id) => (id === poem.id ? null : id))}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     animation: `node-float ${floatDuration}s ease-in-out ${floatDelay}s infinite`,
@@ -81,12 +86,16 @@ export function RiverPage() {
                     <div style={{
                       color: isFocal ? '#fff' : colors.textPrimary,
                       fontFamily: fontFamilies.chinese,
-                      fontSize: isFocal ? fontSizes.nodeFocal : fontSizes.nodeDefault,
-                      textShadow: isFocal ? '0 0 14px rgba(216,224,240,0.8), 0 0 4px #fff' : '0 0 6px rgba(216,224,240,0.4)',
-                      marginBottom: 8,
+                      fontSize: isFocal ? fontSizes.nodeLarge : fontSizes.body,
+                      textShadow: isFocal ? '0 0 12px rgba(216,224,240,0.8)' : 'none',
+                      marginBottom: 6,
                       fontWeight: isFocal ? 600 : undefined,
-                      letterSpacing: isFocal ? 4 : undefined,
-                    }}>{poet.name}</div>
+                      letterSpacing: isFocal ? 2 : undefined,
+                      maxWidth: 120,
+                      lineHeight: 1.3,
+                      textAlign: 'center',
+                      whiteSpace: 'normal',
+                    }}>{poem.title}</div>
                     {isFocal && (
                       <div style={{
                         position: 'absolute', top: '100%', left: '15%', right: '15%',
@@ -101,8 +110,8 @@ export function RiverPage() {
                     background: `radial-gradient(circle, ${highlightCore} 0%, #d8e0f0 60%, transparent 100%)`,
                     border: '1px solid rgba(216,224,240,0.45)',
                     boxShadow: isFocal
-                      ? `0 0 ${size}px rgba(216,224,240,0.9), 0 0 6px #fff`
-                      : `0 0 ${size}px rgba(216,224,240,0.7)`,
+                      ? `0 0 ${size}px rgba(216,224,240,0.9), 0 0 4px #fff`
+                      : `0 0 ${size}px rgba(216,224,240,0.6)`,
                     animation: isFocal ? 'focal-pulse 3.2s ease-in-out infinite' : 'none',
                   }}>
                     <div style={{
@@ -111,7 +120,7 @@ export function RiverPage() {
                       background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.9) 0%, transparent 60%)',
                     }} />
                   </div>
-                  {hoverId === poet.id && (
+                  {hoverId === poem.id && (
                     <div style={{
                       position: 'absolute', bottom: '100%', left: '50%',
                       transform: 'translate(-50%, -12px)',
@@ -124,11 +133,7 @@ export function RiverPage() {
                       pointerEvents: 'none', zIndex: 10,
                       boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span>{poet.birthYear}—{poet.deathYear}</span>
-                        <span style={{ color: colors.textDim }}>·</span>
-                        <span style={{ color: colors.textSecondary }}>唐</span>
-                      </div>
+                      <div>{truncate(poem.content, 12)}</div>
                       <div style={{
                         position: 'absolute', bottom: -5, left: '50%',
                         transform: 'translateX(-50%) rotate(45deg)',
@@ -144,7 +149,7 @@ export function RiverPage() {
             );
           })}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-            <TimeAxis left="618 · 唐" right="907" ticks={RIVER_TICKS} />
+            <TimeAxis left="618 · 唐" right="907" ticks={POEMS_RIVER_TICKS} />
           </div>
         </div>
       </div>

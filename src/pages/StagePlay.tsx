@@ -4,7 +4,7 @@ import { TopNav } from '../components/TopNav';
 import { PaperScroll } from '../components/PaperScroll';
 import { NineGrid } from '../components/NineGrid';
 import { colors, fontFamilies } from '../theme';
-import { pickStageQuestion, buildNineGrid, validateStageInput } from '../play/engine';
+import { pickStageQuestion, buildNineGrid } from '../play/engine';
 import {
   beginStage,
   loadProgress,
@@ -16,9 +16,12 @@ import {
 import { STAGE_GOAL, STAGE_BLOOD, STAGE_TIMEBOX, type Verse } from '../play/types';
 import { KEYWORDS } from '../play/keywords';
 
+type CharStatus = 'correct' | 'wrong' | null;
+
 // 纸面配色（与 PoemPage 同源，仅本文件局部声明）
 const PAPER_TEXT = '#000000';
 const PAPER_TEXT_DIM = '#8b7355';
+const PAPER_RED = '#a8302a';
 
 const btnStyle: React.CSSProperties = {
   padding: '8px 20px',
@@ -45,8 +48,23 @@ export function StagePlay() {
     return beginStage(kw).current;
   });
 
+  // 从原文页返回时取出"已查看"的题面句，加进排除集，避免回到题面后又看到同一题
+  const [viewedLine] = useState<string | null>(() => {
+    if (!kw) return null;
+    const v = sessionStorage.getItem(`feihuaStageViewed:${kw}`);
+    if (v) {
+      sessionStorage.removeItem(`feihuaStageViewed:${kw}`);
+      return v;
+    }
+    return null;
+  });
+
   // 已答对句集合（用于 pickStageQuestion 排除）
-  const used = useMemo(() => new Set(stage?.correct ?? []), [stage]);
+  const used = useMemo(() => {
+    const s = new Set(stage?.correct ?? []);
+    if (viewedLine) s.add(viewedLine);
+    return s;
+  }, [stage, viewedLine]);
 
   // 当前题目（可变：答对后切换下一题）
   const [question, setQuestion] = useState<{ verse: Verse; blanks: number[] } | null>(() => {
@@ -58,7 +76,9 @@ export function StagePlay() {
   const [nineGrid, setNineGrid] = useState(() =>
     question ? buildNineGrid(question.verse.line, question.blanks) : null
   );
-  const [filled, setFilled] = useState<string[]>([]);
+  // filled 与 charStatus 长度恒等于 blanks.length；未填位为 null
+  const [filled, setFilled] = useState<(string | null)[]>([]);
+  const [charStatus, setCharStatus] = useState<CharStatus[]>([]);
 
   // 倒计时与判定期 lock：grading 期间禁止输入与重复判定
   const [secondsLeft, setSecondsLeft] = useState(STAGE_TIMEBOX);
@@ -69,11 +89,12 @@ export function StagePlay() {
     null,
   );
 
-  // 当 question 改变时重置 nineGrid 与 filled
+  // 当 question 改变时重置 nineGrid、filled 与 charStatus
   useEffect(() => {
     if (question) {
       setNineGrid(buildNineGrid(question.verse.line, question.blanks));
-      setFilled([]);
+      setFilled(Array(question.blanks.length).fill(null));
+      setCharStatus(Array(question.blanks.length).fill(null));
     }
   }, [question]);
 
@@ -95,6 +116,25 @@ export function StagePlay() {
   const questionRef = useRef(question);
   questionRef.current = question;
 
+  // React Router v6 同一 element 间导航不重挂载组件，
+  // 通关跳到下一关键字时 useState 初始化函数不重跑。
+  // 这里手动按 kw 重置全部 state，guard 避免挂载时重复 pickStageQuestion 引入随机闪烁。
+  useEffect(() => {
+    if (!kw) return;
+    if (stageRef.current?.keyword === kw) return;
+    const progress = loadProgress();
+    const fresh =
+      progress.current && progress.current.keyword === kw
+        ? progress.current
+        : beginStage(kw).current;
+    setStage(fresh);
+    setQuestion(pickStageQuestion(kw, new Set(fresh?.correct ?? [])));
+    setResult(null);
+    setGrading(false);
+    setSecondsLeft(STAGE_TIMEBOX);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kw]);
+
   // 答对处理：记录、判定是否通关、否则切下一题
   const handleCorrect = () => {
     if (!kw || !questionRef.current || !stageRef.current) return;
@@ -107,7 +147,6 @@ export function StagePlay() {
 
     if (newCorrect.length >= STAGE_GOAL) {
       markCleared(kw);
-      setStage(loadProgress().current);
       setResult({ kind: 'cleared', correct: newCorrect });
       return;
     }
@@ -131,16 +170,57 @@ export function StagePlay() {
     setStage(loadProgress().current);
 
     if (newBlood <= 0) {
+      clearCurrent();
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
     // 1500ms 反馈，然后清空 filled、重置倒计时（不换题）
     setGrading(true);
     setTimeout(() => {
-      setFilled([]);
+      setFilled(Array(questionRef.current?.blanks.length ?? 0).fill(null));
+      setCharStatus([]);
       setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
     }, 1500);
+  };
+
+  // 部分对：扣 1 血，1500ms 后保留 correct 位置的字、清掉 wrong 位置的字
+  const handlePartialWrong = (status: ('correct' | 'wrong')[]) => {
+    if (!kw || !stageRef.current) return;
+    const cur = stageRef.current;
+    const newBlood = cur.blood - 1;
+
+    commitStageBlood(kw, newBlood);
+    setStage(loadProgress().current);
+
+    if (newBlood <= 0) {
+      clearCurrent();
+      setResult({ kind: 'failed', correct: cur.correct });
+      return;
+    }
+    setTimeout(() => {
+      setFilled((prev) => prev.map((c, i) => (status[i] === 'correct' ? c : null)));
+      setCharStatus([]);
+      setGrading(false);
+    }, 1500);
+  };
+
+  // 查看原文：扣 1 血后跳转原文页；返回时把题面句加进排除集换新题。
+  // blood <= 1 时禁用 —— 不允许玩家为了看原文而自杀。
+  const handleViewOriginal = () => {
+    if (!kw || !questionRef.current || !stageRef.current) return;
+    if (grading || result) return;
+    if (stageRef.current.blood <= 1) return;
+
+    const cur = stageRef.current;
+    const newBlood = cur.blood - 1;
+    const line = questionRef.current.verse.line;
+    const poemId = questionRef.current.verse.poemId;
+
+    commitStageBlood(kw, newBlood);
+    sessionStorage.setItem(`feihuaStageViewed:${kw}`, line);
+    setStage(loadProgress().current);
+    navigate(`/poem/${poemId}`, { state: { from: `/play/stage/${kw}` } });
   };
 
   // 倒计时：每秒 -1，归零视为答错（超时扣血）。
@@ -156,24 +236,45 @@ export function StagePlay() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secondsLeft, result]);
 
-  // 判定 effect：filled 填满后判定一次（grading flag 防止重复触发）
-  useEffect(() => {
-    if (grading) return;
-    if (!question || filled.length !== question.blanks.length) return;
-    const ok = validateStageInput(filled.join(''), question.verse.line, question.blanks);
-    if (ok) handleCorrect();
-    else handleWrong();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filled, question]);
+  const isFull = filled.length > 0 && filled.every((c) => c != null);
+
+  // 提交：逐字比对，全对走 handleCorrect，有错走 handlePartialWrong
+  const handleSubmit = () => {
+    if (grading || !question || !isFull) return;
+    const status: ('correct' | 'wrong')[] = question.blanks.map(
+      (pos, i) => (question.verse.line[pos] === filled[i] ? 'correct' : 'wrong'),
+    );
+    setCharStatus(status);
+    setGrading(true);
+    if (status.every((s) => s === 'correct')) {
+      handleCorrect();
+    } else {
+      handlePartialWrong(status);
+    }
+  };
 
   const handleChar = (c: string) => {
     if (grading) return;
-    if (filled.length >= (question?.blanks.length ?? 0)) return;
-    setFilled([...filled, c]);
+    const emptyIdx = filled.findIndex((v) => v == null);
+    if (emptyIdx === -1) return;
+    setFilled((prev) => {
+      const next = [...prev];
+      next[emptyIdx] = c;
+      return next;
+    });
   };
   const handleUndo = () => {
     if (grading) return;
-    setFilled(filled.slice(0, -1));
+    let lastIdx = -1;
+    for (let i = filled.length - 1; i >= 0; i--) {
+      if (filled[i] != null) { lastIdx = i; break; }
+    }
+    if (lastIdx === -1) return;
+    setFilled((prev) => {
+      const next = [...prev];
+      next[lastIdx] = null;
+      return next;
+    });
   };
 
   if (!kw || !stage) {
@@ -206,10 +307,30 @@ export function StagePlay() {
         </div>
 
         <PaperScroll>
-          {/* 头部：血量 + 倒计时 + 进度 */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
-            <div style={{ color: PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 2 }}>
-              {'❤'.repeat(stage.blood)}{'♡'.repeat(STAGE_BLOOD - stage.blood)}
+          {/* 头部：血量（下方带「查看原文」按钮）+ 倒计时 + 进度 */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+              <div style={{ color: PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 2 }}>
+                {'❤'.repeat(stage.blood)}{'♡'.repeat(STAGE_BLOOD - stage.blood)}
+              </div>
+              {question && (
+                <button
+                  onClick={handleViewOriginal}
+                  disabled={grading || result !== null || stage.blood <= 1}
+                  style={{
+                    padding: '6px 0',
+                    background: 'transparent',
+                    border: 'none',
+                    color: PAPER_RED,
+                    fontFamily: fontFamilies.chinese,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    letterSpacing: 3,
+                    cursor: grading || result !== null || stage.blood <= 1 ? 'default' : 'pointer',
+                    opacity: grading || result !== null || stage.blood <= 1 ? 0.4 : 1,
+                  }}
+                >查看原文 · 扣 1 血</button>
+              )}
             </div>
             <div style={{ color: PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 2 }}>
               ⏱ {secondsLeft}s
@@ -217,6 +338,20 @@ export function StagePlay() {
             <div style={{ color: PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 4 }}>
               {stage.correct.length} / {STAGE_GOAL}
             </div>
+            <button
+              onClick={() => navigate('/play')}
+              style={{
+                color: PAPER_TEXT,
+                fontFamily: fontFamilies.chinese,
+                fontSize: 14,
+                fontWeight: 700,
+                letterSpacing: 4,
+                padding: 0,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >退 出</button>
           </div>
 
           {/* 关键字大字 */}
@@ -256,6 +391,7 @@ export function StagePlay() {
               fontFamily: fontFamilies.chinese,
               fontSize: 14,
               letterSpacing: 2,
+              marginBottom: 16,
             }}>
               出自《{question.verse.poemTitle}》· {question.verse.poetName}
             </div>
@@ -268,61 +404,108 @@ export function StagePlay() {
                 chars={nineGrid.chars}
                 blankCount={nineGrid.blankCount}
                 filled={filled}
+                charStatus={charStatus}
                 onChar={handleChar}
                 onUndo={handleUndo}
               />
             )}
           </div>
 
+          {/* 提交按钮 */}
+          {nineGrid && (
+            <div style={{ marginTop: 24, textAlign: 'center' }}>
+              <button
+                onClick={handleSubmit}
+                disabled={!isFull || grading}
+                style={{
+                  ...btnStyle,
+                  padding: '10px 36px',
+                  fontSize: 16,
+                  fontWeight: 700,
+                  letterSpacing: 6,
+                  opacity: !isFull || grading ? 0.4 : 1,
+                  cursor: !isFull || grading ? 'default' : 'pointer',
+                }}
+              >提 交</button>
+            </div>
+          )}
+
           {/* 结果遮罩（通关 / 失败） */}
           {result && (
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'rgba(245,235,210,0.95)',
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              textAlign: 'center', padding: 40,
-            }}>
+            <>
+              <style>{`
+                @keyframes feihuaOverlayIn { from { opacity: 0 } to { opacity: 1 } }
+                @keyframes feihuaStampDrop {
+                  0%   { opacity: 0; transform: scale(0.4) rotate(-14deg); filter: blur(3px); }
+                  55%  { opacity: 1; transform: scale(1.2) rotate(5deg); filter: blur(0); }
+                  75%  { transform: scale(0.95) rotate(-2deg); }
+                  100% { transform: scale(1) rotate(0); }
+                }
+                @keyframes feihuaFadeUp {
+                  from { opacity: 0; transform: translateY(10px); }
+                  to   { opacity: 1; transform: translateY(0); }
+                }
+              `}</style>
               <div style={{
-                fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
-                fontSize: 48, letterSpacing: 12, marginBottom: 24,
-              }}>{result.kind === 'cleared' ? '通 关' : '失 败'}</div>
-              <div style={{
-                color: PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
-                fontSize: 16, marginBottom: 32,
+                position: 'absolute', inset: 0,
+                background: 'rgba(245,235,210,0.97)',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                textAlign: 'center', padding: 40,
+                animation: 'feihuaOverlayIn 260ms ease-out both',
               }}>
-                {result.kind === 'cleared'
-                  ? `已答出 ${result.correct.length} 句含「${kw}」的诗`
-                  : '血尽于此，下次再来'}
-              </div>
-              <div style={{ display: 'flex', gap: 16 }}>
-                <button
-                  onClick={() => {
-                    if (result.kind === 'failed') clearCurrent();
-                    navigate('/play');
-                  }}
-                  style={btnStyle}
-                >
-                  返回大厅
-                </button>
-                {result.kind === 'cleared' && !isLastKeyword && (
+                <div style={{
+                  fontFamily: fontFamilies.chinese,
+                  color: result.kind === 'cleared' ? PAPER_RED : PAPER_TEXT,
+                  fontSize: 64, letterSpacing: 16, marginBottom: 24,
+                  textShadow: result.kind === 'cleared'
+                    ? '0 0 32px rgba(168,48,42,0.35), 0 4px 12px rgba(0,0,0,0.08)'
+                    : 'none',
+                  animation: result.kind === 'cleared'
+                    ? 'feihuaStampDrop 650ms cubic-bezier(.34,1.56,.64,1) both'
+                    : 'feihuaFadeUp 500ms ease-out both',
+                }}>{result.kind === 'cleared' ? '通 关' : '失 败'}</div>
+                <div style={{
+                  color: PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
+                  fontSize: 16, marginBottom: 32,
+                  animation: 'feihuaFadeUp 400ms ease-out 240ms both',
+                }}>
+                  {result.kind === 'cleared'
+                    ? `已答出 ${result.correct.length} 句含「${kw}」的诗`
+                    : '血尽于此，下次再来'}
+                </div>
+                <div style={{
+                  display: 'flex', gap: 16,
+                  animation: 'feihuaFadeUp 400ms ease-out 420ms both',
+                }}>
                   <button
-                    onClick={() => navigate(`/play/stage/${KEYWORDS[kwIndex + 1]}`)}
+                    onClick={() => {
+                      if (result.kind === 'failed') clearCurrent();
+                      navigate('/play');
+                    }}
                     style={btnStyle}
                   >
-                    下一关
+                    返回大厅
                   </button>
-                )}
-                {result.kind === 'cleared' && isLastKeyword && (
-                  <div style={{
-                    color: PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
-                    fontSize: 14, alignSelf: 'center', letterSpacing: 4,
+                  {result.kind === 'cleared' && !isLastKeyword && (
+                    <button
+                      onClick={() => navigate(`/play/stage/${KEYWORDS[kwIndex + 1]}`)}
+                      style={btnStyle}
+                    >
+                      下一关
+                    </button>
+                  )}
+                  {result.kind === 'cleared' && isLastKeyword && (
+                    <div style={{
+                      color: PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
+                      fontSize: 14, alignSelf: 'center', letterSpacing: 4,
                   }}>
                     全 部 通 关
                   </div>
                 )}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </PaperScroll>
       </div>

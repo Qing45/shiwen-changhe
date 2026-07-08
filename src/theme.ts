@@ -18,7 +18,8 @@ export const fontSizes = {
   nodeLarge: 20,
   nodeFocal: 26,
   poemTitle: 26,
-  poemText: 18,
+  poemTextShort: 20,
+  poemTextLong: 17,
   sectionTitle: 16,
 } as const;
 
@@ -37,6 +38,14 @@ export function poemCountToSize(count: number): number {
   return Math.max(8, Math.min(24, 6 + Math.sqrt(count) * 3));
 }
 
+// Map a poem's content length (chars) to a node radius in px. Sqrt scaling so
+// a 1000-char poem isn't 40× a 25-char poem. Empirical distribution (320
+// poems): min 24, median 48, p75 72, p90 155, max 1029 — formula yields ~12
+// for min, ~14 median, ~16 p75, ~21 p90, capped 24 for the long ones.
+export function contentLengthToSize(len: number): number {
+  return Math.max(8, Math.min(24, 6 + Math.sqrt(len) * 1.2));
+}
+
 export const fontFamilies = {
-  chinese: "'KaiTi', 'STKaiti', serif",
+  chinese: "'KaiTi', 'STKaiti', 'STZhongsong', 'SimSun', serif",
 } as const;

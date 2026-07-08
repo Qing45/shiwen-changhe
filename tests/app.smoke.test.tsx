@@ -5,6 +5,7 @@ import { RiverPage } from '../src/pages/RiverPage';
 import { PoetPage } from '../src/pages/PoetPage';
 import { PoemPage } from '../src/pages/PoemPage';
 import { getPoets, getPoemsByPoet } from '../src/data/load';
+import { extractVariants, getPoemMode, splitIntoLines } from '../src/utils/poemText';
 
 function App() {
   return (
@@ -47,11 +48,10 @@ describe('app smoke', () => {
     const firstPoem = getPoemsByPoet(target.id)[0];
     fireEvent.click(screen.getByText(firstPoem.title));
 
-    // PoemPage renders the full poem content as a single pre-wrap text node,
-    // so getByText's default exact-match cannot match just the first clause.
-    // Use exact:false so testing-library matches the first clause (split on
-    // terminal punctuation) as a substring of the rendered content node.
-    const firstClause = firstPoem.content.split(/[。！？\n]/)[0];
-    expect(screen.getByText(firstClause, { exact: false })).toBeInTheDocument();
+    // PoemPage now splits the poem body into per-line <div>s via the same
+    // helpers the page uses. Match the first rendered line directly.
+    const { cleanText } = extractVariants(firstPoem.content);
+    const lines = splitIntoLines(cleanText, getPoemMode(cleanText));
+    expect(screen.getByText(lines[0])).toBeInTheDocument();
   });
 });

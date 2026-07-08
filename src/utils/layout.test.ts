@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computePercent, layoutPoets, layoutPoems } from './layout';
+import { computePercent, layoutPoets, layoutPoems, layoutAllPoems } from './layout';
 import type { Poet, Poem } from '../types';
 
 describe('computePercent', () => {
@@ -41,20 +41,21 @@ describe('layoutPoets', () => {
     expect(result.every((p) => p.y === 0)).toBe(true);
   });
 
-  it('spreads poets vertically when they share an X column', () => {
-    // All birthYear 700 → all in one column → must spread across [-35, +35]
+  it('scatters poets in 2D when they share an X column', () => {
+    // All birthYear 700 → all in one column → must scatter without overlap
     const clustered: Poet[] = [
       { id: 'a', name: 'A', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
       { id: 'b', name: 'B', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
       { id: 'c', name: 'C', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
     ];
     const result = layoutPoets(clustered, { minYear: 618, maxYear: 907, leftPadding: 5, rightPadding: 5 });
-    const ys = result.map((p) => p.y);
-    expect(ys[0]).toBeCloseTo(-35, 5);
-    expect(ys[1]).toBeCloseTo(0, 5);
-    expect(ys[2]).toBeCloseTo(35, 5);
-    // Same X column → all xs equal
-    expect(result.every((p) => p.x === result[0].x)).toBe(true);
+    // Every position must be unique (no overlap)
+    const keys = new Set(result.map((p) => `${p.x.toFixed(3)}|${p.y.toFixed(3)}`));
+    expect(keys.size).toBe(3);
+    // All within scatter bounds
+    result.forEach((p) => {
+      expect(Math.abs(p.y)).toBeLessThanOrEqual(40);
+    });
   });
 
   it('keeps single-poet columns on the center line', () => {
@@ -65,8 +66,8 @@ describe('layoutPoets', () => {
     expect(result[0].y).toBe(0);
   });
 
-  it('switches to organic scatter when a column exceeds PURE_Y_MAX', () => {
-    // 12 poets in one column — beyond PURE_Y_MAX (10), triggers scatter layout.
+  it('scatters a 12-poet column organically in 2D', () => {
+    // 12 poets in one column — scatter layout produces a 2D cloud.
     const cluster: Poet[] = Array.from({ length: 12 }, (_, i) => ({
       id: String(i), name: String(i), birthYear: 700, deathYear: 750, dynastyId: 'tang', familiarity: 1,
     }));
@@ -83,11 +84,12 @@ describe('layoutPoets', () => {
     expect(result2.map((p) => `${p.x.toFixed(3)}|${p.y.toFixed(3)}`)).toEqual(
       result.map((p) => `${p.x.toFixed(3)}|${p.y.toFixed(3)}`),
     );
-    // Cluster stays within ±X_JITTER_RANGE (6%) of the nominal X
+    // Cluster stays within the adaptive xRange of the nominal X. For n=12,
+    // xRange = sqrt(12) * 12 ≈ 41.6. Scatter uses SCATTER_Y_RANGE (40).
     const expectedNominal = 5 + (((700 - 618) / (907 - 618)) * 100) * 0.9;
     result.forEach((p) => {
-      expect(Math.abs(p.x - expectedNominal)).toBeLessThanOrEqual(6.5);
-      expect(Math.abs(p.y)).toBeLessThanOrEqual(35);
+      expect(Math.abs(p.x - expectedNominal)).toBeLessThanOrEqual(42);
+      expect(Math.abs(p.y)).toBeLessThanOrEqual(40);
     });
   });
 });
@@ -112,5 +114,59 @@ describe('layoutPoems', () => {
     ];
     const result = layoutPoems(poemsNoYear, poet, { leftPadding: 5, rightPadding: 5 });
     expect(result[0].x).toBeLessThan(result[1].x);
+  });
+});
+
+describe('layoutAllPoems', () => {
+  const poets: Poet[] = [
+    { id: 'pa', name: 'A', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
+    { id: 'pb', name: 'B', birthYear: 800, deathYear: 850, dynastyId: 'tang', familiarity: 1 },
+  ];
+  const poems: Poem[] = [
+    { id: '1', title: 'one', poetId: 'pa', content: '', annotations: [], familiarity: 1, creationYear: 720 },
+    { id: '2', title: 'two', poetId: 'pa', content: '', annotations: [], familiarity: 1, creationYear: 750 },
+    { id: '3', title: 'three', poetId: 'pb', content: '', annotations: [], familiarity: 1, creationYear: 830 },
+  ];
+  const range = { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 };
+
+  it('sorts poems by creationYear and computes X across dynasty range', () => {
+    const result = layoutAllPoems(poems, poets, range);
+    expect(result[0].poem.id).toBe('1');
+    expect(result[2].poem.id).toBe('3');
+    expect(result[0].x).toBeLessThan(result[2].x);
+    expect(result.every((p) => p.x >= 8 && p.x <= 92)).toBe(true);
+  });
+
+  it('falls back to poet.birthYear when poem has no creationYear', () => {
+    const noYear: Poem[] = [
+      { id: '1', title: 'one', poetId: 'pa', content: '', annotations: [], familiarity: 1 },
+      { id: '2', title: 'two', poetId: 'pb', content: '', annotations: [], familiarity: 1 },
+    ];
+    const result = layoutAllPoems(noYear, poets, range);
+    expect(result[0].poem.id).toBe('1');
+    expect(result[0].x).toBeLessThan(result[1].x);
+  });
+
+  it('does not mutate the input poems array', () => {
+    const before = JSON.stringify(poems);
+    layoutAllPoems(poems, poets, range);
+    expect(JSON.stringify(poems)).toBe(before);
+  });
+
+  it('keeps all scattered items within canvas bounds [0, 100]', () => {
+    // 62 poems at the same year — without bound-aware xRange reduction,
+    // scatter at nominalX 31% with xRange ±75 would land items at [-43, 106].
+    const clusterPoets: Poet[] = [
+      { id: 'p', name: 'P', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
+    ];
+    const clusterPoems: Poem[] = Array.from({ length: 62 }, (_, i) => ({
+      id: String(i), title: String(i), poetId: 'p', content: '', annotations: [], familiarity: 1, creationYear: 700,
+    }));
+    const result = layoutAllPoems(clusterPoems, clusterPoets, range);
+    expect(result.length).toBe(62);
+    result.forEach((p) => {
+      expect(p.x).toBeGreaterThanOrEqual(0);
+      expect(p.x).toBeLessThanOrEqual(100);
+    });
   });
 });
