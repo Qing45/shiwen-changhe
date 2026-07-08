@@ -6,6 +6,7 @@ import { PoemPage } from './pages/PoemPage';
 import { PlayHall } from './pages/PlayHall';
 import { StagePlay } from './pages/StagePlay';
 import { SentencePlay } from './pages/SentencePlay';
+import { UpdateToast } from './components/UpdateToast';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/play/stage/:kw" element={<StagePlay />} />
         <Route path="/play/sentence/:level" element={<SentencePlay />} />
       </Routes>
+      <UpdateToast />
     </BrowserRouter>
   );
 }

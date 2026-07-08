@@ -3714,6 +3714,12 @@ function StagePlay() {
 }
 `;
 
+// UpdateToast.tsx (no-op in standalone — service worker only runs in hosted builds)
+const updateToastCode = `
+// ===== UpdateToast.tsx (standalone: no service worker, no-op) =====
+function UpdateToast() { return null; }
+`;
+
 // App.tsx (BrowserRouter -> HashRouter)
 const appCode = `
 // ===== App.tsx =====
@@ -3729,6 +3735,7 @@ function App() {
         <Route path="/play/stage/:kw" element={<StagePlay />} />
         <Route path="/play/sentence/:level" element={<SentencePlay />} />
       </Routes>
+      <UpdateToast />
     </HashRouter>
   );
 }
@@ -3772,6 +3779,7 @@ ${nineGridCode}
 ${playHallCode}
 ${stagePlayCode}
 ${sentencePlayCode}
+${updateToastCode}
 ${appCode}
 `;
 
