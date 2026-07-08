@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { TopNav } from '../components/TopNav';
 import { PaperScroll } from '../components/PaperScroll';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 import { pickLevelQuestion, tierOfLevel, type SentenceQuestion } from '../play/couplets';
 import {
   beginSentenceStage,
@@ -229,11 +230,13 @@ export function SentencePlay() {
   }
 
   const isLastLevel = level >= TOTAL_LEVELS;
+  const bp = useBreakpoint();
+  const isMobile = bp === 'mobile';
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
-      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: '24px 28px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: isMobile ? '16px 12px' : '24px 28px' }}>
         <div style={{ marginBottom: 16 }}>
           <Link to="/play" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>
             ← 返回大厅
@@ -306,7 +309,7 @@ export function SentencePlay() {
               <div style={{
                 textAlign: 'center', padding: '24px 0 12px',
                 fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
-                fontSize: 28, letterSpacing: 6, lineHeight: 1.5,
+                fontSize: isMobile ? 22 : 28, letterSpacing: isMobile ? 3 : 6, lineHeight: 1.5,
               }}>
                 {question.upper.line}　？
               </div>
@@ -323,7 +326,7 @@ export function SentencePlay() {
 
               {/* 4 选 1 */}
               <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr',
+                display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
                 gap: 12, maxWidth: 560, margin: '0 auto',
               }}>
                 {question.options.map((opt, idx) => {

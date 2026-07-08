@@ -1,5 +1,6 @@
 // 飞花令关卡印章。三态：cleared / current / locked。
 // 修复：把 rotate 放到外层 div、pulse 放到内层 button，避免 transform 互相覆盖。
+// compact：移动端用更小的尺寸，50 关 10×5 在窄屏也能容下。
 import { fontFamilies } from '../theme';
 
 type SealState = 'cleared' | 'current' | 'locked';
@@ -8,6 +9,7 @@ interface Props {
   keyword: string;
   state: SealState;
   onClick?: () => void;
+  compact?: boolean;
 }
 
 const SEAL_COLORS: Record<SealState, { bg: string; border: string; text: string; shadow: string }> = {
@@ -16,9 +18,11 @@ const SEAL_COLORS: Record<SealState, { bg: string; border: string; text: string;
   locked:  { bg: 'rgba(216,224,240,0.08)', border: 'rgba(216,224,240,0.2)', text: 'rgba(216,224,240,0.3)', shadow: 'none' },
 };
 
-export function KeywordSeal({ keyword, state, onClick }: Props) {
+export function KeywordSeal({ keyword, state, onClick, compact }: Props) {
   const c = SEAL_COLORS[state];
   const interactive = state !== 'locked';
+  const size = compact ? 52 : 64;
+  const fontSize = compact ? 26 : 32;
   return (
     // 外层：承载 rotate（常驻），不影响内层缩放
     <div style={{
@@ -30,14 +34,14 @@ export function KeywordSeal({ keyword, state, onClick }: Props) {
         onClick={interactive ? onClick : undefined}
         disabled={!interactive}
         style={{
-          width: 64,
-          height: 64,
+          width: size,
+          height: size,
           background: c.bg,
           border: `2px solid ${c.border}`,
           borderRadius: 4,
           color: c.text,
           fontFamily: fontFamilies.chinese,
-          fontSize: 32,
+          fontSize,
           fontWeight: 700,
           cursor: interactive ? 'pointer' : 'default',
           boxShadow: c.shadow,

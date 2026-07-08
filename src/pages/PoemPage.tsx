@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { getPoem, getPoet, getNeighbors, getGlobalPoemNeighbors } from '../data/load';
 import { TopNav } from '../components/TopNav';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 import { colors, fontFamilies, fontSizes } from '../theme';
 import { extractVariants, getPoemMode, splitIntoLines } from '../utils/poemText';
 
@@ -84,6 +85,8 @@ export function PoemPage() {
   const titleFontSize = fontSizes.poemTitle + sizeOffset;
   const sectionTitleFontSize = fontSizes.sectionTitle + sizeOffset;
   const buttonFontSize = 13 + sizeOffset;
+  const bp = useBreakpoint();
+  const isMobile = bp === 'mobile';
 
   const hasAnnotations = poem.annotations.length > 0;
   const hasVariants = variants.length > 0;
@@ -114,7 +117,7 @@ export function PoemPage() {
         </div>
 
         {/* 纸张阅读面板（标题 + 正文 + 注释） — 卷轴形制：左右木轴 + 双金线 + 朱印 */}
-        <div style={{ padding: '0 32px 28px' }}>
+        <div style={{ padding: isMobile ? '0 12px 24px' : '0 32px 28px' }}>
           <div style={{
             maxWidth: 1400,
             margin: '0 auto',
@@ -134,7 +137,7 @@ export function PoemPage() {
               position: 'relative',
               flex: 1,
               background: PAPER_BG,
-              padding: '32px 40px',
+              padding: isMobile ? '20px 16px' : '32px 40px',
             }}>
               {/* 双金线（内 1px 暗金，外 1px 亮金，4px 间距） */}
               <div style={{ position: 'absolute', inset: 4, border: '1px solid #b08a4a', pointerEvents: 'none' }} />
@@ -203,8 +206,10 @@ export function PoemPage() {
             {/* 主体 grid */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: hasRightContent ? '60fr 40fr' : '1fr',
-              gap: 48,
+              gridTemplateColumns: isMobile
+                ? '1fr'
+                : (hasRightContent ? '60fr 40fr' : '1fr'),
+              gap: isMobile ? 24 : 48,
             }}>
               {/* 左：正文 */}
               <div style={{

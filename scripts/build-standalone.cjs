@@ -899,6 +899,32 @@ function useRiverViewport() {
 }
 `;
 
+// hooks/useBreakpoint.ts — mobile < 600, tablet 600-899, desktop >= 900.
+const useBreakpointCode = `
+// ===== hooks/useBreakpoint.ts =====
+const MOBILE_MAX = 599;
+const TABLET_MAX = 899;
+
+function computeBreakpoint(width) {
+  if (width <= MOBILE_MAX) return 'mobile';
+  if (width <= TABLET_MAX) return 'tablet';
+  return 'desktop';
+}
+
+function useBreakpoint() {
+  const [bp, setBp] = useState(function () {
+    if (typeof window === 'undefined') return 'desktop';
+    return computeBreakpoint(window.innerWidth);
+  });
+  useEffect(function () {
+    const onResize = function () { setBp(computeBreakpoint(window.innerWidth)); };
+    window.addEventListener('resize', onResize);
+    return function () { window.removeEventListener('resize', onResize); };
+  }, []);
+  return bp;
+}
+`;
+
 // components/TimeAxis.tsx
 const timeAxisCode = `
 // ===== components/TimeAxis.tsx =====
@@ -1097,21 +1123,25 @@ function highlight(text, query) {
 const topNavCode = `
 // ===== components/TopNav.tsx =====
 function TopNav(props) {
+  const bp = useBreakpoint();
+  const isMobile = bp === 'mobile';
   return (
     <div style={{
       background: 'linear-gradient(180deg, #020514 0%, #0a1228 100%)',
-      padding: '16px 28px',
+      padding: isMobile ? '12px 14px' : '16px 28px',
       borderBottom: '1px solid rgba(216,224,240,0.18)',
-      display: 'flex', alignItems: 'center', gap: 20,
+      display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 20,
     }}>
       {props.variant === 'main' && (
         <>
-          <div style={{
-            fontFamily: fontFamilies.chinese, color: colors.textPrimary,
-            fontSize: 22, letterSpacing: 6,
-            textShadow: '0 0 12px rgba(216,224,240,0.5)',
-          }}>诗文长河</div>
-          <RiverToggle />
+          {!isMobile && (
+            <div style={{
+              fontFamily: fontFamilies.chinese, color: colors.textPrimary,
+              fontSize: 22, letterSpacing: 6,
+              textShadow: '0 0 12px rgba(216,224,240,0.5)',
+            }}>诗文长河</div>
+          )}
+          <RiverToggle compact={isMobile} />
           <SearchBox />
           <DynastyLabel />
         </>
@@ -1122,7 +1152,7 @@ function TopNav(props) {
           <BackLink to="/" label="返回长河" />
           <div style={{
             fontFamily: fontFamilies.chinese, color: colors.textPrimary,
-            fontSize: 24, letterSpacing: 6,
+            fontSize: isMobile ? 18 : 24, letterSpacing: isMobile ? 3 : 6,
             textShadow: '0 0 14px rgba(216,224,240,0.6)',
           }}>{props.poet.name}</div>
           <div style={{
@@ -1147,12 +1177,15 @@ function TopNav(props) {
           />
           <div style={{
             fontFamily: fontFamilies.chinese, color: colors.textPrimary,
-            fontSize: 20, letterSpacing: 4,
+            fontSize: isMobile ? 16 : 20, letterSpacing: isMobile ? 2 : 4,
             textShadow: '0 0 10px rgba(216,224,240,0.5)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            maxWidth: isMobile ? '40vw' : undefined,
           }}>{props.poem.title}</div>
           <div style={{
             color: colors.textTertiary, fontFamily: fontFamilies.chinese,
             fontSize: fontSizes.meta, letterSpacing: 2,
+            display: isMobile ? 'none' : undefined,
           }}>{props.poem.creationYear != null
             ? \`\${props.poet.name} · \${props.poem.creationYear}\`
             : props.poet.name}</div>
@@ -1162,7 +1195,7 @@ function TopNav(props) {
   );
 }
 
-function RiverToggle() {
+function RiverToggle({ compact }) {
   const loc = useLocation();
   const btn = (to, label, count) => {
     const on = loc.pathname === to;
@@ -1172,18 +1205,19 @@ function RiverToggle() {
       <Link to={to} style={{
         color: on ? '#fff' : colors.textTertiary,
         fontFamily: fontFamilies.chinese,
-        fontSize: 16,
-        letterSpacing: 3,
-        padding: '6px 14px',
+        fontSize: compact ? 14 : 16,
+        letterSpacing: compact ? 1 : 3,
+        padding: compact ? '4px 8px' : '6px 14px',
         textDecoration: 'none',
         borderBottom: on ? '2px solid #fff' : '2px solid transparent',
         textShadow: on ? '0 0 10px rgba(216,224,240,0.6)' : 'none',
         boxShadow: on ? '0 2px 8px -2px rgba(212,175,106,0.55)' : 'none',
+        whiteSpace: 'nowrap',
       }}>{text}</Link>
     );
   };
   return (
-    <div style={{ display: 'flex', gap: 4 }}>
+    <div style={{ display: 'flex', gap: compact ? 0 : 4 }}>
       {btn('/', '诗人', getPoets().length)}
       {btn('/poems', '诗文', getPoems().length)}
       {btn('/play', '飞花令', 0)}
@@ -1212,7 +1246,7 @@ function DynastyLabel() {
 }
 
 function BackLink({ to, label }) {
-  return <Link to={to} style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>← {label}</Link>;
+  return <Link to={to} style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none', whiteSpace: 'nowrap' }}>← {label}</Link>;
 }
 `;
 
@@ -1234,6 +1268,9 @@ function RiverPage() {
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState(null);
+  const bp = useBreakpoint();
+  const scale = bp === 'mobile' ? 0.7 : bp === 'tablet' ? 0.85 : 1;
+  const nameScale = bp === 'mobile' ? 0.85 : 1;
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -1252,7 +1289,7 @@ function RiverPage() {
         }}>
           <RiverBackground dragging={vp.dragging} />
           {positioned.map(({ poet, x, y }, i) => {
-            const size = poemCountToSize(getPoemCount(poet.id));
+            const size = poemCountToSize(getPoemCount(poet.id)) * scale;
             const isFocal = poet.familiarity >= 4;
             const isVisited = visited.has(poet.id);
             const floatDuration = 4 + (i % 3);
@@ -1290,7 +1327,7 @@ function RiverPage() {
                     <div style={{
                       color: isFocal ? '#fff' : colors.textPrimary,
                       fontFamily: fontFamilies.chinese,
-                      fontSize: isFocal ? fontSizes.nodeFocal : fontSizes.nodeDefault,
+                      fontSize: (isFocal ? fontSizes.nodeFocal : fontSizes.nodeDefault) * nameScale,
                       textShadow: isFocal ? '0 0 14px rgba(216,224,240,0.8), 0 0 4px #fff' : '0 0 6px rgba(216,224,240,0.4)',
                       marginBottom: 8,
                       fontWeight: isFocal ? 600 : undefined,
@@ -1701,6 +1738,8 @@ function PoemPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const fromPath = location.state ? location.state.from : null;
+  const bp = useBreakpoint();
+  const isMobile = bp === 'mobile';
   const poem = poemId ? getPoem(poemId) : undefined;
   if (!poem) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>诗未找到</div>;
@@ -1783,7 +1822,7 @@ function PoemPage() {
           }} />
         </div>
 
-        <div style={{ padding: '0 32px 28px' }}>
+        <div style={{ padding: isMobile ? '0 12px 24px' : '0 32px 28px' }}>
           <div style={{
             maxWidth: 1400,
             margin: '0 auto',
@@ -1801,7 +1840,7 @@ function PoemPage() {
               position: 'relative',
               flex: 1,
               background: PAPER_BG,
-              padding: '32px 40px',
+              padding: isMobile ? '20px 16px' : '32px 40px',
             }}>
               <div style={{ position: 'absolute', inset: 4, border: '1px solid #b08a4a', pointerEvents: 'none' }} />
               <div style={{ position: 'absolute', inset: 8, border: '1px solid #d4af6a', pointerEvents: 'none' }} />
@@ -1864,8 +1903,10 @@ function PoemPage() {
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: hasRightContent ? '60fr 40fr' : '1fr',
-              gap: 48,
+              gridTemplateColumns: isMobile
+                ? '1fr'
+                : (hasRightContent ? '60fr 40fr' : '1fr'),
+              gap: isMobile ? 24 : 48,
             }}>
               <div style={{
                 fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
@@ -2454,8 +2495,11 @@ function KeywordSeal(props) {
   var keyword = props.keyword;
   var state = props.state;
   var onClick = props.onClick;
+  var compact = props.compact;
   var c = SEAL_COLORS[state];
   var interactive = state !== 'locked';
+  var size = compact ? 52 : 64;
+  var sealFontSize = compact ? 26 : 32;
   return React.createElement('div', {
     style: {
       transform: state === 'current' ? 'rotate(-3deg)' : 'rotate(0)',
@@ -2466,14 +2510,14 @@ function KeywordSeal(props) {
       onClick: interactive ? onClick : undefined,
       disabled: !interactive,
       style: {
-        width: 64,
-        height: 64,
+        width: size,
+        height: size,
         background: c.bg,
         border: '2px solid ' + c.border,
         borderRadius: 4,
         color: c.text,
         fontFamily: fontFamilies.chinese,
-        fontSize: 32,
+        fontSize: sealFontSize,
         fontWeight: 700,
         cursor: interactive ? 'pointer' : 'default',
         boxShadow: c.shadow,
@@ -2640,17 +2684,18 @@ function PlayHallModeTab(props) {
   var label = props.label;
   var active = props.active;
   var onClick = props.onClick;
+  var compact = props.compact;
   return (
     <button
       onClick={onClick}
       style={{
         background: 'transparent',
         border: 'none',
-        padding: '12px 8px',
+        padding: compact ? '10px 6px' : '12px 8px',
         marginBottom: -1,
         fontFamily: fontFamilies.chinese,
-        fontSize: 18,
-        letterSpacing: 4,
+        fontSize: compact ? 14 : 18,
+        letterSpacing: compact ? 2 : 4,
         color: active ? colors.textPrimary : colors.textTertiary,
         borderBottom: active ? '2px solid #d4af6a' : '2px solid transparent',
         cursor: 'pointer',
@@ -2661,6 +2706,7 @@ function PlayHallModeTab(props) {
 
 function CharModeBody(props) {
   var progress = props.progress;
+  var compact = props.compact;
   var stateOf = function(kw, idx) {
     if (progress.cleared.includes(kw)) return 'cleared';
     if (idx === progress.unlockedIndex) return 'current';
@@ -2670,7 +2716,7 @@ function CharModeBody(props) {
     <React.Fragment>
       {['entry', 'mid', 'advanced'].map(function(group) {
         return (
-          <div key={group} style={{ marginBottom: 36 }}>
+          <div key={group} style={{ marginBottom: compact ? 24 : 36 }}>
             <div style={{
               color: colors.textTertiary, fontFamily: fontFamilies.chinese,
               fontSize: 14, letterSpacing: 6, marginBottom: 14, textAlign: 'center',
@@ -2678,8 +2724,12 @@ function CharModeBody(props) {
               {GROUP_LABEL[group]}
             </div>
             <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(10, 64px)',
-              gap: 12, justifyContent: 'center',
+              display: 'grid',
+              gridTemplateColumns: compact
+                ? 'repeat(auto-fill, minmax(52px, 1fr))'
+                : 'repeat(10, 64px)',
+              gap: compact ? 8 : 12, justifyContent: 'center',
+              maxWidth: compact ? 360 : undefined, margin: compact ? '0 auto' : undefined,
             }}>
               {KEYWORD_GROUPS[group].map(function(kw) {
                 var globalIdx = KEYWORDS.indexOf(kw);
@@ -2687,7 +2737,7 @@ function CharModeBody(props) {
                 return (
                   <Link key={kw} to={state === 'locked' ? '#' : '/play/stage/' + kw}
                     style={{ textDecoration: 'none' }}>
-                    <KeywordSeal keyword={kw} state={state} />
+                    <KeywordSeal keyword={kw} state={state} compact={compact} />
                   </Link>
                 );
               })}
@@ -2701,6 +2751,7 @@ function CharModeBody(props) {
 
 function SentenceModeBody(props) {
   var progress = props.progress;
+  var compact = props.compact;
   var stateOf = function(level) {
     var key = String(level);
     if (progress.cleared.includes(key)) return 'cleared';
@@ -2715,7 +2766,7 @@ function SentenceModeBody(props) {
         var levels = [];
         for (var i = range[0]; i <= range[1]; i++) levels.push(i);
         return (
-          <div key={tier} style={{ marginBottom: 36 }}>
+          <div key={tier} style={{ marginBottom: compact ? 24 : 36 }}>
             <div style={{
               color: colors.textTertiary, fontFamily: fontFamilies.chinese,
               fontSize: 14, letterSpacing: 6, marginBottom: 14, textAlign: 'center',
@@ -2723,15 +2774,19 @@ function SentenceModeBody(props) {
               {GROUP_LABEL[tier]}
             </div>
             <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(10, 64px)',
-              gap: 12, justifyContent: 'center',
+              display: 'grid',
+              gridTemplateColumns: compact
+                ? 'repeat(auto-fill, minmax(52px, 1fr))'
+                : 'repeat(10, 64px)',
+              gap: compact ? 8 : 12, justifyContent: 'center',
+              maxWidth: compact ? 360 : undefined, margin: compact ? '0 auto' : undefined,
             }}>
               {levels.map(function(lv) {
                 var state = stateOf(lv);
                 return (
                   <Link key={lv} to={state === 'locked' ? '#' : '/play/sentence/' + lv}
                     style={{ textDecoration: 'none' }}>
-                    <KeywordSeal keyword={playHallToChineseNum(lv)} state={state} />
+                    <KeywordSeal keyword={playHallToChineseNum(lv)} state={state} compact={compact} />
                   </Link>
                 );
               })}
@@ -2745,6 +2800,8 @@ function SentenceModeBody(props) {
 
 function PlayHall() {
   const [mode, setMode] = useState('char');
+  const bp = useBreakpoint();
+  const isMobile = bp === 'mobile';
 
   var charProgress = loadProgress();
   var sentenceProgress = loadSentenceProgress();
@@ -2752,19 +2809,19 @@ function PlayHall() {
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
-      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: '32px 28px 64px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: isMobile ? '20px 14px 48px' : '32px 28px 64px' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ textAlign: 'center', marginBottom: isMobile ? 16 : 24 }}>
             <div style={{
               fontFamily: fontFamilies.chinese, color: colors.textPrimary,
-              fontSize: 32, letterSpacing: 12, marginBottom: 8,
+              fontSize: isMobile ? 24 : 32, letterSpacing: isMobile ? 6 : 12, marginBottom: 8,
               textShadow: '0 0 16px rgba(216,224,240,0.6)',
             }}>
               飞 花 令
             </div>
             <div style={{
               color: colors.textTertiary, fontFamily: fontFamilies.chinese,
-              fontSize: 16, letterSpacing: 4,
+              fontSize: isMobile ? 13 : 16, letterSpacing: isMobile ? 2 : 4,
             }}>
               {mode === 'char'
                 ? '单 字 · 拾 字 模 式 · 已通 ' + charProgress.cleared.length + ' / 50 关'
@@ -2773,17 +2830,17 @@ function PlayHall() {
           </div>
 
           <div style={{
-            display: 'flex', justifyContent: 'center', gap: 24,
+            display: 'flex', justifyContent: 'center', gap: isMobile ? 12 : 24,
             borderBottom: '1px solid rgba(216,224,240,0.15)',
-            marginBottom: 32,
+            marginBottom: isMobile ? 20 : 32,
           }}>
-            <PlayHallModeTab label="单字 · 拾字" active={mode === 'char'} onClick={function() { setMode('char'); }} />
-            <PlayHallModeTab label="整句 · 联句" active={mode === 'sentence'} onClick={function() { setMode('sentence'); }} />
+            <PlayHallModeTab label="单字 · 拾字" active={mode === 'char'} onClick={function() { setMode('char'); }} compact={isMobile} />
+            <PlayHallModeTab label="整句 · 联句" active={mode === 'sentence'} onClick={function() { setMode('sentence'); }} compact={isMobile} />
           </div>
 
           {mode === 'char'
-            ? <CharModeBody progress={charProgress} />
-            : <SentenceModeBody progress={sentenceProgress} />}
+            ? <CharModeBody progress={charProgress} compact={isMobile} />
+            : <SentenceModeBody progress={sentenceProgress} compact={isMobile} />}
         </div>
       </div>
     </div>
@@ -2983,11 +3040,13 @@ function SentencePlay() {
   }
 
   var isLastLevel = level >= SENTENCE_TOTAL_LEVELS;
+  const bp = useBreakpoint();
+  const isMobile = bp === 'mobile';
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
-      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: '24px 28px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: isMobile ? '16px 12px' : '24px 28px' }}>
         <div style={{ marginBottom: 16 }}>
           <Link to="/play" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>← 返回大厅</Link>
         </div>
@@ -3055,7 +3114,7 @@ function SentencePlay() {
               <div style={{
                 textAlign: 'center', padding: '24px 0 12px',
                 fontFamily: fontFamilies.chinese, color: SENTENCE_PAPER_TEXT,
-                fontSize: 28, letterSpacing: 6, lineHeight: 1.5,
+                fontSize: isMobile ? 22 : 28, letterSpacing: isMobile ? 3 : 6, lineHeight: 1.5,
               }}>{question.upper.line}　？</div>
               <div style={{
                 textAlign: 'center',
@@ -3067,7 +3126,7 @@ function SentencePlay() {
               }}>出自《{question.upper.poemTitle}》· {question.upper.poetName}</div>
 
               <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr',
+                display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
                 gap: 12, maxWidth: 560, margin: '0 auto',
               }}>
                 {question.options.map(function(opt, idx) {
@@ -3438,11 +3497,13 @@ function StagePlay() {
 
   const kwIndex = KEYWORDS.indexOf(kw);
   const isLastKeyword = kwIndex < 0 || kwIndex + 1 >= KEYWORDS.length;
+  const bp = useBreakpoint();
+  const isMobile = bp === 'mobile';
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
-      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: '24px 28px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: isMobile ? '16px 12px' : '24px 28px' }}>
         <div style={{ marginBottom: 16 }}>
           <Link
             to="/play"
@@ -3503,7 +3564,7 @@ function StagePlay() {
             <div style={{
               fontFamily: fontFamilies.chinese,
               color: FEIHUA_PAPER_TEXT,
-              fontSize: 120,
+              fontSize: isMobile ? 80 : 120,
               fontWeight: 700,
               lineHeight: 1,
               marginBottom: 8,
@@ -3521,8 +3582,8 @@ function StagePlay() {
             padding: '24px 0',
             fontFamily: fontFamilies.chinese,
             color: FEIHUA_PAPER_TEXT,
-            fontSize: 32,
-            letterSpacing: 6,
+            fontSize: isMobile ? 24 : 32,
+            letterSpacing: isMobile ? 3 : 6,
             lineHeight: 2,
           }}>
             {displayLine || '（题库已空）'}
@@ -3691,6 +3752,7 @@ ${poemTextCode}
 ${riverBgCode}
 ${useVisitedCode}
 ${viewportHookCode}
+${useBreakpointCode}
 ${timeAxisCode}
 ${searchBoxCode}
 ${topNavCode}

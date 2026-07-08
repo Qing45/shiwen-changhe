@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { TopNav } from '../components/TopNav';
 import { PaperScroll } from '../components/PaperScroll';
 import { NineGrid } from '../components/NineGrid';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 import { colors, fontFamilies } from '../theme';
 import { pickStageQuestion, buildNineGrid } from '../play/engine';
 import {
@@ -291,11 +292,13 @@ export function StagePlay() {
   // 末关判定：当前关已是 KEYWORDS 最后一关时不再显示「下一关」
   const kwIndex = KEYWORDS.indexOf(kw);
   const isLastKeyword = kwIndex < 0 || kwIndex + 1 >= KEYWORDS.length;
+  const bp = useBreakpoint();
+  const isMobile = bp === 'mobile';
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
-      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: '24px 28px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: isMobile ? '16px 12px' : '24px 28px' }}>
         {/* 返回大厅 */}
         <div style={{ marginBottom: 16 }}>
           <Link
@@ -359,7 +362,7 @@ export function StagePlay() {
             <div style={{
               fontFamily: fontFamilies.chinese,
               color: PAPER_TEXT,
-              fontSize: 120,
+              fontSize: isMobile ? 80 : 120,
               fontWeight: 700,
               lineHeight: 1,
               marginBottom: 8,
@@ -378,8 +381,8 @@ export function StagePlay() {
             padding: '24px 0',
             fontFamily: fontFamilies.chinese,
             color: PAPER_TEXT,
-            fontSize: 32,
-            letterSpacing: 6,
+            fontSize: isMobile ? 24 : 32,
+            letterSpacing: isMobile ? 3 : 6,
             lineHeight: 2,
           }}>
             {displayLine || '（题库已空）'}

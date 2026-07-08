@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { colors, fontFamilies, fontSizes } from '../theme';
 import { SearchBox } from './SearchBox';
 import { getPoets, getPoems } from '../data/load';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 import type { Poet, Poem } from '../types';
 
 interface BaseProps {
@@ -26,21 +27,26 @@ interface PoemVariantProps extends BaseProps {
 type Props = MainVariantProps | PoetVariantProps | PoemVariantProps;
 
 export function TopNav(props: Props) {
+  const bp = useBreakpoint();
+  const isMobile = bp === 'mobile';
+
   return (
     <div style={{
       background: 'linear-gradient(180deg, #020514 0%, #0a1228 100%)',
-      padding: '16px 28px',
+      padding: isMobile ? '12px 14px' : '16px 28px',
       borderBottom: '1px solid rgba(216,224,240,0.18)',
-      display: 'flex', alignItems: 'center', gap: 20,
+      display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 20,
     }}>
       {props.variant === 'main' && (
         <>
-          <div style={{
-            fontFamily: fontFamilies.chinese, color: colors.textPrimary,
-            fontSize: 22, letterSpacing: 6,
-            textShadow: '0 0 12px rgba(216,224,240,0.5)',
-          }}>诗文长河</div>
-          <RiverToggle />
+          {!isMobile && (
+            <div style={{
+              fontFamily: fontFamilies.chinese, color: colors.textPrimary,
+              fontSize: 22, letterSpacing: 6,
+              textShadow: '0 0 12px rgba(216,224,240,0.5)',
+            }}>诗文长河</div>
+          )}
+          <RiverToggle compact={isMobile} />
           <SearchBox />
           <DynastyLabel />
         </>
@@ -51,7 +57,7 @@ export function TopNav(props: Props) {
           <BackLink to="/" label="返回长河" />
           <div style={{
             fontFamily: fontFamilies.chinese, color: colors.textPrimary,
-            fontSize: 24, letterSpacing: 6,
+            fontSize: isMobile ? 18 : 24, letterSpacing: isMobile ? 3 : 6,
             textShadow: '0 0 14px rgba(216,224,240,0.6)',
           }}>{props.poet.name}</div>
           <div style={{
@@ -76,12 +82,15 @@ export function TopNav(props: Props) {
           />
           <div style={{
             fontFamily: fontFamilies.chinese, color: colors.textPrimary,
-            fontSize: 20, letterSpacing: 4,
+            fontSize: isMobile ? 16 : 20, letterSpacing: isMobile ? 2 : 4,
             textShadow: '0 0 10px rgba(216,224,240,0.5)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            maxWidth: isMobile ? '40vw' : undefined,
           }}>{props.poem.title}</div>
           <div style={{
             color: colors.textTertiary, fontFamily: fontFamilies.chinese,
             fontSize: fontSizes.meta, letterSpacing: 2,
+            display: isMobile ? 'none' : undefined,
           }}>{props.poem.creationYear != null
             ? `${props.poet.name} · ${props.poem.creationYear}`
             : props.poet.name}</div>
@@ -91,7 +100,7 @@ export function TopNav(props: Props) {
   );
 }
 
-function RiverToggle() {
+function RiverToggle({ compact }: { compact: boolean }) {
   const loc = useLocation();
   const btn = (to: string, label: string, count: number) => {
     const on = loc.pathname === to;
@@ -101,19 +110,20 @@ function RiverToggle() {
       <Link to={to} style={{
         color: on ? '#fff' : colors.textTertiary,
         fontFamily: fontFamilies.chinese,
-        fontSize: 16,
-        letterSpacing: 3,
-        padding: '6px 14px',
+        fontSize: compact ? 14 : 16,
+        letterSpacing: compact ? 1 : 3,
+        padding: compact ? '4px 8px' : '6px 14px',
         textDecoration: 'none',
         borderBottom: on ? '2px solid #fff' : '2px solid transparent',
         textShadow: on ? '0 0 10px rgba(216,224,240,0.6)' : 'none',
         boxShadow: on ? '0 2px 8px -2px rgba(212,175,106,0.55)' : 'none',
         transition: 'color 0.15s, border-color 0.15s, box-shadow 0.15s',
+        whiteSpace: 'nowrap',
       }}>{text}</Link>
     );
   };
   return (
-    <div style={{ display: 'flex', gap: 4 }}>
+    <div style={{ display: 'flex', gap: compact ? 0 : 4 }}>
       {btn('/', '诗人', getPoets().length)}
       {btn('/poems', '诗文', getPoems().length)}
       {btn('/play', '飞花令', 0)}
@@ -142,5 +152,5 @@ function DynastyLabel() {
 }
 
 function BackLink({ to, label }: { to: string; label: string }) {
-  return <Link to={to} style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>← {label}</Link>;
+  return <Link to={to} style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none', whiteSpace: 'nowrap' }}>← {label}</Link>;
 }

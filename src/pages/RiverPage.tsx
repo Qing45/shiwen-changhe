@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getPoets, getPoemCount } from '../data/load';
 import { layoutPoets } from '../utils/layout';
 import { useRiverViewport } from '../hooks/useRiverViewport';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 import { useVisited } from '../hooks/useVisited';
 import { RiverBackground } from '../components/RiverBackground';
 import { TimeAxis } from '../components/TimeAxis';
@@ -24,6 +25,10 @@ export function RiverPage() {
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const bp = useBreakpoint();
+  // 移动端节点整体缩小，字号收紧，避免互相重叠
+  const scale = bp === 'mobile' ? 0.7 : bp === 'tablet' ? 0.85 : 1;
+  const nameScale = bp === 'mobile' ? 0.85 : 1;
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -36,14 +41,14 @@ export function RiverPage() {
           ...vp.containerProps.style,
         }}
       >
-        {/* Inner canvas is wider than viewport; wheel zooms, drag pans */}
+        {/* Inner canvas is wider than viewport; wheel zooms, drag pans, pinch zooms */}
         <div style={{
           position: 'relative', width: '600%', height: '100%',
           ...vp.canvasStyle,
         }}>
           <RiverBackground dragging={vp.dragging} />
           {positioned.map(({ poet, x, y }, i) => {
-            const size = poemCountToSize(getPoemCount(poet.id));
+            const size = poemCountToSize(getPoemCount(poet.id)) * scale;
             const isFocal = poet.familiarity >= 4;
             const isVisited = visited.has(poet.id);
             const floatDuration = 4 + (i % 3);
@@ -81,7 +86,7 @@ export function RiverPage() {
                     <div style={{
                       color: isFocal ? '#fff' : colors.textPrimary,
                       fontFamily: fontFamilies.chinese,
-                      fontSize: isFocal ? fontSizes.nodeFocal : fontSizes.nodeDefault,
+                      fontSize: (isFocal ? fontSizes.nodeFocal : fontSizes.nodeDefault) * nameScale,
                       textShadow: isFocal ? '0 0 14px rgba(216,224,240,0.8), 0 0 4px #fff' : '0 0 6px rgba(216,224,240,0.4)',
                       marginBottom: 8,
                       fontWeight: isFocal ? 600 : undefined,
