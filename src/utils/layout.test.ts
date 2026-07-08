@@ -23,9 +23,9 @@ describe('computePercent', () => {
 
 describe('layoutPoets', () => {
   const poets: Poet[] = [
-    { id: 'a', name: 'A', birthYear: 618, deathYear: 700, dynastyId: 'tang', familiarity: 1 },
-    { id: 'b', name: 'B', birthYear: 700, deathYear: 770, dynastyId: 'tang', familiarity: 1 },
-    { id: 'c', name: 'C', birthYear: 907, deathYear: 950, dynastyId: 'tang', familiarity: 1 },
+    { id: 'a', name: 'A', birthYear: 618, deathYear: 700, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const },
+    { id: 'b', name: 'B', birthYear: 700, deathYear: 770, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const },
+    { id: 'c', name: 'C', birthYear: 907, deathYear: 950, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const },
   ];
 
   it('sorts by birthYear and computes x position', () => {
@@ -44,9 +44,9 @@ describe('layoutPoets', () => {
   it('scatters poets in 2D when they share an X column', () => {
     // All birthYear 700 → all in one column → must scatter without overlap
     const clustered: Poet[] = [
-      { id: 'a', name: 'A', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
-      { id: 'b', name: 'B', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
-      { id: 'c', name: 'C', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
+      { id: 'a', name: 'A', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const },
+      { id: 'b', name: 'B', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const },
+      { id: 'c', name: 'C', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const },
     ];
     const result = layoutPoets(clustered, { minYear: 618, maxYear: 907, leftPadding: 5, rightPadding: 5 });
     // Every position must be unique (no overlap)
@@ -60,7 +60,7 @@ describe('layoutPoets', () => {
 
   it('keeps single-poet columns on the center line', () => {
     const single: Poet[] = [
-      { id: 'solo', name: 'Solo', birthYear: 762, deathYear: 800, dynastyId: 'tang', familiarity: 1 },
+      { id: 'solo', name: 'Solo', birthYear: 762, deathYear: 800, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const },
     ];
     const result = layoutPoets(single, { minYear: 618, maxYear: 907, leftPadding: 5, rightPadding: 5 });
     expect(result[0].y).toBe(0);
@@ -69,7 +69,7 @@ describe('layoutPoets', () => {
   it('scatters a 12-poet column organically in 2D', () => {
     // 12 poets in one column — scatter layout produces a 2D cloud.
     const cluster: Poet[] = Array.from({ length: 12 }, (_, i) => ({
-      id: String(i), name: String(i), birthYear: 700, deathYear: 750, dynastyId: 'tang', familiarity: 1,
+      id: String(i), name: String(i), birthYear: 700, deathYear: 750, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const,
     }));
     const range = { minYear: 618, maxYear: 907, leftPadding: 5, rightPadding: 5 };
     const result = layoutPoets(cluster, range);
@@ -95,10 +95,10 @@ describe('layoutPoets', () => {
 });
 
 describe('layoutPoems', () => {
-  const poet: Poet = { id: 'p', name: 'P', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 };
+  const poet: Poet = { id: 'p', name: 'P', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const };
   const poems: Poem[] = [
-    { id: '1', title: 'one', poetId: 'p', content: '', annotations: [], familiarity: 1, creationYear: 710 },
-    { id: '2', title: 'two', poetId: 'p', content: '', annotations: [], familiarity: 1, creationYear: 750 },
+    { id: '1', title: 'one', poetId: 'p', content: '', annotations: [], familiarity: 1, creationYear: 710, corpus: 'tang' as const },
+    { id: '2', title: 'two', poetId: 'p', content: '', annotations: [], familiarity: 1, creationYear: 750, corpus: 'tang' as const },
   ];
 
   it('positions poems across the poet\'s lifetime', () => {
@@ -109,8 +109,8 @@ describe('layoutPoems', () => {
 
   it('handles undefined creationYear by spreading evenly across remaining slots', () => {
     const poemsNoYear: Poem[] = [
-      { id: '1', title: 'one', poetId: 'p', content: '', annotations: [], familiarity: 1 },
-      { id: '2', title: 'two', poetId: 'p', content: '', annotations: [], familiarity: 1 },
+      { id: '1', title: 'one', poetId: 'p', content: '', annotations: [], familiarity: 1, corpus: 'tang' as const },
+      { id: '2', title: 'two', poetId: 'p', content: '', annotations: [], familiarity: 1, corpus: 'tang' as const },
     ];
     const result = layoutPoems(poemsNoYear, poet, { leftPadding: 5, rightPadding: 5 });
     expect(result[0].x).toBeLessThan(result[1].x);
@@ -119,13 +119,13 @@ describe('layoutPoems', () => {
 
 describe('layoutAllPoems', () => {
   const poets: Poet[] = [
-    { id: 'pa', name: 'A', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
-    { id: 'pb', name: 'B', birthYear: 800, deathYear: 850, dynastyId: 'tang', familiarity: 1 },
+    { id: 'pa', name: 'A', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const },
+    { id: 'pb', name: 'B', birthYear: 800, deathYear: 850, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const },
   ];
   const poems: Poem[] = [
-    { id: '1', title: 'one', poetId: 'pa', content: '', annotations: [], familiarity: 1, creationYear: 720 },
-    { id: '2', title: 'two', poetId: 'pa', content: '', annotations: [], familiarity: 1, creationYear: 750 },
-    { id: '3', title: 'three', poetId: 'pb', content: '', annotations: [], familiarity: 1, creationYear: 830 },
+    { id: '1', title: 'one', poetId: 'pa', content: '', annotations: [], familiarity: 1, creationYear: 720, corpus: 'tang' as const },
+    { id: '2', title: 'two', poetId: 'pa', content: '', annotations: [], familiarity: 1, creationYear: 750, corpus: 'tang' as const },
+    { id: '3', title: 'three', poetId: 'pb', content: '', annotations: [], familiarity: 1, creationYear: 830, corpus: 'tang' as const },
   ];
   const range = { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 };
 
@@ -139,8 +139,8 @@ describe('layoutAllPoems', () => {
 
   it('falls back to poet.birthYear when poem has no creationYear', () => {
     const noYear: Poem[] = [
-      { id: '1', title: 'one', poetId: 'pa', content: '', annotations: [], familiarity: 1 },
-      { id: '2', title: 'two', poetId: 'pb', content: '', annotations: [], familiarity: 1 },
+      { id: '1', title: 'one', poetId: 'pa', content: '', annotations: [], familiarity: 1, corpus: 'tang' as const },
+      { id: '2', title: 'two', poetId: 'pb', content: '', annotations: [], familiarity: 1, corpus: 'tang' as const },
     ];
     const result = layoutAllPoems(noYear, poets, range);
     expect(result[0].poem.id).toBe('1');
@@ -157,10 +157,10 @@ describe('layoutAllPoems', () => {
     // 62 poems at the same year — without bound-aware xRange reduction,
     // scatter at nominalX 31% with xRange ±75 would land items at [-43, 106].
     const clusterPoets: Poet[] = [
-      { id: 'p', name: 'P', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1 },
+      { id: 'p', name: 'P', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const },
     ];
     const clusterPoems: Poem[] = Array.from({ length: 62 }, (_, i) => ({
-      id: String(i), title: String(i), poetId: 'p', content: '', annotations: [], familiarity: 1, creationYear: 700,
+      id: String(i), title: String(i), poetId: 'p', content: '', annotations: [], familiarity: 1, creationYear: 700, corpus: 'tang' as const,
     }));
     const result = layoutAllPoems(clusterPoems, clusterPoets, range);
     expect(result.length).toBe(62);
