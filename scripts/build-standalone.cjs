@@ -744,6 +744,8 @@ function useVisited() {
 `;
 
 // hooks/useRiverViewport.ts (types dropped; React hooks already destructured)
+// Pointer Events: single-pointer drag, two-pointer pinch zoom, wheel zoom.
+// Works for mouse + touch + pen from one code path.
 const viewportHookCode = `
 // ===== hooks/useRiverViewport.ts =====
 const MIN_ZOOM = 0.5;
@@ -758,6 +760,8 @@ function useRiverViewport() {
   const containerRef = useRef(null);
   const dragRef = useRef(null);
   const dragMovedRef = useRef(false);
+  const pointersRef = useRef(new Map());
+  const pinchRef = useRef(null);
   const zoomRef = useRef(zoom);
   const panRef = useRef(pan);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
@@ -787,13 +791,63 @@ function useRiverViewport() {
     return () => el.removeEventListener('wheel', handler);
   }, []);
 
-  const onMouseDown = useCallback((e) => {
-    if (e.button !== 0) return;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y, moved: false };
-    dragMovedRef.current = false;
-  }, [pan]);
+  const onPointerDown = useCallback((e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { e.target.setPointerCapture(e.pointerId); } catch (_) { /* not capturable */ }
 
-  const onMouseMove = useCallback((e) => {
+    if (pointersRef.current.size === 1) {
+      dragRef.current = {
+        startX: e.clientX, startY: e.clientY,
+        panX: panRef.current.x, panY: panRef.current.y,
+        moved: false,
+      };
+      dragMovedRef.current = false;
+    } else if (pointersRef.current.size === 2) {
+      const pts = Array.from(pointersRef.current.values());
+      const a = pts[0], b = pts[1];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const el = containerRef.current;
+      if (!el || dist === 0) return;
+      const rect = el.getBoundingClientRect();
+      pinchRef.current = {
+        startDist: dist,
+        startZoom: zoomRef.current,
+        startPan: { x: panRef.current.x, y: panRef.current.y },
+        midX: (a.x + b.x) / 2 - rect.left,
+        midY: (a.y + b.y) / 2 - rect.top,
+      };
+      dragRef.current = null;
+    }
+  }, []);
+
+  const onPointerMove = useCallback((e) => {
+    const stored = pointersRef.current.get(e.pointerId);
+    if (!stored) return;
+    stored.x = e.clientX;
+    stored.y = e.clientY;
+
+    if (pointersRef.current.size >= 2 && pinchRef.current) {
+      const pts = Array.from(pointersRef.current.values());
+      const a = pts[0], b = pts[1];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const factor = dist / pinchRef.current.startDist;
+      const oldZoom = pinchRef.current.startZoom;
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * factor));
+      if (newZoom === oldZoom) return;
+      const realFactor = newZoom / oldZoom;
+      const cx = pinchRef.current.midX;
+      const cy = pinchRef.current.midY;
+      const oldPan = pinchRef.current.startPan;
+      setPan({
+        x: cx - (cx - oldPan.x) * realFactor,
+        y: cy - (cy - oldPan.y) * realFactor,
+      });
+      setZoom(newZoom);
+      setDragging(true);
+      return;
+    }
+
     const d = dragRef.current;
     if (!d) return;
     const dx = e.clientX - d.startX;
@@ -805,10 +859,21 @@ function useRiverViewport() {
     setPan({ x: d.panX + dx, y: d.panY + dy });
   }, []);
 
-  const onMouseUp = useCallback(() => {
-    dragRef.current = null;
-    setDragging(false);
+  const endPointer = useCallback((e) => {
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+    if (pointersRef.current.size === 0) {
+      dragRef.current = null;
+      setDragging(false);
+    }
+    try { e.target.releasePointerCapture && e.target.releasePointerCapture(e.pointerId); } catch (_) { /* not capturable */ }
   }, []);
+
+  const onPointerUp = endPointer;
+  const onPointerCancel = endPointer;
+  const onPointerLeave = useCallback((e) => {
+    if (pointersRef.current.has(e.pointerId)) endPointer(e);
+  }, [endPointer]);
 
   return {
     zoom,
@@ -817,11 +882,12 @@ function useRiverViewport() {
     dragMovedRef,
     containerProps: {
       ref: containerRef,
-      onMouseDown,
-      onMouseMove,
-      onMouseUp,
-      onMouseLeave: onMouseUp,
-      style: { cursor: dragging ? 'grabbing' : 'grab' },
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      onPointerCancel,
+      onPointerLeave,
+      style: { cursor: dragging ? 'grabbing' : 'grab', touchAction: 'none' },
     },
     canvasStyle: {
       transform: 'translate(' + pan.x + 'px,' + pan.y + 'px) scale(' + zoom + ')',

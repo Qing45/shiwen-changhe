@@ -18,10 +18,28 @@ interface DragState {
   moved: boolean;
 }
 
+interface PinchState {
+  startDist: number;
+  startZoom: number;
+  startPan: Pan;
+  // Midpoint of the two fingers, in container-local coords (relative to containerRef).
+  midX: number;
+  midY: number;
+}
+
+interface Pointer {
+  x: number;
+  y: number;
+}
+
 /**
- * Zoom (wheel) + drag-to-pan for the river canvas. Returns props to spread on
- * the container div plus a `dragMoved` ref that consumers can check on link
- * click captures to suppress navigation after a drag.
+ * River canvas interaction:
+ *   - mouse drag / single-finger drag → pan
+ *   - wheel / two-finger pinch        → zoom (anchored at gesture center)
+ *   - tap (no drag past threshold)    → link onClick fires (dragMovedRef guard)
+ *
+ * Uses Pointer Events so the same code path handles mouse + touch + pen.
+ * Two pointers (two-finger pinch) cancel the single-pointer drag.
  */
 export function useRiverViewport() {
   const [zoom, setZoom] = useState(1);
@@ -30,6 +48,8 @@ export function useRiverViewport() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const dragMovedRef = useRef(false);
+  const pointersRef = useRef<Map<number, Pointer>>(new Map());
+  const pinchRef = useRef<PinchState | null>(null);
   // Refs mirror zoom/pan so the wheel handler (registered once) can read
   // current values without re-binding on every state change.
   const zoomRef = useRef(zoom);
@@ -55,8 +75,6 @@ export function useRiverViewport() {
       if (newZoom === oldZoom) return;
       const realFactor = newZoom / oldZoom;
       const oldPan = panRef.current;
-      // Keep the canvas point under the cursor fixed: solve for new pan such
-      // that (cx - pan.x) / oldZoom == (cx - pan_new.x) / newZoom, and same for y.
       setPan({
         x: cx - (cx - oldPan.x) * realFactor,
         y: cy - (cy - oldPan.y) * realFactor,
@@ -67,13 +85,67 @@ export function useRiverViewport() {
     return () => el.removeEventListener('wheel', handler);
   }, []);
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return;
-    dragRef.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y, moved: false };
-    dragMovedRef.current = false;
-  }, [pan]);
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { (e.target as Element).setPointerCapture(e.pointerId); } catch { /* not capturable */ }
 
-  const onMouseMove = useCallback((e: React.MouseEvent) => {
+    if (pointersRef.current.size === 1) {
+      // Single pointer — start a drag. Use the ref-captured pan so we don't
+      // restart at (0,0) if the user pressed, panned, lifted a finger, and
+      // pressed again mid-pan.
+      dragRef.current = {
+        startX: e.clientX, startY: e.clientY,
+        panX: panRef.current.x, panY: panRef.current.y,
+        moved: false,
+      };
+      dragMovedRef.current = false;
+    } else if (pointersRef.current.size === 2) {
+      // Two pointers — start a pinch anchored at the midpoint.
+      const pts = Array.from(pointersRef.current.values());
+      const [a, b] = pts;
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const el = containerRef.current;
+      if (!el || dist === 0) return;
+      const rect = el.getBoundingClientRect();
+      pinchRef.current = {
+        startDist: dist,
+        startZoom: zoomRef.current,
+        startPan: { ...panRef.current },
+        midX: (a.x + b.x) / 2 - rect.left,
+        midY: (a.y + b.y) / 2 - rect.top,
+      };
+      // Cancel any in-progress single-pointer drag so a tap+second-finger
+      // doesn't jump.
+      dragRef.current = null;
+    }
+  }, []);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    const stored = pointersRef.current.get(e.pointerId);
+    if (!stored) return;
+    stored.x = e.clientX;
+    stored.y = e.clientY;
+
+    if (pointersRef.current.size >= 2 && pinchRef.current) {
+      const pts = Array.from(pointersRef.current.values());
+      const [a, b] = pts;
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const factor = dist / pinchRef.current.startDist;
+      const oldZoom = pinchRef.current.startZoom;
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, oldZoom * factor));
+      if (newZoom === oldZoom) return;
+      const realFactor = newZoom / oldZoom;
+      const { midX: cx, midY: cy, startPan: oldPan } = pinchRef.current;
+      setPan({
+        x: cx - (cx - oldPan.x) * realFactor,
+        y: cy - (cy - oldPan.y) * realFactor,
+      });
+      setZoom(newZoom);
+      setDragging(true);
+      return;
+    }
+
     const d = dragRef.current;
     if (!d) return;
     const dx = e.clientX - d.startX;
@@ -85,12 +157,24 @@ export function useRiverViewport() {
     setPan({ x: d.panX + dx, y: d.panY + dy });
   }, []);
 
-  const onMouseUp = useCallback(() => {
-    dragRef.current = null;
-    setDragging(false);
+  const endPointer = useCallback((e: React.PointerEvent) => {
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+    if (pointersRef.current.size === 0) {
+      dragRef.current = null;
+      setDragging(false);
+    }
+    try { (e.target as Element).releasePointerCapture?.(e.pointerId); } catch { /* not capturable */ }
   }, []);
 
-  // Reset on unmount safety — also reset pan/zoom
+  const onPointerUp = endPointer;
+  const onPointerCancel = endPointer;
+  // If the pointer leaves the element without an up event (e.g. touch lifted
+  // off-screen on some browsers), end the drag.
+  const onPointerLeave = useCallback((e: React.PointerEvent) => {
+    if (pointersRef.current.has(e.pointerId)) endPointer(e);
+  }, [endPointer]);
+
   const reset = useCallback(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
@@ -103,12 +187,14 @@ export function useRiverViewport() {
     dragMovedRef,
     containerProps: {
       ref: containerRef,
-      onMouseDown,
-      onMouseMove,
-      onMouseUp,
-      onMouseLeave: onMouseUp,
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      onPointerCancel,
+      onPointerLeave,
       style: {
         cursor: dragging ? 'grabbing' : 'grab',
+        touchAction: 'none',
       },
     },
     canvasStyle: {
