@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 manifest theme_color 配套的暗夜墨色，让"诗"字 launcher 图标融入 PWA 调性 -->
+    <color name="ic_launcher_background">#050818</color>
+</resources>
