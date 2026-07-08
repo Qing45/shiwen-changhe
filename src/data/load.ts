@@ -1,20 +1,32 @@
-import type { Poet, Poem } from '../types';
+import type { Poet, Poem, PoetCorpus, PoemCorpus } from '../types';
 import poetsData from './poets.json';
 import poemsData from './poems.json';
 
-const poets: Poet[] = poetsData as Poet[];
-const poems: Poem[] = poemsData as Poem[];
-
-export function getPoets(): Poet[] {
-  return poets;
+// JSON 字段兜底：现有 320/76 数据没有 corpus 字段，运行时默认 'tang'
+export function withCorpus<T extends object>(x: T, fallback: string): T {
+  return { ...x, corpus: (x as { corpus?: string }).corpus ?? fallback };
 }
 
-export function getPoems(): Poem[] {
-  return poems;
+const poets: Poet[] = (poetsData as Poet[]).map((p) => withCorpus(p, 'tang')) as Poet[];
+const poems: Poem[] = (poemsData as Poem[]).map((p) => withCorpus(p, 'tang')) as Poem[];
+
+export function getPoets(): Poet[];
+export function getPoets(corpus: PoetCorpus | 'all'): Poet[];
+export function getPoets(corpus?: PoetCorpus | 'all'): Poet[] {
+  if (!corpus || corpus === 'all') return poets;
+  return poets.filter((p) => p.corpus === corpus);
+}
+
+export function getPoem(id: string): Poem | undefined {
+  return poems.find((p) => p.id === id);
 }
 
 export function getPoet(poetId: string): Poet | undefined {
   return poets.find((p) => p.id === poetId);
+}
+
+export function getPoetByName(name: string): Poet | undefined {
+  return poets.find((p) => p.name === name);
 }
 
 export function getPoemsByPoet(poetId: string): Poem[] {
@@ -32,8 +44,13 @@ export function getPoemCount(poetId: string): number {
   return poems.filter((p) => p.poetId === poetId).length;
 }
 
-export function getPoem(poemId: string): Poem | undefined {
-  return poems.find((p) => p.id === poemId);
+export function getPoems(): Poem[];
+export function getPoems(corpus: PoemCorpus): Poem[];
+export function getPoems(corpus?: PoemCorpus): Poem[] {
+  if (!corpus || corpus === 'both') return poems;
+  if (corpus === 'tang') return poems.filter((p) => p.corpus !== 'primary');
+  // 'primary'
+  return poems.filter((p) => p.corpus !== 'tang');
 }
 
 export function getNeighbors(poemId: string): { prev?: Poem; next?: Poem } {

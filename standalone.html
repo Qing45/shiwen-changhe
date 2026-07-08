@@ -10524,25 +10524,44 @@ const fontFamilies = {
 
 
 // ===== data/load.ts =====
-const poets = window.__POETS__;
-const poems = window.__POEMS__;
+function withCorpus(x, fallback) {
+  return Object.assign({}, x, { corpus: x.corpus != null ? x.corpus : fallback });
+}
+
+const poets = window.__POETS__.map(function(p) { return withCorpus(p, 'tang'); });
+const poems = window.__POEMS__.map(function(p) { return withCorpus(p, 'tang'); });
 
 function getPoets() {
   return poets;
+}
+
+function getPoetsCorpus(corpus) {
+  if (!corpus || corpus === 'all') return poets;
+  return poets.filter(function(p) { return p.corpus === corpus; });
 }
 
 function getPoems() {
   return poems;
 }
 
+function getPoemsCorpus(corpus) {
+  if (!corpus || corpus === 'both') return poems;
+  if (corpus === 'tang') return poems.filter(function(p) { return p.corpus !== 'primary'; });
+  return poems.filter(function(p) { return p.corpus !== 'tang'; });
+}
+
 function getPoet(poetId) {
-  return poets.find((p) => p.id === poetId);
+  return poets.find(function(p) { return p.id === poetId; });
+}
+
+function getPoetByName(name) {
+  return poets.find(function(p) { return p.name === name; });
 }
 
 function getPoemsByPoet(poetId) {
   return poems
-    .filter((p) => p.poetId === poetId)
-    .sort((a, b) => {
+    .filter(function(p) { return p.poetId === poetId; })
+    .sort(function(a, b) {
       if (a.creationYear === undefined && b.creationYear === undefined) return 0;
       if (a.creationYear === undefined) return 1;
       if (b.creationYear === undefined) return -1;
@@ -10551,18 +10570,18 @@ function getPoemsByPoet(poetId) {
 }
 
 function getPoemCount(poetId) {
-  return poems.filter((p) => p.poetId === poetId).length;
+  return poems.filter(function(p) { return p.poetId === poetId; }).length;
 }
 
 function getPoem(poemId) {
-  return poems.find((p) => p.id === poemId);
+  return poems.find(function(p) { return p.id === poemId; });
 }
 
 function getNeighbors(poemId) {
   const poem = getPoem(poemId);
   if (!poem) return {};
   const siblings = getPoemsByPoet(poem.poetId);
-  const idx = siblings.findIndex((p) => p.id === poemId);
+  const idx = siblings.findIndex(function(p) { return p.id === poemId; });
   return {
     prev: idx > 0 ? siblings[idx - 1] : undefined,
     next: idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : undefined,

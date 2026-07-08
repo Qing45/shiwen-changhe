@@ -5,6 +5,9 @@ export interface Dynasty {
   endYear: number;
 }
 
+export type PoetCorpus = 'tang' | 'primary';
+export type PoemCorpus = 'tang' | 'primary' | 'both';
+
 export interface Poet {
   id: string;
   name: string;
@@ -14,6 +17,7 @@ export interface Poet {
   deathYear: number;
   dynastyId: string;
   familiarity: number; // 1-5
+  corpus: PoetCorpus;
 }
 
 export interface Poem {
@@ -25,6 +29,7 @@ export interface Poem {
   background?: string;
   creationYear?: number;
   familiarity: number; // 1-5
+  corpus: PoemCorpus;
 }
 
 export interface VerseHit {
