@@ -17,6 +17,7 @@ import {
 } from '../play/sentenceProgress';
 import { STAGE_GOAL, STAGE_BLOOD } from '../play/types';
 import { colors, fontFamilies } from '../theme';
+import { useCorpus } from '../state/corpus';
 
 const TOTAL_LEVELS = 50;
 const TURN_SECONDS = 30;
@@ -67,11 +68,13 @@ export function SentencePlay() {
 
   const levelKey = String(level);   // 进度存储用字符串 key
 
+  const corpus = useCorpus();
+
   const [stage, setStage] = useState(() => {
     if (!validLevel) return null;
-    const progress = loadSentenceProgress();
+    const progress = loadSentenceProgress(corpus);
     if (progress.current && progress.current.keyword === levelKey) return progress.current;
-    return beginSentenceStage(levelKey).current;
+    return beginSentenceStage(levelKey, corpus).current;
   });
 
   // 从原文页返回时取出"已查看"的上句，加进排除集，避免回到题面后又看到同一题
@@ -91,7 +94,7 @@ export function SentencePlay() {
 
   const [question, setQuestion] = useState<SentenceQuestion | null>(() => {
     if (!validLevel) return null;
-    return pickLevelQuestion(tier, usedUpperRef.current);
+    return pickLevelQuestion(tier, usedUpperRef.current, corpus);
   });
 
   const [picked, setPicked] = useState<number | null>(null);
@@ -113,14 +116,14 @@ export function SentencePlay() {
   useEffect(() => {
     if (!validLevel) return;
     if (stageRef.current?.keyword === levelKey) return;
-    const progress = loadSentenceProgress();
+    const progress = loadSentenceProgress(corpus);
     const fresh =
       progress.current && progress.current.keyword === levelKey
         ? progress.current
-        : beginSentenceStage(levelKey).current;
+        : beginSentenceStage(levelKey, corpus).current;
     setStage(fresh);
     usedUpperRef.current = new Set(fresh?.correct ?? []);
-    setQuestion(pickLevelQuestion(tier, usedUpperRef.current));
+    setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
     setPicked(null);
     setGrading(false);
     setSecondsLeft(TURN_SECONDS);
@@ -145,18 +148,18 @@ export function SentencePlay() {
     const line = questionRef.current.answer.line;
     const newCorrect = [...cur.correct, line];
 
-    commitSentenceCorrect(levelKey, line);
-    setStage(loadSentenceProgress().current);
+    commitSentenceCorrect(levelKey, line, corpus);
+    setStage(loadSentenceProgress(corpus).current);
     usedUpperRef.current = new Set(newCorrect);
 
     if (newCorrect.length >= STAGE_GOAL) {
-      markSentenceCleared(levelKey);
+      markSentenceCleared(levelKey, corpus);
       setResult({ kind: 'cleared', correct: newCorrect });
       return;
     }
     setGrading(true);
     setTimeout(() => {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
       setPicked(null);
       setSecondsLeft(TURN_SECONDS);
       setGrading(false);
@@ -168,17 +171,17 @@ export function SentencePlay() {
     const cur = stageRef.current;
     const newBlood = cur.blood - 1;
 
-    commitSentenceBlood(levelKey, newBlood);
-    setStage(loadSentenceProgress().current);
+    commitSentenceBlood(levelKey, newBlood, corpus);
+    setStage(loadSentenceProgress(corpus).current);
 
     if (newBlood <= 0) {
-      clearSentenceCurrent();
+      clearSentenceCurrent(corpus);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
     setGrading(true);
     setTimeout(() => {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
       setPicked(null);
       setSecondsLeft(TURN_SECONDS);
       setGrading(false);
@@ -197,9 +200,9 @@ export function SentencePlay() {
     const upperLine = questionRef.current.upper.line;
     const poemId = questionRef.current.upper.poemId;
 
-    commitSentenceBlood(levelKey, newBlood);
+    commitSentenceBlood(levelKey, newBlood, corpus);
     sessionStorage.setItem(`feihuaSentenceViewed:${levelKey}`, upperLine);
-    setStage(loadSentenceProgress().current);
+    setStage(loadSentenceProgress(corpus).current);
     navigate(`/poem/${poemId}`, { state: { from: `/play/sentence/${level}` } });
   };
 
@@ -419,7 +422,7 @@ export function SentencePlay() {
                 }}>
                   <button
                     onClick={() => {
-                      if (result.kind === 'failed') clearSentenceCurrent();
+                      if (result.kind === 'failed') clearSentenceCurrent(corpus);
                       navigate('/play');
                     }}
                     style={btnStyle}

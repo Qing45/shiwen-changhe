@@ -16,6 +16,7 @@ import {
 } from '../play/progress';
 import { STAGE_GOAL, STAGE_BLOOD, STAGE_TIMEBOX, type Verse } from '../play/types';
 import { KEYWORDS } from '../play/keywords';
+import { useCorpus } from '../state/corpus';
 
 type CharStatus = 'correct' | 'wrong' | null;
 
@@ -38,15 +39,16 @@ const btnStyle: React.CSSProperties = {
 export function StagePlay() {
   const { kw } = useParams<{ kw: string }>();
   const navigate = useNavigate();
+  const corpus = useCorpus();
 
   // 进入页面时初始化局：current 已是本关键字则续传，否则开新局
   const [stage, setStage] = useState(() => {
     if (!kw) return null;
-    const progress = loadProgress();
+    const progress = loadProgress(corpus);
     if (progress.current && progress.current.keyword === kw) {
       return progress.current;
     }
-    return beginStage(kw).current;
+    return beginStage(kw, corpus).current;
   });
 
   // 从原文页返回时取出"已查看"的题面句，加进排除集，避免回到题面后又看到同一题
@@ -70,7 +72,7 @@ export function StagePlay() {
   // 当前题目（可变：答对后切换下一题）
   const [question, setQuestion] = useState<{ verse: Verse; blanks: number[] } | null>(() => {
     if (!kw) return null;
-    return pickStageQuestion(kw, used);
+    return pickStageQuestion(kw, used, corpus);
   });
 
   // 九宫格字块与玩家已填字符
@@ -123,13 +125,13 @@ export function StagePlay() {
   useEffect(() => {
     if (!kw) return;
     if (stageRef.current?.keyword === kw) return;
-    const progress = loadProgress();
+    const progress = loadProgress(corpus);
     const fresh =
       progress.current && progress.current.keyword === kw
         ? progress.current
-        : beginStage(kw).current;
+        : beginStage(kw, corpus).current;
     setStage(fresh);
-    setQuestion(pickStageQuestion(kw, new Set(fresh?.correct ?? [])));
+    setQuestion(pickStageQuestion(kw, new Set(fresh?.correct ?? []), corpus));
     setResult(null);
     setGrading(false);
     setSecondsLeft(STAGE_TIMEBOX);
@@ -143,11 +145,11 @@ export function StagePlay() {
     const line = questionRef.current.verse.line;
     const newCorrect = [...cur.correct, line];
 
-    commitStageCorrect(kw, line);
-    setStage(loadProgress().current);
+    commitStageCorrect(kw, line, corpus);
+    setStage(loadProgress(corpus).current);
 
     if (newCorrect.length >= STAGE_GOAL) {
-      markCleared(kw);
+      markCleared(kw, corpus);
       setResult({ kind: 'cleared', correct: newCorrect });
       return;
     }
@@ -155,7 +157,7 @@ export function StagePlay() {
     setGrading(true);
     setTimeout(() => {
       const nextUsed = new Set(newCorrect);
-      setQuestion(pickStageQuestion(kw, nextUsed));
+      setQuestion(pickStageQuestion(kw, nextUsed, corpus));
       setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
     }, 800);
@@ -167,11 +169,11 @@ export function StagePlay() {
     const cur = stageRef.current;
     const newBlood = cur.blood - 1;
 
-    commitStageBlood(kw, newBlood);
-    setStage(loadProgress().current);
+    commitStageBlood(kw, newBlood, corpus);
+    setStage(loadProgress(corpus).current);
 
     if (newBlood <= 0) {
-      clearCurrent();
+      clearCurrent(corpus);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
@@ -191,11 +193,11 @@ export function StagePlay() {
     const cur = stageRef.current;
     const newBlood = cur.blood - 1;
 
-    commitStageBlood(kw, newBlood);
-    setStage(loadProgress().current);
+    commitStageBlood(kw, newBlood, corpus);
+    setStage(loadProgress(corpus).current);
 
     if (newBlood <= 0) {
-      clearCurrent();
+      clearCurrent(corpus);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
@@ -218,9 +220,9 @@ export function StagePlay() {
     const line = questionRef.current.verse.line;
     const poemId = questionRef.current.verse.poemId;
 
-    commitStageBlood(kw, newBlood);
+    commitStageBlood(kw, newBlood, corpus);
     sessionStorage.setItem(`feihuaStageViewed:${kw}`, line);
-    setStage(loadProgress().current);
+    setStage(loadProgress(corpus).current);
     navigate(`/poem/${poemId}`, { state: { from: `/play/stage/${kw}` } });
   };
 
@@ -483,7 +485,7 @@ export function StagePlay() {
                 }}>
                   <button
                     onClick={() => {
-                      if (result.kind === 'failed') clearCurrent();
+                      if (result.kind === 'failed') clearCurrent(corpus);
                       navigate('/play');
                     }}
                     style={btnStyle}

@@ -3221,11 +3221,13 @@ function SentencePlay() {
   var tier = validLevel ? tierOfLevel(level) : 'entry';
   var levelKey = String(level);
 
+  var corpus = useCorpus();
+
   const [stage, setStage] = useState(function() {
     if (!validLevel) return null;
-    var progress = loadSentenceProgress();
+    var progress = loadSentenceProgress(corpus);
     if (progress.current && progress.current.keyword === levelKey) return progress.current;
-    return beginSentenceStage(levelKey).current;
+    return beginSentenceStage(levelKey, corpus).current;
   });
 
   // 从原文页返回时取出"已查看"的上句，加进排除集，避免回到题面后又看到同一题
@@ -3242,7 +3244,7 @@ function SentencePlay() {
 
   const [question, setQuestion] = useState(function() {
     if (!validLevel) return null;
-    return pickLevelQuestion(tier, usedUpperRef.current);
+    return pickLevelQuestion(tier, usedUpperRef.current, corpus);
   });
 
   const [picked, setPicked] = useState(null);
@@ -3256,13 +3258,13 @@ function SentencePlay() {
   useEffect(function() {
     if (!validLevel) return;
     if (stageRef.current && stageRef.current.keyword === levelKey) return;
-    var progress = loadSentenceProgress();
+    var progress = loadSentenceProgress(corpus);
     var fresh = progress.current && progress.current.keyword === levelKey
       ? progress.current
-      : beginSentenceStage(levelKey).current;
+      : beginSentenceStage(levelKey, corpus).current;
     setStage(fresh);
     usedUpperRef.current = new Set(fresh ? (fresh.correct || []) : []);
-    setQuestion(pickLevelQuestion(tier, usedUpperRef.current));
+    setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
     setPicked(null);
     setGrading(false);
     setSecondsLeft(SENTENCE_TURN_SECONDS);
@@ -3283,18 +3285,18 @@ function SentencePlay() {
     var line = questionRef.current.answer.line;
     var newCorrect = [].concat(cur.correct, [line]);
 
-    commitSentenceCorrect(levelKey, line);
-    setStage(loadSentenceProgress().current);
+    commitSentenceCorrect(levelKey, line, corpus);
+    setStage(loadSentenceProgress(corpus).current);
     usedUpperRef.current = new Set(newCorrect);
 
     if (newCorrect.length >= STAGE_GOAL) {
-      markSentenceCleared(levelKey);
+      markSentenceCleared(levelKey, corpus);
       setResult({ kind: 'cleared', correct: newCorrect });
       return;
     }
     setGrading(true);
     setTimeout(function() {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
       setPicked(null);
       setSecondsLeft(SENTENCE_TURN_SECONDS);
       setGrading(false);
@@ -3306,17 +3308,17 @@ function SentencePlay() {
     var cur = stageRef.current;
     var newBlood = cur.blood - 1;
 
-    commitSentenceBlood(levelKey, newBlood);
-    setStage(loadSentenceProgress().current);
+    commitSentenceBlood(levelKey, newBlood, corpus);
+    setStage(loadSentenceProgress(corpus).current);
 
     if (newBlood <= 0) {
-      clearSentenceCurrent();
+      clearSentenceCurrent(corpus);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
     setGrading(true);
     setTimeout(function() {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
       setPicked(null);
       setSecondsLeft(SENTENCE_TURN_SECONDS);
       setGrading(false);
@@ -3335,9 +3337,9 @@ function SentencePlay() {
     var upperLine = questionRef.current.upper.line;
     var poemId = questionRef.current.upper.poemId;
 
-    commitSentenceBlood(levelKey, newBlood);
+    commitSentenceBlood(levelKey, newBlood, corpus);
     sessionStorage.setItem('feihuaSentenceViewed:' + levelKey, upperLine);
-    setStage(loadSentenceProgress().current);
+    setStage(loadSentenceProgress(corpus).current);
     navigate('/poem/' + poemId, { state: { from: '/play/sentence/' + level } });
   }
 
@@ -3542,7 +3544,7 @@ function SentencePlay() {
                 }}>
                   <button
                     onClick={function() {
-                      if (result.kind === 'failed') clearSentenceCurrent();
+                      if (result.kind === 'failed') clearSentenceCurrent(corpus);
                       navigate('/play');
                     }}
                     style={sentenceBtnStyle}
@@ -3592,14 +3594,15 @@ function StagePlay() {
   const params = useParams();
   const kw = params.kw;
   const navigate = useNavigate();
+  const corpus = useCorpus();
 
   const [stage, setStage] = useState(() => {
     if (!kw) return null;
-    const progress = loadProgress();
+    const progress = loadProgress(corpus);
     if (progress.current && progress.current.keyword === kw) {
       return progress.current;
     }
-    return beginStage(kw).current;
+    return beginStage(kw, corpus).current;
   });
 
   // 从原文页返回时取出"已查看"的题面句，加进排除集，避免回到题面后又看到同一题
@@ -3618,7 +3621,7 @@ function StagePlay() {
 
   const [question, setQuestion] = useState(() => {
     if (!kw) return null;
-    return pickStageQuestion(kw, used);
+    return pickStageQuestion(kw, used, corpus);
   });
 
   const [nineGrid, setNineGrid] = useState(() =>
@@ -3659,12 +3662,12 @@ function StagePlay() {
   useEffect(function() {
     if (!kw) return;
     if (stageRef.current && stageRef.current.keyword === kw) return;
-    var progress = loadProgress();
+    var progress = loadProgress(corpus);
     var fresh = progress.current && progress.current.keyword === kw
       ? progress.current
-      : beginStage(kw).current;
+      : beginStage(kw, corpus).current;
     setStage(fresh);
-    setQuestion(pickStageQuestion(kw, new Set(fresh ? (fresh.correct || []) : [])));
+    setQuestion(pickStageQuestion(kw, new Set(fresh ? (fresh.correct || []) : []), corpus));
     setResult(null);
     setGrading(false);
     setSecondsLeft(STAGE_TIMEBOX);
@@ -3676,18 +3679,18 @@ function StagePlay() {
     const line = questionRef.current.verse.line;
     const newCorrect = [].concat(cur.correct, [line]);
 
-    commitStageCorrect(kw, line);
-    setStage(loadProgress().current);
+    commitStageCorrect(kw, line, corpus);
+    setStage(loadProgress(corpus).current);
 
     if (newCorrect.length >= STAGE_GOAL) {
-      markCleared(kw);
+      markCleared(kw, corpus);
       setResult({ kind: 'cleared', correct: newCorrect });
       return;
     }
     setGrading(true);
     setTimeout(() => {
       const nextUsed = new Set(newCorrect);
-      setQuestion(pickStageQuestion(kw, nextUsed));
+      setQuestion(pickStageQuestion(kw, nextUsed, corpus));
       setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
     }, 800);
@@ -3698,11 +3701,11 @@ function StagePlay() {
     const cur = stageRef.current;
     const newBlood = cur.blood - 1;
 
-    commitStageBlood(kw, newBlood);
-    setStage(loadProgress().current);
+    commitStageBlood(kw, newBlood, corpus);
+    setStage(loadProgress(corpus).current);
 
     if (newBlood <= 0) {
-      clearCurrent();
+      clearCurrent(corpus);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
@@ -3721,11 +3724,11 @@ function StagePlay() {
     const cur = stageRef.current;
     const newBlood = cur.blood - 1;
 
-    commitStageBlood(kw, newBlood);
-    setStage(loadProgress().current);
+    commitStageBlood(kw, newBlood, corpus);
+    setStage(loadProgress(corpus).current);
 
     if (newBlood <= 0) {
-      clearCurrent();
+      clearCurrent(corpus);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
@@ -3750,9 +3753,9 @@ function StagePlay() {
     const line = questionRef.current.verse.line;
     const poemId = questionRef.current.verse.poemId;
 
-    commitStageBlood(kw, newBlood);
+    commitStageBlood(kw, newBlood, corpus);
     sessionStorage.setItem('feihuaStageViewed:' + kw, line);
-    setStage(loadProgress().current);
+    setStage(loadProgress(corpus).current);
     navigate('/poem/' + poemId, { state: { from: '/play/stage/' + kw } });
   };
 
@@ -4004,7 +4007,7 @@ function StagePlay() {
                 }}>
                   <button
                     onClick={() => {
-                      if (result.kind === 'failed') clearCurrent();
+                      if (result.kind === 'failed') clearCurrent(corpus);
                       navigate('/play');
                     }}
                     style={feihuaBtnStyle}
