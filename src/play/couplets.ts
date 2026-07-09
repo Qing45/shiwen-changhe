@@ -7,6 +7,7 @@
 
 import { getPoems, getPoet } from '../data/load';
 import { extractVariants, getPoemMode, splitIntoLines } from '../utils/poemText';
+import type { PoemCorpus } from '../types';
 import type { Verse } from './types';
 
 export interface CoupletPair {
@@ -39,12 +40,18 @@ let _allPairsCache: CoupletPair[] | null = null;
 let _shortPoolCache: CoupletPair[] | null = null;
 let _longPoolCache: CoupletPair[] | null = null;
 
-// 扫描所有诗，按相邻两行配对成 (上句, 下句)。
+// 语料分桶缓存：corpus -> pools。tang/primary/both 各自独立，互不污染。
+const _allPairsCacheByCorpus = new Map<PoemCorpus, CoupletPair[]>();
+const _shortPoolCacheByCorpus = new Map<PoemCorpus, CoupletPair[]>();
+const _longPoolCacheByCorpus = new Map<PoemCorpus, CoupletPair[]>();
+
+// 扫描所有诗（默认 tang 语料），按相邻两行配对成 (上句, 下句)。
 // 上下句去标点后字数必须一致 —— 否则序言、注释、长序等会混进池子，
 // 导致题目（上句）和选项（下句）字数不等，玩家靠"挑短/长"就能蒙对。
-export function buildAllCouplets(): CoupletPair[] {
+export function buildAllCouplets(corpus: PoemCorpus = 'tang'): CoupletPair[] {
+  const poems = corpus === 'both' ? getPoems() : getPoems(corpus);
   const out: CoupletPair[] = [];
-  for (const poem of getPoems()) {
+  for (const poem of poems) {
     const poet = getPoet(poem.poetId);
     if (!poet) continue;
     const { cleanText } = extractVariants(poem.content);
@@ -62,12 +69,14 @@ export function buildAllCouplets(): CoupletPair[] {
         line: upperLine,
         poemTitle: poem.title,
         poetName: poet.name,
+        corpus: poem.corpus,
       };
       const lower: Verse = {
         poemId: poem.id,
         line: lowerLine,
         poemTitle: poem.title,
         poetName: poet.name,
+        corpus: poem.corpus,
       };
       out.push({ upper, lower });
     }
@@ -75,29 +84,37 @@ export function buildAllCouplets(): CoupletPair[] {
   return out;
 }
 
-export function getAllCouplets(): CoupletPair[] {
-  if (_allPairsCache === null) _allPairsCache = buildAllCouplets();
-  return _allPairsCache;
-}
-
-function getShortPool(): CoupletPair[] {
-  if (_shortPoolCache === null) {
-    _shortPoolCache = getAllCouplets().filter((p) => stripPunct(p.lower.line).length === 5);
+export function getAllCouplets(corpus: PoemCorpus = 'tang'): CoupletPair[] {
+  if (!_allPairsCacheByCorpus.has(corpus)) {
+    _allPairsCacheByCorpus.set(corpus, buildAllCouplets(corpus));
   }
-  return _shortPoolCache;
+  return _allPairsCacheByCorpus.get(corpus)!;
 }
 
-function getLongPool(): CoupletPair[] {
-  if (_longPoolCache === null) {
-    _longPoolCache = getAllCouplets().filter((p) => stripPunct(p.lower.line).length === 7);
+function getShortPool(corpus: PoemCorpus = 'tang'): CoupletPair[] {
+  if (!_shortPoolCacheByCorpus.has(corpus)) {
+    _shortPoolCacheByCorpus.set(
+      corpus,
+      getAllCouplets(corpus).filter((p) => stripPunct(p.lower.line).length === 5),
+    );
   }
-  return _longPoolCache;
+  return _shortPoolCacheByCorpus.get(corpus)!;
 }
 
-function getPoolForTier(tier: LevelTier): CoupletPair[] {
-  if (tier === 'entry') return getShortPool();
-  if (tier === 'mid') return getLongPool();
-  return getAllCouplets();
+function getLongPool(corpus: PoemCorpus = 'tang'): CoupletPair[] {
+  if (!_longPoolCacheByCorpus.has(corpus)) {
+    _longPoolCacheByCorpus.set(
+      corpus,
+      getAllCouplets(corpus).filter((p) => stripPunct(p.lower.line).length === 7),
+    );
+  }
+  return _longPoolCacheByCorpus.get(corpus)!;
+}
+
+function getPoolForTier(tier: LevelTier, corpus: PoemCorpus = 'tang'): CoupletPair[] {
+  if (tier === 'entry') return getShortPool(corpus);
+  if (tier === 'mid') return getLongPool(corpus);
+  return getAllCouplets(corpus);
 }
 
 let _rng: () => number = Math.random;
@@ -121,14 +138,15 @@ function shuffle<T>(arr: T[]): T[] {
 export function pickLevelQuestion(
   tier: LevelTier,
   usedUpperLines: Set<string>,
+  corpus: PoemCorpus = 'tang',
 ): SentenceQuestion | null {
-  const pool = getPoolForTier(tier).filter((p) => !usedUpperLines.has(p.upper.line));
+  const pool = getPoolForTier(tier, corpus).filter((p) => !usedUpperLines.has(p.upper.line));
   if (pool.length === 0) return null;
 
   const correct = pool[Math.floor(_rng() * pool.length)];
   const correctLen = stripPunct(correct.lower.line).length;
 
-  const allPairs = getAllCouplets();
+  const allPairs = getAllCouplets(corpus);
   const distractors: Verse[] = [];
   const seenLines = new Set<string>([correct.lower.line]);
 

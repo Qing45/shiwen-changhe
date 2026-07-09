@@ -1,10 +1,13 @@
 // 飞花令核心数据类型。
 
+import type { PoemCorpus } from '../types';
+
 export interface Verse {
   poemId: string;
   line: string;
   poemTitle: string;
   poetName: string;
+  corpus: PoemCorpus;
 }
 
 // 单关进度：已答对的句子 + 剩余血量

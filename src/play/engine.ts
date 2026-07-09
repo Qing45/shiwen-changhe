@@ -1,15 +1,20 @@
 import { getPoems, getPoet } from '../data/load';
 import { extractVariants, getPoemMode, splitIntoLines } from '../utils/poemText';
 import { KEYWORDS } from './keywords';
+import type { PoemCorpus } from '../types';
 import type { Verse } from './types';
 
-// 一次性扫描 320 首诗，构建「关键字 -> 含该字的诗句列表」索引。
+// 一次性扫描指定语料库（默认 'tang'），构建「关键字 -> 含该字的诗句列表」索引。
 // 切句规则：先剥异文 -> 选 mode（短/长）-> splitIntoLines -> 每句独立判定。
-export function buildKeywordIndex(): Map<string, Verse[]> {
+// 注：仅扫描 KEYWORDS 中关键字的桶，索引只包含 KEYWORDS 字。其他字符（如
+// PRIMARY_KEYWORDS 中的字）的扫描交给 caller 自行实现，或扩展 KEYWORDS。
+// 此处保留 50 字 KEYWORDS 桶用于默认 tang/单人闯关玩法。
+export function buildKeywordIndex(corpus: PoemCorpus = 'tang'): Map<string, Verse[]> {
+  const poems = corpus === 'both' ? getPoems() : getPoems(corpus);
   const index = new Map<string, Verse[]>();
   for (const k of KEYWORDS) index.set(k, []);
 
-  for (const poem of getPoems()) {
+  for (const poem of poems) {
     const poet = getPoet(poem.poetId);
     if (!poet) continue;
     const { cleanText } = extractVariants(poem.content);
@@ -26,6 +31,7 @@ export function buildKeywordIndex(): Map<string, Verse[]> {
             line: line.trim(),
             poemTitle: poem.title,
             poetName: poet.name,
+            corpus: poem.corpus,
           });
         }
       }
@@ -35,16 +41,66 @@ export function buildKeywordIndex(): Map<string, Verse[]> {
   return index;
 }
 
-// 模块级懒加载缓存：首次调用时构建，之后直接返回同一份 Map。
-let _cache: Map<string, Verse[]> | null = null;
+// 为 PRIMARY_KEYWORDS 扫描：构建「任意字 -> 含该字的所有诗句」索引（不限 KEYWORDS 桶）。
+// primaryKeywords 测试需要查任意字（如 寒/酒/舟 等非 KEYWORDS 字），故不能用上面的
+// 仅 KEYWORDS 桶索引。此函数扫描每行所有出现过的字。
+export function buildKeywordIndexFullScan(corpus: PoemCorpus = 'tang'): Map<string, Verse[]> {
+  const poems = corpus === 'both' ? getPoems() : getPoems(corpus);
+  const index = new Map<string, Verse[]>();
 
-export function getKeywordIndex(): Map<string, Verse[]> {
-  if (_cache === null) _cache = buildKeywordIndex();
-  return _cache;
+  for (const poem of poems) {
+    const poet = getPoet(poem.poetId);
+    if (!poet) continue;
+    const { cleanText } = extractVariants(poem.content);
+    const mode = getPoemMode(cleanText);
+    const lines = splitIntoLines(cleanText, mode);
+
+    for (const line of lines) {
+      const stripped = line.replace(/[，。？！；：、,\.\?!;:]/g, '');
+      const seen = new Set<string>();
+      for (const ch of stripped) {
+        if (seen.has(ch)) continue; // 同一行同字只计一次
+        seen.add(ch);
+        if (!index.has(ch)) index.set(ch, []);
+        index.get(ch)!.push({
+          poemId: poem.id,
+          line: line.trim(),
+          poemTitle: poem.title,
+          poetName: poet.name,
+          corpus: poem.corpus,
+        });
+      }
+    }
+  }
+
+  return index;
 }
 
-export function getVersesFor(keyword: string): Verse[] {
-  return getKeywordIndex().get(keyword) ?? [];
+// 模块级懒加载缓存（按 corpus 分桶）：首次调用时构建，之后直接返回同一份 Map。
+const _fullScanCache = new Map<PoemCorpus, Map<string, Verse[]>>();
+
+// getKeywordIndex 默认走 KEYWORDS 桶（兼容旧 tang 单人闯关玩法）。
+const _keywordCache = new Map<PoemCorpus, Map<string, Verse[]>>();
+
+export function getKeywordIndex(corpus: PoemCorpus = 'tang'): Map<string, Verse[]> {
+  if (!_keywordCache.has(corpus)) _keywordCache.set(corpus, buildKeywordIndex(corpus));
+  return _keywordCache.get(corpus)!;
+}
+
+// 全字符索引（PRIMARY_KEYWORDS 查询用）。同时供 getVersesFor(keyword, corpus) 使用，
+// 使 primary 语料库的非 KEYWORDS 字（如 寒/酒/舟）也能查到。
+export function getKeywordIndexFullScan(corpus: PoemCorpus = 'tang'): Map<string, Verse[]> {
+  if (!_fullScanCache.has(corpus)) _fullScanCache.set(corpus, buildKeywordIndexFullScan(corpus));
+  return _fullScanCache.get(corpus)!;
+}
+
+export function getVersesFor(keyword: string, corpus: PoemCorpus = 'tang'): Verse[] {
+  // 若该字属于 KEYWORDS，走桶索引（与历史行为一致）；
+  // 否则走全字符索引（覆盖 PRIMARY_KEYWORDS 中的非 KEYWORDS 字）。
+  if (KEYWORDS.includes(keyword)) {
+    return getKeywordIndex(corpus).get(keyword) ?? [];
+  }
+  return getKeywordIndexFullScan(corpus).get(keyword) ?? [];
 }
 
 // ============ 单人闯关出题 / 九宫格 / 判定 ============
@@ -68,8 +124,9 @@ const PUNCT_RE = /[，。？！；：、,\.\?!;:]/;
 export function pickStageQuestion(
   keyword: string,
   used: Set<string>,
+  corpus: PoemCorpus = 'tang',
 ): { verse: Verse; blanks: number[] } | null {
-  const pool = getVersesFor(keyword).filter(v => !used.has(v.line));
+  const pool = getVersesFor(keyword, corpus).filter(v => !used.has(v.line));
   if (pool.length === 0) return null;
   const verse = pool[Math.floor(Math.random() * pool.length)];
 

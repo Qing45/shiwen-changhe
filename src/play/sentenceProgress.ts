@@ -1,13 +1,22 @@
 // 整句模式进度持久化（独立 localStorage）。
 // 与单字模式的 progress.ts 结构相同，但 storageKey 不同，两套进度互不影响。
+//
+// 语料库分桶（Task 6）：
+//   - tang 用旧 key（'shiwen-feihua-sentence-progress'），保留既有用户进度。
+//   - primary / both 用 '${STORAGE_KEY}:${corpus}' 后缀 key。
 
 import { INITIAL_PROGRESS, STAGE_BLOOD, type FeihuaProgress } from './types';
+import type { Corpus } from '../state/corpus';
 
 const STORAGE_KEY = 'shiwen-feihua-sentence-progress';
 
-export function loadSentenceProgress(): FeihuaProgress {
+function storageKey(corpus: Corpus): string {
+  return corpus === 'tang' ? STORAGE_KEY : `${STORAGE_KEY}:${corpus}`;
+}
+
+export function loadSentenceProgress(corpus: Corpus = 'tang'): FeihuaProgress {
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey(corpus));
     if (!raw) return { ...INITIAL_PROGRESS };
     const parsed = JSON.parse(raw);
     return {
@@ -32,19 +41,19 @@ export function loadSentenceProgress(): FeihuaProgress {
   }
 }
 
-export function saveSentenceProgress(p: FeihuaProgress): void {
+export function saveSentenceProgress(p: FeihuaProgress, corpus: Corpus = 'tang'): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+    window.localStorage.setItem(storageKey(corpus), JSON.stringify(p));
   } catch {
     // 静默失败
   }
 }
 
-export function markSentenceCleared(keyword: string): FeihuaProgress {
-  const p = loadSentenceProgress();
+export function markSentenceCleared(keyword: string, corpus: Corpus = 'tang'): FeihuaProgress {
+  const p = loadSentenceProgress(corpus);
   if (p.cleared.includes(keyword)) {
     p.current = null;
-    saveSentenceProgress(p);
+    saveSentenceProgress(p, corpus);
     return p;
   }
   p.cleared.push(keyword);
@@ -53,36 +62,36 @@ export function markSentenceCleared(keyword: string): FeihuaProgress {
     p.unlockedIndex = levelNum;
   }
   p.current = null;
-  saveSentenceProgress(p);
+  saveSentenceProgress(p, corpus);
   return p;
 }
 
-export function beginSentenceStage(keyword: string): FeihuaProgress {
-  const p = loadSentenceProgress();
+export function beginSentenceStage(keyword: string, corpus: Corpus = 'tang'): FeihuaProgress {
+  const p = loadSentenceProgress(corpus);
   p.current = { keyword, correct: [], blood: STAGE_BLOOD };
-  saveSentenceProgress(p);
+  saveSentenceProgress(p, corpus);
   return p;
 }
 
-export function commitSentenceCorrect(keyword: string, line: string): FeihuaProgress {
-  const p = loadSentenceProgress();
+export function commitSentenceCorrect(keyword: string, line: string, corpus: Corpus = 'tang'): FeihuaProgress {
+  const p = loadSentenceProgress(corpus);
   if (!p.current || p.current.keyword !== keyword) return p;
   if (!p.current.correct.includes(line)) p.current.correct.push(line);
-  saveSentenceProgress(p);
+  saveSentenceProgress(p, corpus);
   return p;
 }
 
-export function commitSentenceBlood(keyword: string, blood: number): FeihuaProgress {
-  const p = loadSentenceProgress();
+export function commitSentenceBlood(keyword: string, blood: number, corpus: Corpus = 'tang'): FeihuaProgress {
+  const p = loadSentenceProgress(corpus);
   if (!p.current || p.current.keyword !== keyword) return p;
   p.current.blood = blood;
-  saveSentenceProgress(p);
+  saveSentenceProgress(p, corpus);
   return p;
 }
 
-export function clearSentenceCurrent(): FeihuaProgress {
-  const p = loadSentenceProgress();
+export function clearSentenceCurrent(corpus: Corpus = 'tang'): FeihuaProgress {
+  const p = loadSentenceProgress(corpus);
   p.current = null;
-  saveSentenceProgress(p);
+  saveSentenceProgress(p, corpus);
   return p;
 }

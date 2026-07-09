@@ -2301,29 +2301,49 @@ var KEYWORD_GROUPS = {
 var KEYWORDS = [].concat(KEYWORD_GROUPS.entry, KEYWORD_GROUPS.mid, KEYWORD_GROUPS.advanced);
 `;
 
+// play/primaryKeywords.ts
+const feihuaPrimaryKeywordsCode = `
+// ===== play/primaryKeywords.ts =====
+var PRIMARY_KEYWORD_GROUPS = {
+  entry: ['春','月','花','风','山','水','人','天'],
+  mid: ['雪','江','日','雨','寒','明','酒','落','清','城','舟','头'],
+};
+var PRIMARY_KEYWORDS = [].concat(PRIMARY_KEYWORD_GROUPS.entry, PRIMARY_KEYWORD_GROUPS.mid);
+`;
+
 // play/engine.ts
 const feihuaEngineCode = `
 // ===== play/engine.ts =====
-function buildKeywordIndex() {
-  const index = new Map();
-  for (const k of KEYWORDS) index.set(k, []);
+// 语料分桶缓存（PoemCorpus -> index）
+var _keywordCache = new Map();
+var _fullScanCache = new Map();
 
-  for (const poem of getPoems()) {
-    const poet = getPoet(poem.poetId);
+function buildKeywordIndex(corpus) {
+  corpus = corpus || 'tang';
+  var poems = corpus === 'both' ? getPoems() : getPoems(corpus);
+  var index = new Map();
+  for (var ki = 0; ki < KEYWORDS.length; ki++) index.set(KEYWORDS[ki], []);
+
+  for (var pi = 0; pi < poems.length; pi++) {
+    var poem = poems[pi];
+    var poet = getPoet(poem.poetId);
     if (!poet) continue;
-    const { cleanText } = extractVariants(poem.content);
-    const mode = getPoemMode(cleanText);
-    const lines = splitIntoLines(cleanText, mode);
+    var cleanText = extractVariants(poem.content).cleanText;
+    var mode = getPoemMode(cleanText);
+    var lines = splitIntoLines(cleanText, mode);
 
-    for (const line of lines) {
-      const stripped = line.replace(/[，。？！；：、,\\.\\?!;:]/g, '');
-      for (const k of KEYWORDS) {
-        if (stripped.includes(k)) {
+    for (var li = 0; li < lines.length; li++) {
+      var line = lines[li];
+      var stripped = line.replace(/[，。？！；：、,\\.\\?!;:]/g, '');
+      for (var kj = 0; kj < KEYWORDS.length; kj++) {
+        var k = KEYWORDS[kj];
+        if (stripped.indexOf(k) >= 0) {
           index.get(k).push({
             poemId: poem.id,
             line: line.trim(),
             poemTitle: poem.title,
             poetName: poet.name,
+            corpus: poem.corpus,
           });
         }
       }
@@ -2333,15 +2353,58 @@ function buildKeywordIndex() {
   return index;
 }
 
-var _cache = null;
+function buildKeywordIndexFullScan(corpus) {
+  corpus = corpus || 'tang';
+  var poems = corpus === 'both' ? getPoems() : getPoems(corpus);
+  var index = new Map();
+  for (var pi = 0; pi < poems.length; pi++) {
+    var poem = poems[pi];
+    var poet = getPoet(poem.poetId);
+    if (!poet) continue;
+    var cleanText = extractVariants(poem.content).cleanText;
+    var mode = getPoemMode(cleanText);
+    var lines = splitIntoLines(cleanText, mode);
 
-function getKeywordIndex() {
-  if (_cache === null) _cache = buildKeywordIndex();
-  return _cache;
+    for (var li = 0; li < lines.length; li++) {
+      var line = lines[li];
+      var stripped = line.replace(/[，。？！；：、,\\.\\?!;:]/g, '');
+      var seen = new Set();
+      for (var ci = 0; ci < stripped.length; ci++) {
+        var ch = stripped[ci];
+        if (seen.has(ch)) continue;
+        seen.add(ch);
+        if (!index.has(ch)) index.set(ch, []);
+        index.get(ch).push({
+          poemId: poem.id,
+          line: line.trim(),
+          poemTitle: poem.title,
+          poetName: poet.name,
+          corpus: poem.corpus,
+        });
+      }
+    }
+  }
+  return index;
 }
 
-function getVersesFor(keyword) {
-  return getKeywordIndex().get(keyword) || [];
+function getKeywordIndex(corpus) {
+  corpus = corpus || 'tang';
+  if (!_keywordCache.has(corpus)) _keywordCache.set(corpus, buildKeywordIndex(corpus));
+  return _keywordCache.get(corpus);
+}
+
+function getKeywordIndexFullScan(corpus) {
+  corpus = corpus || 'tang';
+  if (!_fullScanCache.has(corpus)) _fullScanCache.set(corpus, buildKeywordIndexFullScan(corpus));
+  return _fullScanCache.get(corpus);
+}
+
+function getVersesFor(keyword, corpus) {
+  corpus = corpus || 'tang';
+  if (KEYWORDS.indexOf(keyword) >= 0) {
+    return getKeywordIndex(corpus).get(keyword) || [];
+  }
+  return getKeywordIndexFullScan(corpus).get(keyword) || [];
 }
 
 var DISTRACTOR_POOL_SOURCE =
@@ -2351,8 +2414,9 @@ var DISTRACTOR_POOL = Array.from(new Set(DISTRACTOR_POOL_SOURCE.split(''))).join
 
 var PUNCT_RE = /[，。？！；：、,\\.\\?!;:]/;
 
-function pickStageQuestion(keyword, used) {
-  const pool = getVersesFor(keyword).filter(v => !used.has(v.line));
+function pickStageQuestion(keyword, used, corpus) {
+  corpus = corpus || 'tang';
+  const pool = getVersesFor(keyword, corpus).filter(v => !used.has(v.line));
   if (pool.length === 0) return null;
   const verse = pool[Math.floor(Math.random() * pool.length)];
 
@@ -2425,9 +2489,15 @@ const feihuaProgressCode = `
 // ===== play/progress.ts =====
 var FEIHUA_STORAGE_KEY = 'shiwen-feihua-progress';
 
-function loadProgress() {
+function _progressKey(corpus) {
+  corpus = corpus || 'tang';
+  return corpus === 'tang' ? FEIHUA_STORAGE_KEY : FEIHUA_STORAGE_KEY + ':' + corpus;
+}
+
+function loadProgress(corpus) {
+  corpus = corpus || 'tang';
   try {
-    const raw = window.localStorage.getItem(FEIHUA_STORAGE_KEY);
+    const raw = window.localStorage.getItem(_progressKey(corpus));
     if (!raw) return { ...INITIAL_PROGRESS };
     const parsed = JSON.parse(raw);
     return {
@@ -2452,56 +2522,62 @@ function loadProgress() {
   }
 }
 
-function saveProgress(p) {
+function saveProgress(p, corpus) {
+  corpus = corpus || 'tang';
   try {
-    window.localStorage.setItem(FEIHUA_STORAGE_KEY, JSON.stringify(p));
+    window.localStorage.setItem(_progressKey(corpus), JSON.stringify(p));
   } catch (e) {
     // localStorage 不可用或配额满 — 静默失败
   }
 }
 
-function markCleared(keyword) {
-  const p = loadProgress();
+function markCleared(keyword, corpus) {
+  corpus = corpus || 'tang';
+  const p = loadProgress(corpus);
   if (p.cleared.includes(keyword)) {
     p.current = null;
-    saveProgress(p);
+    saveProgress(p, corpus);
     return p;
   }
   p.cleared.push(keyword);
   const idx = KEYWORDS.indexOf(keyword);
   if (idx >= 0 && idx + 1 > p.unlockedIndex) p.unlockedIndex = idx + 1;
   p.current = null;
-  saveProgress(p);
+  saveProgress(p, corpus);
   return p;
 }
 
-function beginStage(keyword) {
-  const p = loadProgress();
+function beginStage(keyword, corpus) {
+  corpus = corpus || 'tang';
+  const p = loadProgress(corpus);
   p.current = { keyword, correct: [], blood: STAGE_BLOOD };
-  saveProgress(p);
+  saveProgress(p, corpus);
   return p;
 }
 
-function commitStageCorrect(keyword, line) {
-  const p = loadProgress();
+function commitStageCorrect(keyword, line, corpus) {
+  corpus = corpus || 'tang';
+  const p = loadProgress(corpus);
   if (!p.current || p.current.keyword !== keyword) return p;
   if (!p.current.correct.includes(line)) p.current.correct.push(line);
-  saveProgress(p);
+  saveProgress(p, corpus);
   return p;
 }
 
-function commitStageBlood(keyword, blood) {
-  const p = loadProgress();
+function commitStageBlood(keyword, blood, corpus) {
+  corpus = corpus || 'tang';
+  const p = loadProgress(corpus);
   if (!p.current || p.current.keyword !== keyword) return p;
   p.current.blood = blood;
-  saveProgress(p);
+  saveProgress(p, corpus);
   return p;
 }
 
-function clearCurrent() {
-  const p = loadProgress();
+function clearCurrent(corpus) {
+  corpus = corpus || 'tang';
+  const p = loadProgress(corpus);
   p.current = null;
-  saveProgress(p);
+  saveProgress(p, corpus);
   return p;
 }
 `;
@@ -2512,13 +2588,14 @@ const feihuaCoupletsCode = `
 var FEIHUA_PUNCT_RE = /[，。？！；：、,\.\?!;:]/g;
 function _stripPunct(s) { return s.replace(FEIHUA_PUNCT_RE, ''); }
 
-var _allPairsCache = null;
-var _shortPoolCache = null;
-var _longPoolCache = null;
+var _allPairsCacheByCorpus = new Map();
+var _shortPoolCacheByCorpus = new Map();
+var _longPoolCacheByCorpus = new Map();
 
-function buildAllCouplets() {
+function buildAllCouplets(corpus) {
+  corpus = corpus || 'tang';
+  var poems = corpus === 'both' ? getPoems() : getPoems(corpus);
   var out = [];
-  var poems = getPoems();
   for (var pi = 0; pi < poems.length; pi++) {
     var poem = poems[pi];
     var poet = getPoet(poem.poetId);
@@ -2532,37 +2609,45 @@ function buildAllCouplets() {
       var lowerLine = lines[i + 1].trim();
       if (!upperLine || !lowerLine) continue;
       if (_stripPunct(upperLine).length !== _stripPunct(lowerLine).length) continue;
-      var upper = { poemId: poem.id, line: upperLine, poemTitle: poem.title, poetName: poet.name };
-      var lower = { poemId: poem.id, line: lowerLine, poemTitle: poem.title, poetName: poet.name };
+      var upper = { poemId: poem.id, line: upperLine, poemTitle: poem.title, poetName: poet.name, corpus: poem.corpus };
+      var lower = { poemId: poem.id, line: lowerLine, poemTitle: poem.title, poetName: poet.name, corpus: poem.corpus };
       out.push({ upper: upper, lower: lower });
     }
   }
   return out;
 }
 
-function getAllCouplets() {
-  if (_allPairsCache === null) _allPairsCache = buildAllCouplets();
-  return _allPairsCache;
-}
-
-function _getShortPool() {
-  if (_shortPoolCache === null) {
-    _shortPoolCache = getAllCouplets().filter(function(p) { return _stripPunct(p.lower.line).length === 5; });
+function getAllCouplets(corpus) {
+  corpus = corpus || 'tang';
+  if (!_allPairsCacheByCorpus.has(corpus)) {
+    _allPairsCacheByCorpus.set(corpus, buildAllCouplets(corpus));
   }
-  return _shortPoolCache;
+  return _allPairsCacheByCorpus.get(corpus);
 }
 
-function _getLongPool() {
-  if (_longPoolCache === null) {
-    _longPoolCache = getAllCouplets().filter(function(p) { return _stripPunct(p.lower.line).length === 7; });
+function _getShortPool(corpus) {
+  corpus = corpus || 'tang';
+  if (!_shortPoolCacheByCorpus.has(corpus)) {
+    var all = getAllCouplets(corpus);
+    _shortPoolCacheByCorpus.set(corpus, all.filter(function(p) { return _stripPunct(p.lower.line).length === 5; }));
   }
-  return _longPoolCache;
+  return _shortPoolCacheByCorpus.get(corpus);
 }
 
-function _getPoolForTier(tier) {
-  if (tier === 'entry') return _getShortPool();
-  if (tier === 'mid') return _getLongPool();
-  return getAllCouplets();
+function _getLongPool(corpus) {
+  corpus = corpus || 'tang';
+  if (!_longPoolCacheByCorpus.has(corpus)) {
+    var all = getAllCouplets(corpus);
+    _longPoolCacheByCorpus.set(corpus, all.filter(function(p) { return _stripPunct(p.lower.line).length === 7; }));
+  }
+  return _longPoolCacheByCorpus.get(corpus);
+}
+
+function _getPoolForTier(tier, corpus) {
+  corpus = corpus || 'tang';
+  if (tier === 'entry') return _getShortPool(corpus);
+  if (tier === 'mid') return _getLongPool(corpus);
+  return getAllCouplets(corpus);
 }
 
 function tierOfLevel(level) {
@@ -2580,14 +2665,15 @@ function _shuffleArr(arr) {
   return a;
 }
 
-function pickLevelQuestion(tier, usedUpperLines) {
-  var pool = _getPoolForTier(tier).filter(function(p) { return !usedUpperLines.has(p.upper.line); });
+function pickLevelQuestion(tier, usedUpperLines, corpus) {
+  corpus = corpus || 'tang';
+  var pool = _getPoolForTier(tier, corpus).filter(function(p) { return !usedUpperLines.has(p.upper.line); });
   if (pool.length === 0) return null;
 
   var correct = pool[Math.floor(Math.random() * pool.length)];
   var correctLen = _stripPunct(correct.lower.line).length;
 
-  var allPairs = getAllCouplets();
+  var allPairs = getAllCouplets(corpus);
   var distractors = [];
   var seenLines = new Set([correct.lower.line]);
 
@@ -2628,9 +2714,15 @@ const feihuaSentenceProgressCode = `
 // ===== play/sentenceProgress.ts =====
 var SENTENCE_STORAGE_KEY = 'shiwen-feihua-sentence-progress';
 
-function loadSentenceProgress() {
+function _sentenceKey(corpus) {
+  corpus = corpus || 'tang';
+  return corpus === 'tang' ? SENTENCE_STORAGE_KEY : SENTENCE_STORAGE_KEY + ':' + corpus;
+}
+
+function loadSentenceProgress(corpus) {
+  corpus = corpus || 'tang';
   try {
-    var raw = window.localStorage.getItem(SENTENCE_STORAGE_KEY);
+    var raw = window.localStorage.getItem(_sentenceKey(corpus));
     if (!raw) return { unlockedIndex: 0, cleared: [], current: null };
     var parsed = JSON.parse(raw);
     return {
@@ -2652,52 +2744,58 @@ function loadSentenceProgress() {
   }
 }
 
-function saveSentenceProgress(p) {
-  try { window.localStorage.setItem(SENTENCE_STORAGE_KEY, JSON.stringify(p)); } catch (e) {}
+function saveSentenceProgress(p, corpus) {
+  corpus = corpus || 'tang';
+  try { window.localStorage.setItem(_sentenceKey(corpus), JSON.stringify(p)); } catch (e) {}
 }
 
-function markSentenceCleared(keyword) {
-  var p = loadSentenceProgress();
+function markSentenceCleared(keyword, corpus) {
+  corpus = corpus || 'tang';
+  var p = loadSentenceProgress(corpus);
   if (p.cleared.indexOf(keyword) >= 0) {
     p.current = null;
-    saveSentenceProgress(p);
+    saveSentenceProgress(p, corpus);
     return p;
   }
   p.cleared.push(keyword);
   var levelNum = parseInt(keyword, 10);
   if (!Number.isNaN(levelNum) && levelNum > p.unlockedIndex) p.unlockedIndex = levelNum;
   p.current = null;
-  saveSentenceProgress(p);
+  saveSentenceProgress(p, corpus);
   return p;
 }
 
-function beginSentenceStage(keyword) {
-  var p = loadSentenceProgress();
+function beginSentenceStage(keyword, corpus) {
+  corpus = corpus || 'tang';
+  var p = loadSentenceProgress(corpus);
   p.current = { keyword: keyword, correct: [], blood: STAGE_BLOOD };
-  saveSentenceProgress(p);
+  saveSentenceProgress(p, corpus);
   return p;
 }
 
-function commitSentenceCorrect(keyword, line) {
-  var p = loadSentenceProgress();
+function commitSentenceCorrect(keyword, line, corpus) {
+  corpus = corpus || 'tang';
+  var p = loadSentenceProgress(corpus);
   if (!p.current || p.current.keyword !== keyword) return p;
   if (p.current.correct.indexOf(line) < 0) p.current.correct.push(line);
-  saveSentenceProgress(p);
+  saveSentenceProgress(p, corpus);
   return p;
 }
 
-function commitSentenceBlood(keyword, blood) {
-  var p = loadSentenceProgress();
+function commitSentenceBlood(keyword, blood, corpus) {
+  corpus = corpus || 'tang';
+  var p = loadSentenceProgress(corpus);
   if (!p.current || p.current.keyword !== keyword) return p;
   p.current.blood = blood;
-  saveSentenceProgress(p);
+  saveSentenceProgress(p, corpus);
   return p;
 }
 
-function clearSentenceCurrent() {
-  var p = loadSentenceProgress();
+function clearSentenceCurrent(corpus) {
+  corpus = corpus || 'tang';
+  var p = loadSentenceProgress(corpus);
   p.current = null;
-  saveSentenceProgress(p);
+  saveSentenceProgress(p, corpus);
   return p;
 }
 `;
@@ -3999,6 +4097,7 @@ ${poetPageCode}
 ${poemPageCode}
 ${feihuaTypesCode}
 ${feihuaKeywordsCode}
+${feihuaPrimaryKeywordsCode}
 ${feihuaEngineCode}
 ${feihuaProgressCode}
 ${feihuaCoupletsCode}
