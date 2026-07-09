@@ -41,12 +41,11 @@ export function PoemPage() {
     return <div style={{ padding: 40, color: colors.textPrimary }}>作者未找到</div>;
   }
   // inScope: poem is visible under the active corpus.
+  // - corpus='all' shows every poem.
   // - corpus='both' poems are always in scope.
   // - tang-only poems (corpus='tang') are out of scope when active corpus='primary'.
   // - primary-only poems (corpus='primary') are out of scope when active corpus='tang'.
-  const inScope =
-    poem.corpus === 'both' ||
-    poem.corpus === corpus;
+  const inScope = corpus === 'all' || poem.corpus === 'both' || poem.corpus === corpus;
   // Which corpus would bring this poem into scope (for the switch prompt).
   const switchTarget = corpus === 'tang' ? 'primary' : 'tang';
   const switchLabel = switchTarget === 'tang' ? '唐诗三百首' : '小学必背';

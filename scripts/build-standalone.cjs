@@ -1569,7 +1569,7 @@ function truncateStr(s, n) {
 
 function PoemsRiverPage() {
   const corpus = useCorpus();
-  const poems = getPoemsCorpus(corpus);
+  const poems = getPoemsCorpus(corpus === 'all' ? 'both' : corpus);
   const poets = getPoets();
   const positioned = layoutAllPoems(poems, poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
   const vp = useRiverViewport();
@@ -1580,7 +1580,7 @@ function PoemsRiverPage() {
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
       <div style={{ textAlign: 'center', padding: '8px 0 0', color: '#8b7355', fontFamily: fontFamilies.chinese, fontSize: 14, letterSpacing: 6 }}>
-        {corpus === 'tang' ? '唐 诗 三 百 首' : '小 学 必 背'}
+        {corpus === 'tang' ? '唐 诗 三 百 首' : corpus === 'primary' ? '小 学 必 背' : '总 库'}
       </div>
       <div
         {...vp.containerProps}
@@ -1739,10 +1739,12 @@ function PoetPage() {
   }
 
   const allPoems = getPoemsByPoet(poet.id);
-  const filteredPoems = allPoems.filter(function(p) {
-    if (corpus === 'tang') return p.corpus !== 'primary';
-    return p.corpus !== 'tang';
-  });
+  const filteredPoems = corpus === 'all'
+    ? allPoems
+    : allPoems.filter(function(p) {
+      if (corpus === 'tang') return p.corpus !== 'primary';
+      return p.corpus !== 'tang';
+    });
   const hasFilteredOut = filteredPoems.length < allPoems.length;
   const visiblePoems = showAll ? allPoems : filteredPoems;
 
@@ -1757,7 +1759,7 @@ function PoetPage() {
           color: colors.textTertiary, fontFamily: fontFamilies.chinese,
           fontSize: 18, letterSpacing: 4, textAlign: 'center', padding: 24,
         }}>
-          <div style={{ marginBottom: 16 }}>该诗人在{corpus === 'tang' ? '唐诗三百首' : '小学必背'}库中无作品</div>
+          <div style={{ marginBottom: 16 }}>{corpus === 'all' ? '该诗人无作品' : '该诗人在' + (corpus === 'tang' ? '唐诗三百首' : '小学必背') + '库中无作品'}</div>
           <button
             onClick={function() { setShowAll(true); }}
             style={{
@@ -1955,7 +1957,8 @@ function PoemPage() {
     return <div style={{ padding: 40, color: colors.textPrimary }}>作者未找到</div>;
   }
   // inScope: poem is visible under the active corpus.
-  var inScope = poem.corpus === 'both' || poem.corpus === corpus;
+  // corpus='all' shows every poem.
+  var inScope = corpus === 'all' || poem.corpus === 'both' || poem.corpus === corpus;
   var switchTarget = corpus === 'tang' ? 'primary' : 'tang';
   var switchLabel = switchTarget === 'tang' ? '唐诗三百首' : '小学必背';
   const neighbors = fromPath === '/poems' ? getGlobalPoemNeighbors(poem.id) : getNeighbors(poem.id);
@@ -3145,7 +3148,8 @@ function PlayHall() {
   var charProgress = loadProgress(corpus);
   var sentenceProgress = loadSentenceProgress(corpus);
 
-  // corpus-aware: primary has no advanced tier (only entry + mid, 20 chars / 30 sentence levels)
+  // corpus-aware: primary has no advanced tier (only entry + mid, 20 chars / 30 sentence levels).
+  // 总库 ('all') shares tang's structure — 50 字三档 — drawing from the full corpus.
   var isPrimary = corpus === 'primary';
   var charKeywords = isPrimary ? PRIMARY_KEYWORDS : KEYWORDS;
   var charGroups = isPrimary
@@ -3182,7 +3186,7 @@ function PlayHall() {
               marginTop: 6, color: '#8b7355', fontFamily: fontFamilies.chinese,
               fontSize: 14, letterSpacing: 6,
             }}>
-              当前诗库：{corpus === 'tang' ? '唐诗三百首' : '小学必背'}
+              当前诗库：{corpus === 'tang' ? '唐诗三百首' : corpus === 'primary' ? '小学必背' : '总库'}
             </div>
           </div>
 

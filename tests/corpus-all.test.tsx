@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, renderHook } from '@testing-library/react';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { fireEvent, screen } from '@testing-library/react';
 import { CorpusProvider, useCorpus, useSetCorpus } from '../src/state/corpus';
+import { PoemsRiverPage } from '../src/pages/PoemsRiverPage';
+import { PoemPage } from '../src/pages/PoemPage';
+import { PoetPage } from '../src/pages/PoetPage';
+import { PlayHall } from '../src/pages/PlayHall';
 
 beforeEach(() => {
   localStorage.clear();
@@ -33,5 +39,71 @@ describe('Corpus type includes "all"', () => {
       wrapper: ({ children }) => <CorpusProvider>{children}</CorpusProvider>,
     });
     expect(result.current).toBe('tang');
+  });
+});
+
+describe('PoemsRiverPage in corpus=all', () => {
+  it('renders 总 库 title', () => {
+    localStorage.setItem('feihuaCorpus', 'all');
+    render(
+      <MemoryRouter>
+        <CorpusProvider>
+          <PoemsRiverPage />
+        </CorpusProvider>
+      </MemoryRouter>
+    );
+    expect(screen.getByText('总 库')).toBeTruthy();
+  });
+});
+
+describe('PoemPage in corpus=all', () => {
+  it('any poem is in scope (no switch prompt)', () => {
+    localStorage.setItem('feihuaCorpus', 'all');
+    // Pick any poem id from poems.json. jingyesi is corpus='both', exists.
+    render(
+      <MemoryRouter initialEntries={['/poem/jingyesi']}>
+        <CorpusProvider>
+          <Routes>
+            <Route path="/poem/:poemId" element={<PoemPage />} />
+          </Routes>
+        </CorpusProvider>
+      </MemoryRouter>
+    );
+    expect(screen.queryByText(/这首诗不在当前诗库/)).toBeNull();
+  });
+});
+
+describe('PoetPage in corpus=all', () => {
+  it('does not render 看全部 toggle', () => {
+    localStorage.setItem('feihuaCorpus', 'all');
+    // libai — has tang poems; in 'all' mode, no toggle should appear
+    render(
+      <MemoryRouter initialEntries={['/poet/libai']}>
+        <CorpusProvider>
+          <Routes>
+            <Route path="/poet/:poetId" element={<PoetPage />} />
+          </Routes>
+        </CorpusProvider>
+      </MemoryRouter>
+    );
+    expect(screen.queryByText('看全部')).toBeNull();
+    expect(screen.queryByText('只看本库')).toBeNull();
+  });
+});
+
+describe('PlayHall in corpus=all', () => {
+  it('shows 总库 label and 50 stages', () => {
+    localStorage.setItem('feihuaCorpus', 'all');
+    render(
+      <MemoryRouter>
+        <CorpusProvider>
+          <PlayHall />
+        </CorpusProvider>
+      </MemoryRouter>
+    );
+    // PlayHall label「当前诗库：总库」(CorpusSwitcher also renders a 总库 button, so match the label text)
+    expect(screen.getByText(/当前诗库：总库/)).toBeTruthy();
+    // 50 关 — sentence mode shows "已通 X / 50 关"
+    expect(screen.getByText(/\/ 50 关/)).toBeTruthy();
   });
 });

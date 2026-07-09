@@ -42,10 +42,12 @@ export function PoetPage() {
   }
 
   const allPoems = getPoemsByPoet(poet.id);
-  const filteredPoems: Poem[] = allPoems.filter((p) => {
-    if (corpus === 'tang') return p.corpus !== 'primary';
-    return p.corpus !== 'tang';
-  });
+  const filteredPoems: Poem[] = corpus === 'all'
+    ? allPoems
+    : allPoems.filter((p) => {
+      if (corpus === 'tang') return p.corpus !== 'primary';
+      return p.corpus !== 'tang';
+    });
   const hasFilteredOut = filteredPoems.length < allPoems.length;
   const visiblePoems = showAll ? allPoems : filteredPoems;
 
@@ -60,7 +62,7 @@ export function PoetPage() {
           color: colors.textTertiary, fontFamily: fontFamilies.chinese,
           fontSize: 18, letterSpacing: 4, textAlign: 'center', padding: 24,
         }}>
-          <div style={{ marginBottom: 16 }}>该诗人在{corpus === 'tang' ? '唐诗三百首' : '小学必背'}库中无作品</div>
+          <div style={{ marginBottom: 16 }}>{corpus === 'all' ? '该诗人无作品' : `该诗人在${corpus === 'tang' ? '唐诗三百首' : '小学必背'}库中无作品`}</div>
           <button
             onClick={() => setShowAll(true)}
             style={{

@@ -25,7 +25,7 @@ function truncate(s: string, n: number): string {
 
 export function PoemsRiverPage() {
   const corpus = useCorpus();
-  const poems = getPoems(corpus);
+  const poems = getPoems(corpus === 'all' ? 'both' : corpus);
   const poets = getPoets();
   const positioned = layoutAllPoems(poems, poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
   const vp = useRiverViewport();
@@ -36,7 +36,7 @@ export function PoemsRiverPage() {
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
       <div style={{ textAlign: 'center', padding: '8px 0 0', color: '#8b7355', fontFamily: fontFamilies.chinese, fontSize: 14, letterSpacing: 6 }}>
-        {corpus === 'tang' ? '唐 诗 三 百 首' : '小 学 必 背'}
+        {corpus === 'tang' ? '唐 诗 三 百 首' : corpus === 'primary' ? '小 学 必 背' : '总 库'}
       </div>
       <div
         {...vp.containerProps}

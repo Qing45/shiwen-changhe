@@ -51,7 +51,8 @@ export function PlayHall() {
   const charProgress = loadProgress(corpus);
   const sentenceProgress = loadSentenceProgress(corpus);
 
-  // corpus-aware: primary has no advanced tier (only entry + mid, 20 chars / 30 sentence levels)
+  // corpus-aware: primary has no advanced tier (only entry + mid, 20 chars / 30 sentence levels).
+  // 总库 ('all') shares tang's structure — 50 字三档 — drawing from the full corpus.
   const isPrimary = corpus === 'primary';
   const charKeywords = isPrimary ? PRIMARY_KEYWORDS : KEYWORDS;
   const charGroups = isPrimary
@@ -89,7 +90,7 @@ export function PlayHall() {
               marginTop: 6, color: '#8b7355', fontFamily: fontFamilies.chinese,
               fontSize: 14, letterSpacing: 6,
             }}>
-              当前诗库：{corpus === 'tang' ? '唐诗三百首' : '小学必背'}
+              当前诗库：{corpus === 'tang' ? '唐诗三百首' : corpus === 'primary' ? '小学必背' : '总库'}
             </div>
           </div>
 
