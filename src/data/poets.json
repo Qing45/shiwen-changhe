@@ -757,6 +757,34 @@
     "corpus": "primary"
   },
   {
+    "id": "536294ba",
+    "name": "卢钺",
+    "birthYear": 1100,
+    "deathYear": 1150,
+    "dynastyId": "tang",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "67f36c38",
+    "name": "柳永",
+    "birthYear": 700,
+    "deathYear": 750,
+    "dynastyId": "tang",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "67976770",
+    "name": "林杰",
+    "courtesyName": "智周",
+    "birthYear": 750,
+    "deathYear": 800,
+    "dynastyId": "tang",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
     "id": "9f9a81ea73cd",
     "name": "龚自珍",
     "courtesyName": "璱人",

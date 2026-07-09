@@ -47,12 +47,15 @@ async function main() {
   // 按 poemId 去重：primary 中已存在于 tang 的 → corpus: 'both'
   const tangPoemIds = new Set(tang.poems.map((p) => p.id));
   const mergedPoems: Poem[] = [...tang.poems];
+  const mergedPoemIds = new Set(mergedPoems.map((p) => p.id));
   for (const p of primary.poems) {
+    if (mergedPoemIds.has(p.id)) continue; // skip primary-within-primary dups
     if (tangPoemIds.has(p.id)) {
       const idx = mergedPoems.findIndex((m) => m.id === p.id);
       mergedPoems[idx] = { ...mergedPoems[idx], corpus: 'both' };
     } else {
       mergedPoems.push(p);
+      mergedPoemIds.add(p.id);
     }
   }
 

@@ -1,4 +1,4 @@
-import type { Poet, Poem, PoetCorpus, PoemCorpus } from '../../src/types';
+import type { Poet, Poem } from '../../src/types';
 
 // Hand-curated metadata for famous poets. Birth/death years are historical.
 // Poets not in this map default to birthYear=700, deathYear=750, familiarity=2.
@@ -82,7 +82,7 @@ export function normalize(
     annotations: { term: string; explanation: string }[];
     background?: string;
   }[],
-  corpusHint: PoetCorpus | PoemCorpus = 'tang',
+  corpusHint: 'tang' | 'primary' = 'tang',
 ): NormalizedData {
   const poets = new Map<string, Poet>();
   const poems: Poem[] = [];
@@ -100,7 +100,7 @@ export function normalize(
         deathYear: meta.deathYear,
         dynastyId: 'tang',
         familiarity: meta.familiarity,
-        corpus: corpusHint as PoetCorpus,
+        corpus: corpusHint,
       };
       poets.set(r.poetName, poet);
     }
@@ -114,7 +114,7 @@ export function normalize(
       background: r.background,
       creationYear: undefined, // gushiwen.cn doesn't expose this cleanly; default to undefined
       familiarity: FAMOUS_POEMS.has(r.title) ? 5 : 2,
-      corpus: corpusHint as PoemCorpus,
+      corpus: corpusHint,
     };
     poems.push(poem);
   }
