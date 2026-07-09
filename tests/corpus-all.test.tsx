@@ -59,9 +59,10 @@ describe('PoemsRiverPage in corpus=all', () => {
 describe('PoemPage in corpus=all', () => {
   it('any poem is in scope (no switch prompt)', () => {
     localStorage.setItem('feihuaCorpus', 'all');
-    // Pick any poem id from poems.json. jingyesi is corpus='both', exists.
+    // c35a60c1a8e2 is the real hash id for 静夜思 in poems.json.
+    const REAL_POEM_ID = 'c35a60c1a8e2';
     render(
-      <MemoryRouter initialEntries={['/poem/jingyesi']}>
+      <MemoryRouter initialEntries={[`/poem/${REAL_POEM_ID}`]}>
         <CorpusProvider>
           <Routes>
             <Route path="/poem/:poemId" element={<PoemPage />} />
@@ -69,6 +70,9 @@ describe('PoemPage in corpus=all', () => {
         </CorpusProvider>
       </MemoryRouter>
     );
+    // Guard against silent not-found passes: if the id were stale, PoemPage
+    // would early-return and the assertion below would pass vacuously.
+    expect(screen.queryByText('诗未找到')).toBeNull();
     expect(screen.queryByText(/这首诗不在当前诗库/)).toBeNull();
   });
 });
@@ -76,9 +80,10 @@ describe('PoemPage in corpus=all', () => {
 describe('PoetPage in corpus=all', () => {
   it('does not render 看全部 toggle', () => {
     localStorage.setItem('feihuaCorpus', 'all');
-    // libai — has tang poems; in 'all' mode, no toggle should appear
+    // 674e767d is the real hash id for 李白 in poets.json.
+    const REAL_POET_ID = '674e767d';
     render(
-      <MemoryRouter initialEntries={['/poet/libai']}>
+      <MemoryRouter initialEntries={[`/poet/${REAL_POET_ID}`]}>
         <CorpusProvider>
           <Routes>
             <Route path="/poet/:poetId" element={<PoetPage />} />
@@ -86,6 +91,9 @@ describe('PoetPage in corpus=all', () => {
         </CorpusProvider>
       </MemoryRouter>
     );
+    // Guard against silent not-found passes: if the id were stale, PoetPage
+    // would early-return and the assertions below would pass vacuously.
+    expect(screen.queryByText('诗人未找到')).toBeNull();
     expect(screen.queryByText('看全部')).toBeNull();
     expect(screen.queryByText('只看本库')).toBeNull();
   });
