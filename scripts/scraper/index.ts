@@ -1,68 +1,75 @@
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchPoemList } from './list';
 import { parsePoemPage } from './parse-poem';
+import type { RawPoem } from './parse-poem';
 import { normalize } from './normalize';
+import { fetchPrimary } from './primary';
+import { cachedFetch, rateLimitedDelay } from './index-helpers';
+import type { Poet, Poem } from '../../src/types';
+
+// 重导出 helper 给其他 scraper 文件用
+export { cachedFetch, rateLimitedDelay, CACHE_DIR } from './index-helpers';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const CACHE_DIR = resolve(here, '.cache');
 const POEMS_JSON = resolve(here, '../../src/data/poems.json');
 const POETS_JSON = resolve(here, '../../src/data/poets.json');
 
-const RATE_LIMIT_MS = 1000;
-
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
-
-async function rateLimitedDelay(): Promise<void> {
-  return new Promise((r) => setTimeout(r, RATE_LIMIT_MS));
-}
-
-async function cachedFetch(url: string): Promise<string> {
-  mkdirSync(CACHE_DIR, { recursive: true });
-  const cacheFile = resolve(
-    CACHE_DIR,
-    Buffer.from(url).toString('base64url').slice(0, 80) + '.html',
-  );
-  if (existsSync(cacheFile)) {
-    return readFileSync(cacheFile, 'utf-8');
-  }
-  console.log(`  fetching ${url}`);
-  const res = await fetch(url, { headers: { 'User-Agent': UA } });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-  const html = await res.text();
-  writeFileSync(cacheFile, html);
-  return html;
-}
-
 async function main() {
-  console.log('Step 1: fetching poem list...');
-  const list = await fetchPoemList();
-  console.log(`  found ${list.length} poems`);
+  console.log('Step 1: fetching Tang poem list...');
+  const tangList = await fetchPoemList();
+  console.log(`  found ${tangList.length} tang poems`);
 
-  console.log('Step 2: fetching each poem page (rate-limited)...');
-  const raw: Parameters<typeof normalize>[0] = [];
+  console.log('Step 2: fetching each Tang poem page (rate-limited)...');
+  const tangRaw: RawPoem[] = [];
   let i = 0;
-  for (const entry of list) {
+  for (const entry of tangList) {
     i++;
     try {
       const html = await cachedFetch(entry.url);
       const parsed = parsePoemPage(html, entry.url);
-      raw.push(parsed);
-      console.log(`  [${i}/${list.length}] ${parsed.title} — ${parsed.poetName}`);
+      tangRaw.push(parsed);
+      console.log(`  [${i}/${tangList.length}] ${parsed.title} — ${parsed.poetName}`);
     } catch (err) {
-      console.error(`  [${i}/${list.length}] FAILED ${entry.title}:`, err);
+      console.error(`  [${i}/${tangList.length}] FAILED ${entry.title}:`, err);
     }
     await rateLimitedDelay();
   }
 
-  console.log(`Step 3: normalizing ${raw.length} poems...`);
-  const { poets, poems } = normalize(raw);
+  console.log('Step 3: fetching primary list...');
+  const primaryRaw = await fetchPrimary();
 
-  writeFileSync(POEMS_JSON, JSON.stringify(poems, null, 2));
-  writeFileSync(POETS_JSON, JSON.stringify(poets, null, 2));
-  console.log(`  wrote ${poems.length} poems, ${poets.length} poets`);
+  console.log(`Step 4: normalizing ${tangRaw.length} tang + ${primaryRaw.length} primary...`);
+  const tang = normalize(tangRaw, 'tang');
+  const primary = normalize(primaryRaw, 'primary');
+
+  // 按 poemId 去重：primary 中已存在于 tang 的 → corpus: 'both'
+  const tangPoemIds = new Set(tang.poems.map((p) => p.id));
+  const mergedPoems: Poem[] = [...tang.poems];
+  for (const p of primary.poems) {
+    if (tangPoemIds.has(p.id)) {
+      const idx = mergedPoems.findIndex((m) => m.id === p.id);
+      mergedPoems[idx] = { ...mergedPoems[idx], corpus: 'both' };
+    } else {
+      mergedPoems.push(p);
+    }
+  }
+
+  // 按诗人名合并：primary 中已存在的诗人 → 仍保留 tang 身份（用 tang entry）
+  // 独有诗人加入
+  const tangPoetNames = new Set(tang.poets.map((p) => p.name));
+  const mergedPoets: Poet[] = [...tang.poets];
+  for (const p of primary.poets) {
+    if (!tangPoetNames.has(p.name)) {
+      mergedPoets.push({ ...p, corpus: 'primary' });
+    }
+    // 否则原 tang 诗人保留 corpus: 'tang'
+  }
+
+  writeFileSync(POEMS_JSON, JSON.stringify(mergedPoems, null, 2));
+  writeFileSync(POETS_JSON, JSON.stringify(mergedPoets, null, 2));
+  console.log(`  wrote ${mergedPoems.length} poems, ${mergedPoets.length} poets`);
   console.log(`  -> ${POEMS_JSON}`);
   console.log(`  -> ${POETS_JSON}`);
 }

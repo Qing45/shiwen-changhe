@@ -5,7 +5,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "738b4e4b6da3",
@@ -13,15 +14,18 @@
     "birthYear": 688,
     "deathYear": 742,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "738b5efa",
     "name": "王建",
-    "birthYear": 700,
-    "deathYear": 750,
+    "courtesyName": "仲初",
+    "birthYear": 766,
+    "deathYear": 830,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "738b7ef4",
@@ -31,7 +35,8 @@
     "birthYear": 701,
     "deathYear": 761,
     "dynastyId": "tang",
-    "familiarity": 4
+    "familiarity": 4,
+    "corpus": "tang"
   },
   {
     "id": "767d5c456613",
@@ -41,7 +46,8 @@
     "birthYear": 772,
     "deathYear": 846,
     "dynastyId": "tang",
-    "familiarity": 4
+    "familiarity": 4,
+    "corpus": "tang"
   },
   {
     "id": "897f91194eba",
@@ -49,7 +55,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "674e767d",
@@ -59,7 +66,8 @@
     "birthYear": 701,
     "deathYear": 762,
     "dynastyId": "tang",
-    "familiarity": 5
+    "familiarity": 5,
+    "corpus": "tang"
   },
   {
     "id": "674e55469690",
@@ -69,7 +77,8 @@
     "birthYear": 813,
     "deathYear": 858,
     "dynastyId": "tang",
-    "familiarity": 4
+    "familiarity": 4,
+    "corpus": "tang"
   },
   {
     "id": "674e7aef",
@@ -77,7 +86,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5b8b4e4b95ee",
@@ -85,7 +95,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "675c752b",
@@ -95,7 +106,8 @@
     "birthYear": 712,
     "deathYear": 770,
     "dynastyId": "tang",
-    "familiarity": 5
+    "familiarity": 5,
+    "corpus": "tang"
   },
   {
     "id": "5b5f6d697136",
@@ -104,7 +116,8 @@
     "birthYear": 689,
     "deathYear": 740,
     "dynastyId": "tang",
-    "familiarity": 3
+    "familiarity": 3,
+    "corpus": "tang"
   },
   {
     "id": "91d1660c7eea",
@@ -112,7 +125,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "67f35b975143",
@@ -121,7 +135,8 @@
     "birthYear": 773,
     "deathYear": 819,
     "dynastyId": "tang",
-    "familiarity": 3
+    "familiarity": 3,
+    "corpus": "tang"
   },
   {
     "id": "97e65e947269",
@@ -129,7 +144,8 @@
     "birthYear": 737,
     "deathYear": 792,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "7956548f",
@@ -137,7 +153,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5f20795c",
@@ -145,15 +162,18 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "8d3e5c9b",
     "name": "贾岛",
-    "birthYear": 700,
-    "deathYear": 750,
+    "courtesyName": "浪仙",
+    "birthYear": 779,
+    "deathYear": 843,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 3,
+    "corpus": "tang"
   },
   {
     "id": "88f48fea",
@@ -161,7 +181,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5218957f537f",
@@ -169,7 +190,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "67435fb78206",
@@ -177,7 +199,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "738b660c9f84",
@@ -186,7 +209,8 @@
     "birthYear": 698,
     "deathYear": 757,
     "dynastyId": "tang",
-    "familiarity": 3
+    "familiarity": 3,
+    "corpus": "tang"
   },
   {
     "id": "738b7ff0",
@@ -194,7 +218,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "67315e869980",
@@ -202,7 +227,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5c9153c2",
@@ -210,7 +236,8 @@
     "birthYear": 715,
     "deathYear": 770,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "674e76ca",
@@ -218,7 +245,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "675c7267",
@@ -228,7 +256,8 @@
     "birthYear": 803,
     "deathYear": 852,
     "dynastyId": "tang",
-    "familiarity": 3
+    "familiarity": 3,
+    "corpus": "tang"
   },
   {
     "id": "67f34e2d5eb8",
@@ -236,7 +265,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "97e65e84",
@@ -244,7 +274,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5f2065ed",
@@ -252,7 +283,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5f206ccc",
@@ -260,15 +292,17 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5f207ee7",
     "name": "张继",
-    "birthYear": 700,
-    "deathYear": 750,
+    "birthYear": 710,
+    "deathYear": 780,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "96489676",
@@ -276,7 +310,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "4f5a540d",
@@ -284,7 +319,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "8d3a77e57ae0",
@@ -292,7 +328,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "6e295ead7b60",
@@ -300,7 +337,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "521865b95e73",
@@ -308,7 +346,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "521879b99521",
@@ -317,7 +356,8 @@
     "birthYear": 772,
     "deathYear": 842,
     "dynastyId": "tang",
-    "familiarity": 3
+    "familiarity": 3,
+    "corpus": "tang"
   },
   {
     "id": "90d1754b",
@@ -325,15 +365,18 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "97e97fc3",
     "name": "韩翃",
-    "birthYear": 700,
-    "deathYear": 750,
+    "courtesyName": "君平",
+    "birthYear": 720,
+    "deathYear": 790,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "97e95053",
@@ -341,7 +384,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "987e51b5",
@@ -349,7 +393,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "738b52c3",
@@ -357,7 +402,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "738b6e7e",
@@ -365,7 +411,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "53f87a7a66d9",
@@ -373,7 +420,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "675c83409e64",
@@ -381,7 +429,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "675c5ba18a00",
@@ -389,7 +438,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "6c884f7a671f",
@@ -397,7 +447,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "674e968657fa",
@@ -405,7 +456,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "9a6c6234",
@@ -413,7 +465,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5d146d82",
@@ -421,7 +474,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5e385efa",
@@ -429,7 +483,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5f204e5d9f84",
@@ -437,7 +492,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5f204e54",
@@ -445,7 +501,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5f207c4d",
@@ -453,7 +510,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "8bb86d51",
@@ -461,7 +519,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "768e7136",
@@ -469,7 +528,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5218661a865a",
@@ -477,7 +537,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "53627eb6",
@@ -485,7 +546,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "94b18d77",
@@ -493,7 +555,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "9a865bbe738b",
@@ -501,7 +564,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "623453d44f26",
@@ -509,7 +573,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "674e9880",
@@ -517,7 +582,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "7687752b5189",
@@ -525,7 +591,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "79e697ec7389",
@@ -533,7 +600,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "9ad89002",
@@ -542,7 +610,8 @@
     "birthYear": 704,
     "deathYear": 765,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5d1466d9",
@@ -550,7 +619,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5d1498a2",
@@ -558,7 +628,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "859b9022",
@@ -566,7 +637,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "51437ed3",
@@ -574,7 +646,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "4e184e3a",
@@ -582,7 +655,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "7da66bcb6f5c",
@@ -590,7 +664,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "96485b506602",
@@ -598,7 +673,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "97e96108",
@@ -606,7 +682,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "738b6daf",
@@ -614,7 +691,8 @@
     "birthYear": 700,
     "deathYear": 750,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
   },
   {
     "id": "5b5f90ca",
@@ -623,6 +701,131 @@
     "birthYear": 751,
     "deathYear": 814,
     "dynastyId": "tang",
-    "familiarity": 2
+    "familiarity": 2,
+    "corpus": "tang"
+  },
+  {
+    "id": "82cf8f7c",
+    "name": "苏轼",
+    "courtesyName": "子瞻",
+    "pseudonym": "东坡居士",
+    "birthYear": 1037,
+    "deathYear": 1101,
+    "dynastyId": "tang",
+    "familiarity": 5,
+    "corpus": "primary"
+  },
+  {
+    "id": "674e7ec5",
+    "name": "李绅",
+    "courtesyName": "公垂",
+    "birthYear": 792,
+    "deathYear": 858,
+    "dynastyId": "tang",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "80e14ee480fd",
+    "name": "胡令能",
+    "birthYear": 750,
+    "deathYear": 820,
+    "dynastyId": "tang",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "8f9b5f0375be",
+    "name": "辛弃疾",
+    "courtesyName": "幼安",
+    "pseudonym": "稼轩",
+    "birthYear": 1140,
+    "deathYear": 1207,
+    "dynastyId": "tang",
+    "familiarity": 5,
+    "corpus": "primary"
+  },
+  {
+    "id": "66fe51e0",
+    "name": "曾几",
+    "courtesyName": "志甫",
+    "pseudonym": "茶山居士",
+    "birthYear": 1085,
+    "deathYear": 1166,
+    "dynastyId": "tang",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "9f9a81ea73cd",
+    "name": "龚自珍",
+    "courtesyName": "璱人",
+    "pseudonym": "定盦",
+    "birthYear": 1792,
+    "deathYear": 1841,
+    "dynastyId": "tang",
+    "familiarity": 3,
+    "corpus": "primary"
+  },
+  {
+    "id": "7eb3517060275fb7",
+    "name": "纳兰性德",
+    "courtesyName": "容若",
+    "birthYear": 1655,
+    "deathYear": 1685,
+    "dynastyId": "tang",
+    "familiarity": 3,
+    "corpus": "primary"
+  },
+  {
+    "id": "5f205fd7548c",
+    "name": "张志和",
+    "courtesyName": "子同",
+    "birthYear": 730,
+    "deathYear": 790,
+    "dynastyId": "tang",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "673171b9",
+    "name": "朱熹",
+    "courtesyName": "元晦",
+    "pseudonym": "晦庵",
+    "birthYear": 1130,
+    "deathYear": 1200,
+    "dynastyId": "tang",
+    "familiarity": 4,
+    "corpus": "primary"
+  },
+  {
+    "id": "96f79707",
+    "name": "雷震",
+    "birthYear": 1100,
+    "deathYear": 1150,
+    "dynastyId": "tang",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "83034ef26df9",
+    "name": "范仲淹",
+    "courtesyName": "希文",
+    "birthYear": 989,
+    "deathYear": 1052,
+    "dynastyId": "tang",
+    "familiarity": 3,
+    "corpus": "primary"
+  },
+  {
+    "id": "738b5b8977f3",
+    "name": "王安石",
+    "courtesyName": "介甫",
+    "pseudonym": "半山",
+    "birthYear": 1021,
+    "deathYear": 1086,
+    "dynastyId": "tang",
+    "familiarity": 4,
+    "corpus": "primary"
   }
 ]
