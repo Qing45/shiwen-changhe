@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { TopNav } from '../components/TopNav';
 import { KeywordSeal } from '../components/KeywordSeal';
 import { KEYWORDS, KEYWORD_GROUPS } from '../play/keywords';
+import { PRIMARY_KEYWORDS, PRIMARY_KEYWORD_GROUPS } from '../play/primaryKeywords';
 import { loadProgress } from '../play/progress';
 import { loadSentenceProgress } from '../play/sentenceProgress';
 import { useBreakpoint } from '../hooks/useBreakpoint';
@@ -47,8 +48,20 @@ export function PlayHall() {
   const isMobile = bp === 'mobile';
   const corpus = useCorpus();
 
-  const charProgress = loadProgress();
-  const sentenceProgress = loadSentenceProgress();
+  const charProgress = loadProgress(corpus);
+  const sentenceProgress = loadSentenceProgress(corpus);
+
+  // corpus-aware: primary has no advanced tier (only entry + mid, 20 chars / 30 sentence levels)
+  const isPrimary = corpus === 'primary';
+  const charKeywords = isPrimary ? PRIMARY_KEYWORDS : KEYWORDS;
+  const charGroups = isPrimary
+    ? [{ tier: 'entry' as const, words: PRIMARY_KEYWORD_GROUPS.entry },
+       { tier: 'mid' as const, words: PRIMARY_KEYWORD_GROUPS.mid }]
+    : [{ tier: 'entry' as const, words: KEYWORD_GROUPS.entry },
+       { tier: 'mid' as const, words: KEYWORD_GROUPS.mid },
+       { tier: 'advanced' as const, words: KEYWORD_GROUPS.advanced }];
+  const totalCharStages = charKeywords.length; // 20 or 50
+  const totalSentenceStages = isPrimary ? 30 : 50;
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -69,8 +82,8 @@ export function PlayHall() {
               fontSize: isMobile ? 13 : 16, letterSpacing: isMobile ? 2 : 4,
             }}>
               {mode === 'char'
-                ? `单 字 · 拾 字 模 式 · 已通 ${charProgress.cleared.length} / 50 关`
-                : `整 句 · 联 句 模 式 · 已通 ${sentenceProgress.cleared.length} / 50 关`}
+                ? `单 字 · 拾 字 模 式 · 已通 ${charProgress.cleared.length} / ${totalCharStages} 关`
+                : `整 句 · 联 句 模 式 · 已通 ${sentenceProgress.cleared.length} / ${totalSentenceStages} 关`}
             </div>
             <div style={{
               marginTop: 6, color: '#8b7355', fontFamily: fontFamilies.chinese,
@@ -91,9 +104,9 @@ export function PlayHall() {
           </div>
 
           {mode === 'char' ? (
-            <CharModeBody progress={charProgress} compact={isMobile} />
+            <CharModeBody progress={charProgress} compact={isMobile} groups={charGroups} charKeywords={charKeywords} />
           ) : (
-            <SentenceModeBody progress={sentenceProgress} compact={isMobile} />
+            <SentenceModeBody progress={sentenceProgress} compact={isMobile} isPrimary={isPrimary} />
           )}
         </div>
       </div>
@@ -101,7 +114,12 @@ export function PlayHall() {
   );
 }
 
-function CharModeBody({ progress, compact }: { progress: ReturnType<typeof loadProgress>; compact: boolean }) {
+function CharModeBody({ progress, compact, groups, charKeywords }: {
+  progress: ReturnType<typeof loadProgress>;
+  compact: boolean;
+  groups: { tier: 'entry' | 'mid' | 'advanced'; words: readonly string[] }[];
+  charKeywords: readonly string[];
+}) {
   const stateOf = (kw: string, idx: number): 'cleared' | 'current' | 'locked' => {
     if (progress.cleared.includes(kw)) return 'cleared';
     if (idx === progress.unlockedIndex) return 'current';
@@ -110,13 +128,13 @@ function CharModeBody({ progress, compact }: { progress: ReturnType<typeof loadP
 
   return (
     <>
-      {(['entry', 'mid', 'advanced'] as const).map((group) => (
-        <div key={group} style={{ marginBottom: compact ? 24 : 36 }}>
+      {groups.map(({ tier, words }) => (
+        <div key={tier} style={{ marginBottom: compact ? 24 : 36 }}>
           <div style={{
             color: colors.textTertiary, fontFamily: fontFamilies.chinese,
             fontSize: 14, letterSpacing: 6, marginBottom: 14, textAlign: 'center',
           }}>
-            {GROUP_LABEL[group]}
+            {GROUP_LABEL[tier]}
           </div>
           <div style={{
             display: 'grid',
@@ -126,8 +144,8 @@ function CharModeBody({ progress, compact }: { progress: ReturnType<typeof loadP
             gap: compact ? 8 : 12, justifyContent: 'center',
             maxWidth: compact ? 360 : undefined, margin: compact ? '0 auto' : undefined,
           }}>
-            {KEYWORD_GROUPS[group].map((kw) => {
-              const globalIdx = KEYWORDS.indexOf(kw);
+            {words.map((kw) => {
+              const globalIdx = charKeywords.indexOf(kw);
               const state = stateOf(kw, globalIdx);
               return (
                 <Link key={kw} to={state === 'locked' ? '#' : `/play/stage/${kw}`}
@@ -143,7 +161,11 @@ function CharModeBody({ progress, compact }: { progress: ReturnType<typeof loadP
   );
 }
 
-function SentenceModeBody({ progress, compact }: { progress: ReturnType<typeof loadSentenceProgress>; compact: boolean }) {
+function SentenceModeBody({ progress, compact, isPrimary }: {
+  progress: ReturnType<typeof loadSentenceProgress>;
+  compact: boolean;
+  isPrimary: boolean;
+}) {
   const stateOf = (level: number): 'cleared' | 'current' | 'locked' => {
     const key = String(level);
     if (progress.cleared.includes(key)) return 'cleared';
@@ -151,9 +173,14 @@ function SentenceModeBody({ progress, compact }: { progress: ReturnType<typeof l
     return 'locked';
   };
 
+  // corpus-aware: primary has no advanced tier
+  const levelGroups = isPrimary
+    ? LEVEL_GROUPS.filter(g => g.tier !== 'advanced')
+    : LEVEL_GROUPS;
+
   return (
     <>
-      {LEVEL_GROUPS.map(({ tier, range }) => {
+      {levelGroups.map(({ tier, range }) => {
         const levels: number[] = [];
         for (let i = range[0]; i <= range[1]; i++) levels.push(i);
         return (

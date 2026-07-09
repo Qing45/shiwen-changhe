@@ -14283,6 +14283,8 @@ function PlayHallModeTab(props) {
 function CharModeBody(props) {
   var progress = props.progress;
   var compact = props.compact;
+  var groups = props.groups;
+  var charKeywords = props.charKeywords;
   var stateOf = function(kw, idx) {
     if (progress.cleared.includes(kw)) return 'cleared';
     if (idx === progress.unlockedIndex) return 'current';
@@ -14290,14 +14292,16 @@ function CharModeBody(props) {
   };
   return (
     <React.Fragment>
-      {['entry', 'mid', 'advanced'].map(function(group) {
+      {groups.map(function(group) {
+        var tier = group.tier;
+        var words = group.words;
         return (
-          <div key={group} style={{ marginBottom: compact ? 24 : 36 }}>
+          <div key={tier} style={{ marginBottom: compact ? 24 : 36 }}>
             <div style={{
               color: colors.textTertiary, fontFamily: fontFamilies.chinese,
               fontSize: 14, letterSpacing: 6, marginBottom: 14, textAlign: 'center',
             }}>
-              {GROUP_LABEL[group]}
+              {GROUP_LABEL[tier]}
             </div>
             <div style={{
               display: 'grid',
@@ -14307,8 +14311,8 @@ function CharModeBody(props) {
               gap: compact ? 8 : 12, justifyContent: 'center',
               maxWidth: compact ? 360 : undefined, margin: compact ? '0 auto' : undefined,
             }}>
-              {KEYWORD_GROUPS[group].map(function(kw) {
-                var globalIdx = KEYWORDS.indexOf(kw);
+              {words.map(function(kw) {
+                var globalIdx = charKeywords.indexOf(kw);
                 var state = stateOf(kw, globalIdx);
                 return (
                   <Link key={kw} to={state === 'locked' ? '#' : '/play/stage/' + kw}
@@ -14328,15 +14332,20 @@ function CharModeBody(props) {
 function SentenceModeBody(props) {
   var progress = props.progress;
   var compact = props.compact;
+  var isPrimary = props.isPrimary;
   var stateOf = function(level) {
     var key = String(level);
     if (progress.cleared.includes(key)) return 'cleared';
     if (level - 1 === progress.unlockedIndex) return 'current';
     return 'locked';
   };
+  // corpus-aware: primary has no advanced tier
+  var levelGroups = isPrimary
+    ? LEVEL_GROUPS.filter(function(g) { return g.tier !== 'advanced'; })
+    : LEVEL_GROUPS;
   return (
     <React.Fragment>
-      {LEVEL_GROUPS.map(function(group) {
+      {levelGroups.map(function(group) {
         var tier = group.tier;
         var range = group.range;
         var levels = [];
@@ -14380,8 +14389,20 @@ function PlayHall() {
   const isMobile = bp === 'mobile';
   const corpus = useCorpus();
 
-  var charProgress = loadProgress();
-  var sentenceProgress = loadSentenceProgress();
+  var charProgress = loadProgress(corpus);
+  var sentenceProgress = loadSentenceProgress(corpus);
+
+  // corpus-aware: primary has no advanced tier (only entry + mid, 20 chars / 30 sentence levels)
+  var isPrimary = corpus === 'primary';
+  var charKeywords = isPrimary ? PRIMARY_KEYWORDS : KEYWORDS;
+  var charGroups = isPrimary
+    ? [{ tier: 'entry', words: PRIMARY_KEYWORD_GROUPS.entry },
+       { tier: 'mid', words: PRIMARY_KEYWORD_GROUPS.mid }]
+    : [{ tier: 'entry', words: KEYWORD_GROUPS.entry },
+       { tier: 'mid', words: KEYWORD_GROUPS.mid },
+       { tier: 'advanced', words: KEYWORD_GROUPS.advanced }];
+  var totalCharStages = charKeywords.length;
+  var totalSentenceStages = isPrimary ? 30 : 50;
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -14401,8 +14422,8 @@ function PlayHall() {
               fontSize: isMobile ? 13 : 16, letterSpacing: isMobile ? 2 : 4,
             }}>
               {mode === 'char'
-                ? '单 字 · 拾 字 模 式 · 已通 ' + charProgress.cleared.length + ' / 50 关'
-                : '整 句 · 联 句 模 式 · 已通 ' + sentenceProgress.cleared.length + ' / 50 关'}
+                ? '单 字 · 拾 字 模 式 · 已通 ' + charProgress.cleared.length + ' / ' + totalCharStages + ' 关'
+                : '整 句 · 联 句 模 式 · 已通 ' + sentenceProgress.cleared.length + ' / ' + totalSentenceStages + ' 关'}
             </div>
             <div style={{
               marginTop: 6, color: '#8b7355', fontFamily: fontFamilies.chinese,
@@ -14422,8 +14443,8 @@ function PlayHall() {
           </div>
 
           {mode === 'char'
-            ? <CharModeBody progress={charProgress} compact={isMobile} />
-            : <SentenceModeBody progress={sentenceProgress} compact={isMobile} />}
+            ? <CharModeBody progress={charProgress} compact={isMobile} groups={charGroups} charKeywords={charKeywords} />
+            : <SentenceModeBody progress={sentenceProgress} compact={isMobile} isPrimary={isPrimary} />}
         </div>
       </div>
     </div>
@@ -14679,8 +14700,9 @@ function StagePlay() {
         .join('')
     : '';
 
-  const kwIndex = KEYWORDS.indexOf(kw);
-  const isLastKeyword = kwIndex < 0 || kwIndex + 1 >= KEYWORDS.length;
+  const charKeywords = corpus === 'primary' ? PRIMARY_KEYWORDS : KEYWORDS;
+  const kwIndex = charKeywords.indexOf(kw);
+  const isLastKeyword = kwIndex < 0 || kwIndex + 1 >= charKeywords.length;
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
 
@@ -14873,7 +14895,7 @@ function StagePlay() {
                   </button>
                   {result.kind === 'cleared' && !isLastKeyword && (
                     <button
-                      onClick={() => navigate('/play/stage/' + KEYWORDS[kwIndex + 1])}
+                      onClick={() => navigate('/play/stage/' + charKeywords[kwIndex + 1])}
                       style={feihuaBtnStyle}
                     >
                       下一关

@@ -16,6 +16,7 @@ import {
 } from '../play/progress';
 import { STAGE_GOAL, STAGE_BLOOD, STAGE_TIMEBOX, type Verse } from '../play/types';
 import { KEYWORDS } from '../play/keywords';
+import { PRIMARY_KEYWORDS } from '../play/primaryKeywords';
 import { useCorpus } from '../state/corpus';
 
 type CharStatus = 'correct' | 'wrong' | null;
@@ -292,8 +293,9 @@ export function StagePlay() {
     : '';
 
   // 末关判定：当前关已是 KEYWORDS 最后一关时不再显示「下一关」
-  const kwIndex = KEYWORDS.indexOf(kw);
-  const isLastKeyword = kwIndex < 0 || kwIndex + 1 >= KEYWORDS.length;
+  const charKeywords = corpus === 'primary' ? PRIMARY_KEYWORDS : KEYWORDS;
+  const kwIndex = charKeywords.indexOf(kw);
+  const isLastKeyword = kwIndex < 0 || kwIndex + 1 >= charKeywords.length;
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
 
@@ -494,7 +496,7 @@ export function StagePlay() {
                   </button>
                   {result.kind === 'cleared' && !isLastKeyword && (
                     <button
-                      onClick={() => navigate(`/play/stage/${KEYWORDS[kwIndex + 1]}`)}
+                      onClick={() => navigate(`/play/stage/${charKeywords[kwIndex + 1]}`)}
                       style={btnStyle}
                     >
                       下一关
