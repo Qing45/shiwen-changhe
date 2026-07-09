@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { CorpusProvider } from '../src/state/corpus';
 import { PoemsRiverPage } from '../src/pages/PoemsRiverPage';
-import { getPoems } from '../src/data/load';
+import { PoetPage } from '../src/pages/PoetPage';
+import { getPoems, getPoetByName } from '../src/data/load';
 
 // Smoke tests for corpus integration into PoemsRiverPage.
 //
@@ -49,5 +50,37 @@ describe('PoemsRiverPage corpus label', () => {
     // Each poem renders as a <Link> wrapping its title text.
     const links = document.querySelectorAll('a[href^="/poem/"]');
     expect(links.length).toBe(tangPoems.length);
+  });
+});
+
+describe('PoetPage corpus toggle', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('toggles between 看全部 and 只看本库 for a mixed-corpus poet', () => {
+    // 白居易 has both tang and primary poems. Default corpus=tang filters
+    // out the primary-only poem, so the toggle button should be visible.
+    const poet = getPoetByName('白居易');
+    expect(poet).toBeDefined();
+    render(
+      <MemoryRouter initialEntries={[`/poet/${poet!.id}`]}>
+        <CorpusProvider>
+          <Routes>
+            <Route path="/poet/:poetId" element={<PoetPage />} />
+          </Routes>
+        </CorpusProvider>
+      </MemoryRouter>
+    );
+
+    // Initial: filtered view, button offers to expand.
+    const expandBtn = screen.getByText('看全部');
+    fireEvent.click(expandBtn);
+
+    // After expand: button should now offer to collapse back.
+    const collapseBtn = screen.getByText('只看本库');
+    expect(collapseBtn).toBeInTheDocument();
+    fireEvent.click(collapseBtn);
+
+    // Collapsed back to filtered view.
+    expect(screen.getByText('看全部')).toBeInTheDocument();
   });
 });

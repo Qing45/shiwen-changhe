@@ -42,13 +42,12 @@ export function PoetPage() {
   }
 
   const allPoems = getPoemsByPoet(poet.id);
-  const visiblePoems: Poem[] = showAll
-    ? allPoems
-    : allPoems.filter((p) => {
-        if (corpus === 'tang') return p.corpus !== 'primary';
-        return p.corpus !== 'tang';
-      });
-  const hasFilteredOut = visiblePoems.length < allPoems.length;
+  const filteredPoems: Poem[] = allPoems.filter((p) => {
+    if (corpus === 'tang') return p.corpus !== 'primary';
+    return p.corpus !== 'tang';
+  });
+  const hasFilteredOut = filteredPoems.length < allPoems.length;
+  const visiblePoems = showAll ? allPoems : filteredPoems;
 
   // 空态：当前诗库下该诗人无作品
   if (visiblePoems.length === 0) {
