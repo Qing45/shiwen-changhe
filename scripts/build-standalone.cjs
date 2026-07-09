@@ -1255,6 +1255,14 @@ function CorpusSwitcher() {
         style={corpus === 'primary' ? activeStyle : inactiveStyle}
         data-testid="corpus-primary"
       >{isMobile ? '小学' : '小学必背'}</button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={corpus === 'all'}
+        onClick={function () { onSwitch('all'); }}
+        style={corpus === 'all' ? activeStyle : inactiveStyle}
+        data-testid="corpus-all"
+      >总库</button>
     </div>
   );
 }

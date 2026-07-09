@@ -26,4 +26,29 @@ describe('CorpusSwitcher', () => {
     fireEvent.click(screen.getByText('小学必背'));
     expect(localStorage.getItem('feihuaCorpus')).toBe('primary');
   });
+
+  it('renders 3rd segment for "all" labeled 总库', () => {
+    localStorage.setItem('feihuaCorpus', 'all');
+    render(
+      <MemoryRouter>
+        <CorpusProvider>
+          <CorpusSwitcher />
+        </CorpusProvider>
+      </MemoryRouter>
+    );
+    expect(screen.getByTestId('corpus-all')).toBeTruthy();
+    expect(screen.getByTestId('corpus-all').textContent).toContain('总库');
+  });
+
+  it('clicking 总库 segment switches corpus to "all"', () => {
+    render(
+      <MemoryRouter>
+        <CorpusProvider>
+          <CorpusSwitcher />
+        </CorpusProvider>
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByTestId('corpus-all'));
+    expect(localStorage.getItem('feihuaCorpus')).toBe('all');
+  });
 });
