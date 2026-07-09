@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { CorpusProvider } from './state/corpus';
 import { RiverPage } from './pages/RiverPage';
 import { PoemsRiverPage } from './pages/PoemsRiverPage';
 import { PoetPage } from './pages/PoetPage';
@@ -10,17 +11,19 @@ import { UpdateToast } from './components/UpdateToast';
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<RiverPage />} />
-        <Route path="/poems" element={<PoemsRiverPage />} />
-        <Route path="/poet/:poetId" element={<PoetPage />} />
-        <Route path="/poem/:poemId" element={<PoemPage />} />
-        <Route path="/play" element={<PlayHall />} />
-        <Route path="/play/stage/:kw" element={<StagePlay />} />
-        <Route path="/play/sentence/:level" element={<SentencePlay />} />
-      </Routes>
-      <UpdateToast />
-    </BrowserRouter>
+    <CorpusProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<RiverPage />} />
+          <Route path="/poems" element={<PoemsRiverPage />} />
+          <Route path="/poet/:poetId" element={<PoetPage />} />
+          <Route path="/poem/:poemId" element={<PoemPage />} />
+          <Route path="/play" element={<PlayHall />} />
+          <Route path="/play/stage/:kw" element={<StagePlay />} />
+          <Route path="/play/sentence/:level" element={<SentencePlay />} />
+        </Routes>
+        <UpdateToast />
+      </BrowserRouter>
+    </CorpusProvider>
   );
 }

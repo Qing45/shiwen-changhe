@@ -63,6 +63,51 @@ const fontFamilies = {
 };
 `;
 
+// state/corpus.tsx (Context + Provider + hooks; localStorage persistence)
+const corpusCode = `
+// ===== state/corpus.tsx =====
+const CORPUS_STORAGE_KEY = 'feihuaCorpus';
+const CorpusCtx = React.createContext(null);
+
+function CorpusProvider({ children }) {
+  const [corpus, setCorpusState] = useState(function () {
+    if (typeof localStorage === 'undefined') return 'tang';
+    var v = localStorage.getItem(CORPUS_STORAGE_KEY);
+    return v === 'primary' ? 'primary' : 'tang';
+  });
+
+  // 跨标签页同步
+  useEffect(function () {
+    function onStorage(e) {
+      if (e.key === CORPUS_STORAGE_KEY && (e.newValue === 'primary' || e.newValue === 'tang' || e.newValue === null)) {
+        setCorpusState(e.newValue === 'primary' ? 'primary' : 'tang');
+      }
+    }
+    window.addEventListener('storage', onStorage);
+    return function () { window.removeEventListener('storage', onStorage); };
+  }, []);
+
+  function setCorpus(c) {
+    setCorpusState(c);
+    try { localStorage.setItem(CORPUS_STORAGE_KEY, c); } catch (e) {}
+  }
+
+  return <CorpusCtx.Provider value={{ corpus: corpus, setCorpus: setCorpus }}>{children}</CorpusCtx.Provider>;
+}
+
+function useCorpus() {
+  var v = React.useContext(CorpusCtx);
+  if (!v) throw new Error('useCorpus outside CorpusProvider');
+  return v.corpus;
+}
+
+function useSetCorpus() {
+  var v = React.useContext(CorpusCtx);
+  if (!v) throw new Error('useCorpus outside CorpusProvider');
+  return v.setCorpus;
+}
+`;
+
 // data/load.ts (logic preserved, JSON imports -> window globals)
 const loadCode = `
 // ===== data/load.ts =====
@@ -3744,18 +3789,20 @@ const appCode = `
 // ===== App.tsx =====
 function App() {
   return (
-    <HashRouter>
-      <Routes>
-        <Route path="/" element={<RiverPage />} />
-        <Route path="/poems" element={<PoemsRiverPage />} />
-        <Route path="/poet/:poetId" element={<PoetPage />} />
-        <Route path="/poem/:poemId" element={<PoemPage />} />
-        <Route path="/play" element={<PlayHall />} />
-        <Route path="/play/stage/:kw" element={<StagePlay />} />
-        <Route path="/play/sentence/:level" element={<SentencePlay />} />
-      </Routes>
-      <UpdateToast />
-    </HashRouter>
+    <CorpusProvider>
+      <HashRouter>
+        <Routes>
+          <Route path="/" element={<RiverPage />} />
+          <Route path="/poems" element={<PoemsRiverPage />} />
+          <Route path="/poet/:poetId" element={<PoetPage />} />
+          <Route path="/poem/:poemId" element={<PoemPage />} />
+          <Route path="/play" element={<PlayHall />} />
+          <Route path="/play/stage/:kw" element={<StagePlay />} />
+          <Route path="/play/sentence/:level" element={<SentencePlay />} />
+        </Routes>
+        <UpdateToast />
+      </HashRouter>
+    </CorpusProvider>
   );
 }
 
@@ -3771,6 +3818,7 @@ const { useState, useMemo, useRef, useEffect, useCallback } = React;
 
 ${miniRouterCode}
 ${themeCode}
+${corpusCode}
 ${loadCode}
 ${searchCode}
 ${layoutCode}
