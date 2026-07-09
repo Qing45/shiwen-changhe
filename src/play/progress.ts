@@ -26,7 +26,9 @@ export function loadProgress(corpus: Corpus = 'tang'): FeihuaProgress {
     if (!raw && corpus === 'tang' && LEGACY_KEY !== STORAGE_KEY) {
       raw = window.localStorage.getItem(LEGACY_KEY);
     }
-    if (!raw) return { ...INITIAL_PROGRESS };
+    // cleared 必须返回全新数组 —— 否则 caller (markCleared/beginStage) 的 push
+    // 会污染共享的 INITIAL_PROGRESS.cleared，导致跨 corpus 串数据。
+    if (!raw) return { ...INITIAL_PROGRESS, cleared: [] };
     const parsed = JSON.parse(raw);
     return {
       unlockedIndex: typeof parsed.unlockedIndex === 'number' ? parsed.unlockedIndex : 0,

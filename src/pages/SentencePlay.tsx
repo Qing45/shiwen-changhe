@@ -69,6 +69,10 @@ export function SentencePlay() {
   const levelKey = String(level);   // 进度存储用字符串 key
 
   const corpus = useCorpus();
+  // 引擎/题库（couplets.ts）接受 PoemCorpus（'tang' | 'primary' | 'both'），
+  // 而 state 层 Corpus 含 'all'。此处做一次边界映射：'all' → 'both'。
+  // 进度函数（loadSentenceProgress 等）接受 Corpus，仍传 raw corpus —— 进度 key 自然后缀 :all。
+  const poemCorpus = corpus === 'all' ? 'both' : corpus;
 
   const [stage, setStage] = useState(() => {
     if (!validLevel) return null;
@@ -94,7 +98,7 @@ export function SentencePlay() {
 
   const [question, setQuestion] = useState<SentenceQuestion | null>(() => {
     if (!validLevel) return null;
-    return pickLevelQuestion(tier, usedUpperRef.current, corpus);
+    return pickLevelQuestion(tier, usedUpperRef.current, poemCorpus);
   });
 
   const [picked, setPicked] = useState<number | null>(null);
@@ -123,7 +127,7 @@ export function SentencePlay() {
         : beginSentenceStage(levelKey, corpus).current;
     setStage(fresh);
     usedUpperRef.current = new Set(fresh?.correct ?? []);
-    setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
+    setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
     setPicked(null);
     setGrading(false);
     setSecondsLeft(TURN_SECONDS);
@@ -159,7 +163,7 @@ export function SentencePlay() {
     }
     setGrading(true);
     setTimeout(() => {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
       setPicked(null);
       setSecondsLeft(TURN_SECONDS);
       setGrading(false);
@@ -181,7 +185,7 @@ export function SentencePlay() {
     }
     setGrading(true);
     setTimeout(() => {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
       setPicked(null);
       setSecondsLeft(TURN_SECONDS);
       setGrading(false);

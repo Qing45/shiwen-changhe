@@ -41,6 +41,10 @@ export function StagePlay() {
   const { kw } = useParams<{ kw: string }>();
   const navigate = useNavigate();
   const corpus = useCorpus();
+  // 引擎/题库（engine.ts）接受 PoemCorpus（'tang' | 'primary' | 'both'），
+  // 而 state 层 Corpus 含 'all'。此处做一次边界映射：'all' → 'both'。
+  // 进度函数（loadProgress 等）接受 Corpus，仍传 raw corpus —— 进度 key 自然后缀 :all。
+  const poemCorpus = corpus === 'all' ? 'both' : corpus;
 
   // 进入页面时初始化局：current 已是本关键字则续传，否则开新局
   const [stage, setStage] = useState(() => {
@@ -73,7 +77,7 @@ export function StagePlay() {
   // 当前题目（可变：答对后切换下一题）
   const [question, setQuestion] = useState<{ verse: Verse; blanks: number[] } | null>(() => {
     if (!kw) return null;
-    return pickStageQuestion(kw, used, corpus);
+    return pickStageQuestion(kw, used, poemCorpus);
   });
 
   // 九宫格字块与玩家已填字符
@@ -132,7 +136,7 @@ export function StagePlay() {
         ? progress.current
         : beginStage(kw, corpus).current;
     setStage(fresh);
-    setQuestion(pickStageQuestion(kw, new Set(fresh?.correct ?? []), corpus));
+    setQuestion(pickStageQuestion(kw, new Set(fresh?.correct ?? []), poemCorpus));
     setResult(null);
     setGrading(false);
     setSecondsLeft(STAGE_TIMEBOX);
@@ -158,7 +162,7 @@ export function StagePlay() {
     setGrading(true);
     setTimeout(() => {
       const nextUsed = new Set(newCorrect);
-      setQuestion(pickStageQuestion(kw, nextUsed, corpus));
+      setQuestion(pickStageQuestion(kw, nextUsed, poemCorpus));
       setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
     }, 800);

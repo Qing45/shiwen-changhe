@@ -17,7 +17,8 @@ function storageKey(corpus: Corpus): string {
 export function loadSentenceProgress(corpus: Corpus = 'tang'): FeihuaProgress {
   try {
     const raw = window.localStorage.getItem(storageKey(corpus));
-    if (!raw) return { ...INITIAL_PROGRESS };
+    // cleared 必须返回全新数组 —— 否则 caller 的 push 会污染共享的 INITIAL_PROGRESS.cleared。
+    if (!raw) return { ...INITIAL_PROGRESS, cleared: [] };
     const parsed = JSON.parse(raw);
     return {
       unlockedIndex: typeof parsed.unlockedIndex === 'number' ? parsed.unlockedIndex : 0,
@@ -37,7 +38,7 @@ export function loadSentenceProgress(corpus: Corpus = 'tang'): FeihuaProgress {
           : null,
     };
   } catch {
-    return { ...INITIAL_PROGRESS };
+    return { ...INITIAL_PROGRESS, cleared: [] };
   }
 }
 

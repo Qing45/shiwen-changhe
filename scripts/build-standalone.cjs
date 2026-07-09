@@ -2513,7 +2513,8 @@ function loadProgress(corpus) {
   corpus = corpus || 'tang';
   try {
     const raw = window.localStorage.getItem(_progressKey(corpus));
-    if (!raw) return { ...INITIAL_PROGRESS };
+    // cleared 必须返回全新数组 —— 否则 caller 的 push 会污染共享的 INITIAL_PROGRESS.cleared。
+    if (!raw) return { ...INITIAL_PROGRESS, cleared: [] };
     const parsed = JSON.parse(raw);
     return {
       unlockedIndex: typeof parsed.unlockedIndex === 'number' ? parsed.unlockedIndex : 0,
@@ -2533,7 +2534,7 @@ function loadProgress(corpus) {
           : null,
     };
   } catch (e) {
-    return { ...INITIAL_PROGRESS };
+    return { ...INITIAL_PROGRESS, cleared: [] };
   }
 }
 
@@ -3259,6 +3260,9 @@ function SentencePlay() {
   var levelKey = String(level);
 
   var corpus = useCorpus();
+  // 引擎/题库（couplets.ts）接受 PoemCorpus，state 层 Corpus 含 'all'。
+  // 'all' → 'both' 边界映射。进度函数接受 Corpus，仍传 raw corpus。
+  var poemCorpus = corpus === 'all' ? 'both' : corpus;
 
   const [stage, setStage] = useState(function() {
     if (!validLevel) return null;
@@ -3281,7 +3285,7 @@ function SentencePlay() {
 
   const [question, setQuestion] = useState(function() {
     if (!validLevel) return null;
-    return pickLevelQuestion(tier, usedUpperRef.current, corpus);
+    return pickLevelQuestion(tier, usedUpperRef.current, poemCorpus);
   });
 
   const [picked, setPicked] = useState(null);
@@ -3301,7 +3305,7 @@ function SentencePlay() {
       : beginSentenceStage(levelKey, corpus).current;
     setStage(fresh);
     usedUpperRef.current = new Set(fresh ? (fresh.correct || []) : []);
-    setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
+    setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
     setPicked(null);
     setGrading(false);
     setSecondsLeft(SENTENCE_TURN_SECONDS);
@@ -3333,7 +3337,7 @@ function SentencePlay() {
     }
     setGrading(true);
     setTimeout(function() {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
       setPicked(null);
       setSecondsLeft(SENTENCE_TURN_SECONDS);
       setGrading(false);
@@ -3355,7 +3359,7 @@ function SentencePlay() {
     }
     setGrading(true);
     setTimeout(function() {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, corpus));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
       setPicked(null);
       setSecondsLeft(SENTENCE_TURN_SECONDS);
       setGrading(false);
@@ -3632,6 +3636,9 @@ function StagePlay() {
   const kw = params.kw;
   const navigate = useNavigate();
   const corpus = useCorpus();
+  // 引擎/题库（engine.ts）接受 PoemCorpus，state 层 Corpus 含 'all'。
+  // 'all' → 'both' 边界映射。进度函数接受 Corpus，仍传 raw corpus。
+  const poemCorpus = corpus === 'all' ? 'both' : corpus;
 
   const [stage, setStage] = useState(() => {
     if (!kw) return null;
@@ -3658,7 +3665,7 @@ function StagePlay() {
 
   const [question, setQuestion] = useState(() => {
     if (!kw) return null;
-    return pickStageQuestion(kw, used, corpus);
+    return pickStageQuestion(kw, used, poemCorpus);
   });
 
   const [nineGrid, setNineGrid] = useState(() =>
@@ -3704,7 +3711,7 @@ function StagePlay() {
       ? progress.current
       : beginStage(kw, corpus).current;
     setStage(fresh);
-    setQuestion(pickStageQuestion(kw, new Set(fresh ? (fresh.correct || []) : []), corpus));
+    setQuestion(pickStageQuestion(kw, new Set(fresh ? (fresh.correct || []) : []), poemCorpus));
     setResult(null);
     setGrading(false);
     setSecondsLeft(STAGE_TIMEBOX);
@@ -3727,7 +3734,7 @@ function StagePlay() {
     setGrading(true);
     setTimeout(() => {
       const nextUsed = new Set(newCorrect);
-      setQuestion(pickStageQuestion(kw, nextUsed, corpus));
+      setQuestion(pickStageQuestion(kw, nextUsed, poemCorpus));
       setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
     }, 800);
