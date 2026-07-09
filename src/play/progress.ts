@@ -48,7 +48,7 @@ export function loadProgress(corpus: Corpus = 'tang'): FeihuaProgress {
           : null,
     };
   } catch {
-    return { ...INITIAL_PROGRESS };
+    return { ...INITIAL_PROGRESS, cleared: [] };
   }
 }
 
