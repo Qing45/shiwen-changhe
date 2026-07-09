@@ -47,16 +47,20 @@ async function main() {
   // 按 poemId 去重：primary 中已存在于 tang 的 → corpus: 'both'
   const tangPoemIds = new Set(tang.poems.map((p) => p.id));
   const mergedPoems: Poem[] = [...tang.poems];
-  const mergedPoemIds = new Set(mergedPoems.map((p) => p.id));
+  const primaryPoemIdsAdded = new Set<string>(); // tracks primary-only poems we've already pushed
   for (const p of primary.poems) {
-    if (mergedPoemIds.has(p.id)) continue; // skip primary-within-primary dups
     if (tangPoemIds.has(p.id)) {
+      // tang-primary overlap → mark tang entry as 'both' (idempotent)
       const idx = mergedPoems.findIndex((m) => m.id === p.id);
-      mergedPoems[idx] = { ...mergedPoems[idx], corpus: 'both' };
-    } else {
+      if (mergedPoems[idx].corpus !== 'both') {
+        mergedPoems[idx] = { ...mergedPoems[idx], corpus: 'both' };
+      }
+    } else if (!primaryPoemIdsAdded.has(p.id)) {
+      // not in tang, not yet added as primary → push
       mergedPoems.push(p);
-      mergedPoemIds.add(p.id);
+      primaryPoemIdsAdded.add(p.id);
     }
+    // else: primary-within-primary dup → skip
   }
 
   // 按诗人名合并：primary 中已存在的诗人 → 仍保留 tang 身份（用 tang entry）

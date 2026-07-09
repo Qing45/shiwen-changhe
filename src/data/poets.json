@@ -836,6 +836,15 @@
     "corpus": "primary"
   },
   {
+    "id": "674e715c",
+    "name": "李煜",
+    "birthYear": 700,
+    "deathYear": 750,
+    "dynastyId": "tang",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
     "id": "83034ef26df9",
     "name": "范仲淹",
     "courtesyName": "希文",
