@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-export type Corpus = 'tang' | 'primary';
+export type Corpus = 'tang' | 'primary' | 'all';
 const STORAGE_KEY = 'feihuaCorpus';
 
 interface CorpusCtx {
@@ -14,14 +14,18 @@ export function CorpusProvider({ children }: { children: ReactNode }) {
   const [corpus, setCorpusState] = useState<Corpus>(() => {
     if (typeof localStorage === 'undefined') return 'tang';
     const v = localStorage.getItem(STORAGE_KEY);
-    return v === 'primary' ? 'primary' : 'tang';
+    if (v === 'primary' || v === 'all') return v;
+    return 'tang';
   });
 
   // 跨标签页同步
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY && (e.newValue === 'primary' || e.newValue === 'tang' || e.newValue === null)) {
-        setCorpusState(e.newValue === 'primary' ? 'primary' : 'tang');
+      if (e.key !== STORAGE_KEY) return;
+      if (e.newValue === 'primary' || e.newValue === 'all') {
+        setCorpusState(e.newValue);
+      } else if (e.newValue === null || e.newValue === 'tang') {
+        setCorpusState('tang');
       }
     };
     window.addEventListener('storage', onStorage);

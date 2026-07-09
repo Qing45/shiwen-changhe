@@ -73,14 +73,18 @@ function CorpusProvider({ children }) {
   const [corpus, setCorpusState] = useState(function () {
     if (typeof localStorage === 'undefined') return 'tang';
     var v = localStorage.getItem(CORPUS_STORAGE_KEY);
-    return v === 'primary' ? 'primary' : 'tang';
+    if (v === 'primary' || v === 'all') return v;
+    return 'tang';
   });
 
   // 跨标签页同步
   useEffect(function () {
     function onStorage(e) {
-      if (e.key === CORPUS_STORAGE_KEY && (e.newValue === 'primary' || e.newValue === 'tang' || e.newValue === null)) {
-        setCorpusState(e.newValue === 'primary' ? 'primary' : 'tang');
+      if (e.key !== CORPUS_STORAGE_KEY) return;
+      if (e.newValue === 'primary' || e.newValue === 'all') {
+        setCorpusState(e.newValue);
+      } else if (e.newValue === null || e.newValue === 'tang') {
+        setCorpusState('tang');
       }
     }
     window.addEventListener('storage', onStorage);
