@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { colors, fontFamilies, fontSizes } from '../theme';
 import { SearchBox } from './SearchBox';
+import { CorpusSwitcher } from './CorpusSwitcher';
 import { getPoets, getPoems } from '../data/load';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import type { Poet, Poem } from '../types';
@@ -49,6 +50,7 @@ export function TopNav(props: Props) {
           <RiverToggle compact={isMobile} />
           <SearchBox />
           <DynastyLabel />
+          <CorpusSwitcher />
         </>
       )}
 
@@ -71,6 +73,7 @@ export function TopNav(props: Props) {
             })()}
           </div>
           <DynastyLabel />
+          <CorpusSwitcher />
         </>
       )}
 
@@ -94,6 +97,7 @@ export function TopNav(props: Props) {
           }}>{props.poem.creationYear != null
             ? `${props.poet.name} · ${props.poem.creationYear}`
             : props.poet.name}</div>
+          <div style={{ marginLeft: 'auto' }}><CorpusSwitcher /></div>
         </>
       )}
     </div>

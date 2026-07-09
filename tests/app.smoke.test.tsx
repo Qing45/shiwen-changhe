@@ -4,18 +4,21 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { RiverPage } from '../src/pages/RiverPage';
 import { PoetPage } from '../src/pages/PoetPage';
 import { PoemPage } from '../src/pages/PoemPage';
+import { CorpusProvider } from '../src/state/corpus';
 import { getPoets, getPoemsByPoet } from '../src/data/load';
 import { extractVariants, getPoemMode, splitIntoLines } from '../src/utils/poemText';
 
 function App() {
   return (
-    <MemoryRouter initialEntries={['/']}>
-      <Routes>
-        <Route path="/" element={<RiverPage />} />
-        <Route path="/poet/:poetId" element={<PoetPage />} />
-        <Route path="/poem/:poemId" element={<PoemPage />} />
-      </Routes>
-    </MemoryRouter>
+    <CorpusProvider>
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<RiverPage />} />
+          <Route path="/poet/:poetId" element={<PoetPage />} />
+          <Route path="/poem/:poemId" element={<PoemPage />} />
+        </Routes>
+      </MemoryRouter>
+    </CorpusProvider>
   );
 }
 
