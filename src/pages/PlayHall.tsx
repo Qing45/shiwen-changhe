@@ -10,6 +10,7 @@ import { KEYWORDS, KEYWORD_GROUPS } from '../play/keywords';
 import { loadProgress } from '../play/progress';
 import { loadSentenceProgress } from '../play/sentenceProgress';
 import { useBreakpoint } from '../hooks/useBreakpoint';
+import { useCorpus } from '../state/corpus';
 import { colors, fontFamilies } from '../theme';
 
 type Mode = 'char' | 'sentence';
@@ -44,6 +45,7 @@ export function PlayHall() {
   const [mode, setMode] = useState<Mode>('char');
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
+  const corpus = useCorpus();
 
   const charProgress = loadProgress();
   const sentenceProgress = loadSentenceProgress();
@@ -69,6 +71,12 @@ export function PlayHall() {
               {mode === 'char'
                 ? `单 字 · 拾 字 模 式 · 已通 ${charProgress.cleared.length} / 50 关`
                 : `整 句 · 联 句 模 式 · 已通 ${sentenceProgress.cleared.length} / 50 关`}
+            </div>
+            <div style={{
+              marginTop: 6, color: '#8b7355', fontFamily: fontFamilies.chinese,
+              fontSize: 14, letterSpacing: 6,
+            }}>
+              当前诗库：{corpus === 'tang' ? '唐诗三百首' : '小学必背'}
             </div>
           </div>
 

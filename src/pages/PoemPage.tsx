@@ -3,6 +3,7 @@ import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { getPoem, getPoet, getNeighbors, getGlobalPoemNeighbors } from '../data/load';
 import { TopNav } from '../components/TopNav';
 import { useBreakpoint } from '../hooks/useBreakpoint';
+import { useCorpus, useSetCorpus } from '../state/corpus';
 import { colors, fontFamilies, fontSizes } from '../theme';
 import { extractVariants, getPoemMode, splitIntoLines } from '../utils/poemText';
 
@@ -28,6 +29,8 @@ export function PoemPage() {
   const { poemId } = useParams<{ poemId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
+  const corpus = useCorpus();
+  const setCorpus = useSetCorpus();
   const fromPath = (location.state as { from?: string } | null)?.from;
   const poem = poemId ? getPoem(poemId) : undefined;
   if (!poem) {
@@ -37,6 +40,16 @@ export function PoemPage() {
   if (!poet) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>作者未找到</div>;
   }
+  // inScope: poem is visible under the active corpus.
+  // - corpus='both' poems are always in scope.
+  // - tang-only poems (corpus='tang') are out of scope when active corpus='primary'.
+  // - primary-only poems (corpus='primary') are out of scope when active corpus='tang'.
+  const inScope =
+    poem.corpus === 'both' ||
+    poem.corpus === corpus;
+  // Which corpus would bring this poem into scope (for the switch prompt).
+  const switchTarget = corpus === 'tang' ? 'primary' : 'tang';
+  const switchLabel = switchTarget === 'tang' ? '唐诗三百首' : '小学必背';
   const { prev, next } = fromPath === '/poems'
     ? getGlobalPoemNeighbors(poem.id)
     : getNeighbors(poem.id);
@@ -115,6 +128,27 @@ export function PoemPage() {
             `,
           }} />
         </div>
+
+        {/* 不在当前诗库提示：仍展示诗文，但提示可切库 */}
+        {!inScope && (
+          <div style={{
+            maxWidth: 1400, margin: '0 auto', padding: '12px 32px 0',
+            textAlign: 'center', color: '#8b7355',
+            fontFamily: fontFamilies.chinese, fontSize: 13, letterSpacing: 2,
+          }}>
+            这首诗不在当前诗库。
+            <button
+              onClick={() => setCorpus(switchTarget)}
+              style={{
+                marginLeft: 8, padding: '4px 14px',
+                background: 'transparent', color: colors.textPrimary,
+                border: `1px solid ${colors.textPrimary}`, borderRadius: 3,
+                fontFamily: fontFamilies.chinese, fontSize: 13, letterSpacing: 2,
+                cursor: 'pointer',
+              }}
+            >切到{switchLabel}</button>
+          </div>
+        )}
 
         {/* 纸张阅读面板（标题 + 正文 + 注释） — 卷轴形制：左右木轴 + 双金线 + 朱印 */}
         <div style={{ padding: isMobile ? '0 12px 24px' : '0 32px 28px' }}>

@@ -4,6 +4,7 @@ import { getPoems, getPoets } from '../data/load';
 import { layoutAllPoems } from '../utils/layout';
 import { useRiverViewport } from '../hooks/useRiverViewport';
 import { useVisited } from '../hooks/useVisited';
+import { useCorpus } from '../state/corpus';
 import { RiverBackground } from '../components/RiverBackground';
 import { TimeAxis } from '../components/TimeAxis';
 import { TopNav } from '../components/TopNav';
@@ -23,7 +24,8 @@ function truncate(s: string, n: number): string {
 }
 
 export function PoemsRiverPage() {
-  const poems = getPoems();
+  const corpus = useCorpus();
+  const poems = getPoems(corpus);
   const poets = getPoets();
   const positioned = layoutAllPoems(poems, poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
   const vp = useRiverViewport();
@@ -33,6 +35,9 @@ export function PoemsRiverPage() {
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
+      <div style={{ textAlign: 'center', padding: '8px 0 0', color: '#8b7355', fontFamily: fontFamilies.chinese, fontSize: 14, letterSpacing: 6 }}>
+        {corpus === 'tang' ? '唐 诗 三 百 首' : '小 学 必 背'}
+      </div>
       <div
         {...vp.containerProps}
         style={{

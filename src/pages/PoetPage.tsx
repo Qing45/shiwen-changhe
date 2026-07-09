@@ -4,10 +4,12 @@ import { getPoet, getPoemsByPoet } from '../data/load';
 import { layoutPoems } from '../utils/layout';
 import { useRiverViewport } from '../hooks/useRiverViewport';
 import { useVisited } from '../hooks/useVisited';
+import { useCorpus } from '../state/corpus';
 import { RiverBackground } from '../components/RiverBackground';
 import { TimeAxis } from '../components/TimeAxis';
 import { TopNav } from '../components/TopNav';
 import { colors, fontFamilies, fontSizes, contentLengthToSize } from '../theme';
+import type { Poem } from '../types';
 
 function buildPoetTicks(birth: number, death: number): { year: number; label?: string; pos: number }[] {
   const out: { year: number; label?: string; pos: number }[] = [];
@@ -29,6 +31,8 @@ function truncate(s: string, n: number): string {
 export function PoetPage() {
   const { poetId } = useParams<{ poetId: string }>();
   const poet = poetId ? getPoet(poetId) : undefined;
+  const corpus = useCorpus();
+  const [showAll, setShowAll] = useState(false);
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -37,8 +41,42 @@ export function PoetPage() {
     return <div style={{ padding: 40, color: colors.textPrimary }}>诗人未找到</div>;
   }
 
-  const poems = getPoemsByPoet(poet.id);
-  const positioned = layoutPoems(poems, poet, { leftPadding: 6, rightPadding: 6 });
+  const allPoems = getPoemsByPoet(poet.id);
+  const visiblePoems: Poem[] = showAll
+    ? allPoems
+    : allPoems.filter((p) => {
+        if (corpus === 'tang') return p.corpus !== 'primary';
+        return p.corpus !== 'tang';
+      });
+  const hasFilteredOut = visiblePoems.length < allPoems.length;
+
+  // 空态：当前诗库下该诗人无作品
+  if (visiblePoems.length === 0) {
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <TopNav variant="poet" poet={poet} />
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          color: colors.textTertiary, fontFamily: fontFamilies.chinese,
+          fontSize: 18, letterSpacing: 4, textAlign: 'center', padding: 24,
+        }}>
+          <div style={{ marginBottom: 16 }}>该诗人在{corpus === 'tang' ? '唐诗三百首' : '小学必背'}库中无作品</div>
+          <button
+            onClick={() => setShowAll(true)}
+            style={{
+              padding: '8px 22px', background: 'transparent',
+              color: colors.textPrimary, border: `1px solid ${colors.textPrimary}`,
+              borderRadius: 3, fontFamily: fontFamilies.chinese,
+              fontSize: 14, letterSpacing: 4, cursor: 'pointer',
+            }}
+          >看全部</button>
+        </div>
+      </div>
+    );
+  }
+
+  const positioned = layoutPoems(visiblePoems, poet, { leftPadding: 6, rightPadding: 6 });
   const ticks = buildPoetTicks(poet.birthYear, poet.deathYear);
 
   return (
@@ -52,6 +90,19 @@ export function PoetPage() {
           ...vp.containerProps.style,
         }}
       >
+        {hasFilteredOut && (
+          <button
+            onClick={() => setShowAll((s) => !s)}
+            style={{
+              position: 'absolute', top: 12, right: 16, zIndex: 5,
+              padding: '6px 14px', background: 'rgba(8,12,28,0.7)',
+              color: colors.textPrimary, border: '1px solid rgba(216,224,240,0.3)',
+              borderRadius: 3, fontFamily: fontFamilies.chinese,
+              fontSize: 13, letterSpacing: 2, cursor: 'pointer',
+              backdropFilter: 'blur(4px)',
+            }}
+          >{showAll ? '只看本库' : '看全部'}</button>
+        )}
         <div style={{
           position: 'relative', width: '600%', height: '100%',
           ...vp.canvasStyle,
