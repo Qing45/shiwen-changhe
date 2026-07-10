@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getPoets, getPoemCount } from '../data/load';
+import { getPoets, getPoemCount, getPoems } from '../data/load';
 import { layoutPoets } from '../utils/layout';
 import { useRiverViewport } from '../hooks/useRiverViewport';
 import { useBreakpoint } from '../hooks/useBreakpoint';
@@ -8,20 +8,19 @@ import { useVisited } from '../hooks/useVisited';
 import { RiverBackground } from '../components/RiverBackground';
 import { TimeAxis } from '../components/TimeAxis';
 import { TopNav } from '../components/TopNav';
+import { useCorpus } from '../state/corpus';
+import { computeCorpusYearRange } from '../utils/yearRange';
+import { getDynastyName } from '../data/dynasties';
 import { colors, fontFamilies, fontSizes, poemCountToSize } from '../theme';
-
-const RIVER_TICKS: { year: number; label?: string; pos: number }[] = (() => {
-  const out: { year: number; label?: string; pos: number }[] = [];
-  for (let y = 618; y <= 897; y += 30) {
-    const isMajor = y % 30 === 0;
-    out.push({ year: y, label: isMajor ? String(y) : undefined, pos: ((y - 618) / (907 - 618)) * 100 });
-  }
-  return out;
-})();
 
 export function RiverPage() {
   const poets = getPoets();
-  const positioned = layoutPoets(poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
+  const corpus = useCorpus();
+  const visiblePoems = getPoems(corpus === 'all' ? 'both' : corpus);
+  const visiblePoetIds = new Set(visiblePoems.map((p) => p.poetId));
+  const visiblePoets = poets.filter((p) => visiblePoetIds.has(p.id));
+  const range = computeCorpusYearRange(visiblePoets, corpus);
+  const positioned = layoutPoets(visiblePoets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 });
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -132,7 +131,7 @@ export function RiverPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span>{poet.birthYear}—{poet.deathYear}</span>
                         <span style={{ color: colors.textDim }}>·</span>
-                        <span style={{ color: colors.textSecondary }}>唐</span>
+                        <span style={{ color: colors.textSecondary }}>{getDynastyName(poet.dynastyId)}</span>
                       </div>
                       <div style={{
                         position: 'absolute', bottom: -5, left: '50%',
@@ -149,7 +148,7 @@ export function RiverPage() {
             );
           })}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-            <TimeAxis left="618 · 唐" right="907" ticks={RIVER_TICKS} />
+            <TimeAxis left={range.leftLabel} right={range.rightLabel} ticks={range.ticks} />
           </div>
         </div>
       </div>
