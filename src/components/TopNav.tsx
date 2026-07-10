@@ -2,8 +2,9 @@ import { Link, useLocation } from 'react-router-dom';
 import { colors, fontFamilies, fontSizes } from '../theme';
 import { SearchBox } from './SearchBox';
 import { CorpusSwitcher } from './CorpusSwitcher';
-import { getPoets, getPoems } from '../data/load';
+import { getPoems } from '../data/load';
 import { useBreakpoint } from '../hooks/useBreakpoint';
+import { useCorpus } from '../state/corpus';
 import { getDynastyName } from '../data/dynasties';
 import type { Poet, Poem } from '../types';
 
@@ -107,6 +108,10 @@ export function TopNav(props: Props) {
 
 function RiverToggle({ compact }: { compact: boolean }) {
   const loc = useLocation();
+  const corpus = useCorpus();
+  const visiblePoems = getPoems(corpus === 'all' ? 'both' : corpus);
+  const visiblePoetCount = new Set(visiblePoems.map((p) => p.poetId)).size;
+  const visiblePoemCount = visiblePoems.length;
   const btn = (to: string, label: string, count: number) => {
     const on = loc.pathname === to;
     const showCount = count > 0;
@@ -129,8 +134,8 @@ function RiverToggle({ compact }: { compact: boolean }) {
   };
   return (
     <div style={{ display: 'flex', gap: compact ? 0 : 4 }}>
-      {btn('/', '诗人', getPoets().length)}
-      {btn('/poems', '诗文', getPoems().length)}
+      {btn('/', '诗人', visiblePoetCount)}
+      {btn('/poems', '诗文', visiblePoemCount)}
       {btn('/play', '飞花令', 0)}
     </div>
   );

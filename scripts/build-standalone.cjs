@@ -1401,6 +1401,10 @@ function TopNav(props) {
 
 function RiverToggle({ compact }) {
   const loc = useLocation();
+  const corpus = useCorpus();
+  const visiblePoems = getPoemsCorpus(corpus === 'all' ? 'both' : corpus);
+  const visiblePoetCount = new Set(visiblePoems.map(function (p) { return p.poetId; })).size;
+  const visiblePoemCount = visiblePoems.length;
   const btn = (to, label, count) => {
     const on = loc.pathname === to;
     const showCount = count > 0;
@@ -1422,8 +1426,8 @@ function RiverToggle({ compact }) {
   };
   return (
     <div style={{ display: 'flex', gap: compact ? 0 : 4 }}>
-      {btn('/', '诗人', getPoets().length)}
-      {btn('/poems', '诗文', getPoems().length)}
+      {btn('/', '诗人', visiblePoetCount)}
+      {btn('/poems', '诗文', visiblePoemCount)}
       {btn('/play', '飞花令', 0)}
     </div>
   );
