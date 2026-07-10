@@ -24,6 +24,7 @@ export function RiverPage() {
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [pressedId, setPressedId] = useState<string | null>(null);
   const bp = useBreakpoint();
   // 移动端节点整体缩小，字号收紧，避免互相重叠
   const scale = bp === 'mobile' ? 0.7 : bp === 'tablet' ? 0.85 : 1;
@@ -41,10 +42,14 @@ export function RiverPage() {
         }}
       >
         {/* Inner canvas is wider than viewport; wheel zooms, drag pans, pinch zooms */}
-        <div style={{
-          position: 'relative', width: '600%', height: '100%',
-          ...vp.canvasStyle,
-        }}>
+        <div
+          key={corpus}
+          style={{
+            position: 'relative', width: '600%', height: '100%',
+            animation: 'fade-in 0.25s ease-out',
+            ...vp.canvasStyle,
+          }}
+        >
           <RiverBackground dragging={vp.dragging} />
           {positioned.map(({ poet, x, y }, i) => {
             const size = poemCountToSize(getPoemCount(poet.id)) * scale;
@@ -74,11 +79,19 @@ export function RiverPage() {
               >
                 <div
                   onMouseEnter={() => setHoverId(poet.id)}
-                  onMouseLeave={() => setHoverId((id) => (id === poet.id ? null : id))}
+                  onMouseLeave={() => {
+                    setHoverId((id) => (id === poet.id ? null : id));
+                    setPressedId((id) => (id === poet.id ? null : id));
+                  }}
+                  onMouseDown={() => setPressedId(poet.id)}
+                  onMouseUp={() => setPressedId((id) => (id === poet.id ? null : id))}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     animation: `node-float ${floatDuration}s ease-in-out ${floatDelay}s infinite`,
                     position: 'relative',
+                    transition: 'transform 0.1s',
+                    transform: pressedId === poet.id ? 'scale(0.92)' : undefined,
+                    cursor: 'pointer',
                   }}
                 >
                   <div style={{ position: 'relative' }}>

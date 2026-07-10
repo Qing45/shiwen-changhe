@@ -26,6 +26,7 @@ export function PoemsRiverPage() {
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [pressedId, setPressedId] = useState<string | null>(null);
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -41,10 +42,14 @@ export function PoemsRiverPage() {
           ...vp.containerProps.style,
         }}
       >
-        <div style={{
-          position: 'relative', width: '600%', height: '100%',
-          ...vp.canvasStyle,
-        }}>
+        <div
+          key={corpus}
+          style={{
+            position: 'relative', width: '600%', height: '100%',
+            animation: 'fade-in 0.25s ease-out',
+            ...vp.canvasStyle,
+          }}
+        >
           <RiverBackground dragging={vp.dragging} />
           {positioned.map(({ poem, x, y }, i) => {
             const size = contentLengthToSize(poem.content.length);
@@ -75,11 +80,19 @@ export function PoemsRiverPage() {
               >
                 <div
                   onMouseEnter={() => setHoverId(poem.id)}
-                  onMouseLeave={() => setHoverId((id) => (id === poem.id ? null : id))}
+                  onMouseLeave={() => {
+                    setHoverId((id) => (id === poem.id ? null : id));
+                    setPressedId((id) => (id === poem.id ? null : id));
+                  }}
+                  onMouseDown={() => setPressedId(poem.id)}
+                  onMouseUp={() => setPressedId((id) => (id === poem.id ? null : id))}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     animation: `node-float ${floatDuration}s ease-in-out ${floatDelay}s infinite`,
                     position: 'relative',
+                    transition: 'transform 0.1s',
+                    transform: pressedId === poem.id ? 'scale(0.92)' : undefined,
+                    cursor: 'pointer',
                   }}
                 >
                   <div style={{ position: 'relative' }}>

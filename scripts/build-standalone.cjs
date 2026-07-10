@@ -1469,6 +1469,7 @@ function RiverPage() {
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState(null);
+  const [pressedId, setPressedId] = useState(null);
   const bp = useBreakpoint();
   const scale = bp === 'mobile' ? 0.7 : bp === 'tablet' ? 0.85 : 1;
   const nameScale = bp === 'mobile' ? 0.85 : 1;
@@ -1484,10 +1485,14 @@ function RiverPage() {
           ...vp.containerProps.style,
         }}
       >
-        <div style={{
-          position: 'relative', width: '600%', height: '100%',
-          ...vp.canvasStyle,
-        }}>
+        <div
+          key={corpus}
+          style={{
+            position: 'relative', width: '600%', height: '100%',
+            animation: 'fade-in 0.25s ease-out',
+            ...vp.canvasStyle,
+          }}
+        >
           <RiverBackground dragging={vp.dragging} />
           {positioned.map(({ poet, x, y }, i) => {
             const size = poemCountToSize(getPoemCount(poet.id)) * scale;
@@ -1517,11 +1522,19 @@ function RiverPage() {
               >
                 <div
                   onMouseEnter={() => setHoverId(poet.id)}
-                  onMouseLeave={() => setHoverId((id) => (id === poet.id ? null : id))}
+                  onMouseLeave={() => {
+                    setHoverId((id) => (id === poet.id ? null : id));
+                    setPressedId((id) => (id === poet.id ? null : id));
+                  }}
+                  onMouseDown={() => setPressedId(poet.id)}
+                  onMouseUp={() => setPressedId((id) => (id === poet.id ? null : id))}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     animation: \`node-float \${floatDuration}s ease-in-out \${floatDelay}s infinite\`,
                     position: 'relative',
+                    transition: 'transform 0.1s',
+                    transform: pressedId === poet.id ? 'scale(0.92)' : undefined,
+                    cursor: 'pointer',
                   }}
                 >
                   <div style={{ position: 'relative' }}>
@@ -1618,6 +1631,7 @@ function PoemsRiverPage() {
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState(null);
+  const [pressedId, setPressedId] = useState(null);
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -1633,10 +1647,14 @@ function PoemsRiverPage() {
           ...vp.containerProps.style,
         }}
       >
-        <div style={{
-          position: 'relative', width: '600%', height: '100%',
-          ...vp.canvasStyle,
-        }}>
+        <div
+          key={corpus}
+          style={{
+            position: 'relative', width: '600%', height: '100%',
+            animation: 'fade-in 0.25s ease-out',
+            ...vp.canvasStyle,
+          }}
+        >
           <RiverBackground dragging={vp.dragging} />
           {positioned.map(({ poem, x, y }, i) => {
             const size = contentLengthToSize(poem.content.length);
@@ -1667,11 +1685,19 @@ function PoemsRiverPage() {
               >
                 <div
                   onMouseEnter={() => setHoverId(poem.id)}
-                  onMouseLeave={() => setHoverId((id) => (id === poem.id ? null : id))}
+                  onMouseLeave={() => {
+                    setHoverId((id) => (id === poem.id ? null : id));
+                    setPressedId((id) => (id === poem.id ? null : id));
+                  }}
+                  onMouseDown={() => setPressedId(poem.id)}
+                  onMouseUp={() => setPressedId((id) => (id === poem.id ? null : id))}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
                     animation: \`node-float \${floatDuration}s ease-in-out \${floatDelay}s infinite\`,
                     position: 'relative',
+                    transition: 'transform 0.1s',
+                    transform: pressedId === poem.id ? 'scale(0.92)' : undefined,
+                    cursor: 'pointer',
                   }}
                 >
                   <div style={{ position: 'relative' }}>
