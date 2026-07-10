@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
+import { getDynastyName } from '../data/dynasties';
 import { getPoem, getPoet, getNeighbors, getGlobalPoemNeighbors } from '../data/load';
 import { TopNav } from '../components/TopNav';
 import { useBreakpoint } from '../hooks/useBreakpoint';
@@ -227,7 +228,7 @@ export function PoemPage() {
                 <div style={{
                   color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
                   fontSize: metaFontSize, letterSpacing: 3,
-                }}>{poet.name} · 唐</div>
+                }}>{poet.name} · {getDynastyName(poet.dynastyId)}</div>
                 {/* 标题下微细金线 */}
                 <div style={{
                   marginTop: 14,

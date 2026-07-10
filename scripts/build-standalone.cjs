@@ -2180,7 +2180,7 @@ function PoemPage() {
                 <div style={{
                   color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
                   fontSize: metaFontSize, letterSpacing: 3,
-                }}>{poet.name} · 唐</div>
+                }}>{poet.name} · {getDynastyName(poet.dynastyId)}</div>
                 <div style={{
                   marginTop: 14,
                   height: 1,
