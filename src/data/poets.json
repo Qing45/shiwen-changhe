@@ -766,15 +766,6 @@
     "corpus": "primary"
   },
   {
-    "id": "67f36c38",
-    "name": "柳永",
-    "birthYear": 700,
-    "deathYear": 750,
-    "dynastyId": "tang",
-    "familiarity": 2,
-    "corpus": "primary"
-  },
-  {
     "id": "67976770",
     "name": "林杰",
     "courtesyName": "智周",
@@ -831,15 +822,6 @@
     "name": "雷震",
     "birthYear": 1100,
     "deathYear": 1150,
-    "dynastyId": "tang",
-    "familiarity": 2,
-    "corpus": "primary"
-  },
-  {
-    "id": "674e715c",
-    "name": "李煜",
-    "birthYear": 700,
-    "deathYear": 750,
     "dynastyId": "tang",
     "familiarity": 2,
     "corpus": "primary"

@@ -14,7 +14,7 @@ import { PoemPage } from '../src/pages/PoemPage';
 //
 // Test fixtures (verified from src/data/poems.json):
 //   - c35a60c1a8e2 静夜思 (corpus: 'both') — always in scope.
-//   - b8148e70fea6 望江南·超然台作 by 苏轼 (corpus: 'primary') — out of scope when active='tang'.
+//   - 8f1be8b774c2 雪梅 by 卢钺 (corpus: 'primary') — out of scope when active='tang'.
 
 describe('PoemPage corpus integration', () => {
   beforeEach(() => localStorage.clear());
@@ -37,10 +37,10 @@ describe('PoemPage corpus integration', () => {
   });
 
   it('shows the switch prompt for an out-of-scope primary poem under corpus=tang', () => {
-    // 望江南·超然台作 is corpus='primary' only; under corpus='tang' it is out of scope.
+    // 雪梅 is corpus='primary' only; under corpus='tang' it is out of scope.
     localStorage.setItem('feihuaCorpus', 'tang');
     render(
-      <MemoryRouter initialEntries={['/poem/b8148e70fea6']}>
+      <MemoryRouter initialEntries={['/poem/8f1be8b774c2']}>
         <CorpusProvider>
           <Routes>
             <Route path="/poem/:poemId" element={<PoemPage />} />
