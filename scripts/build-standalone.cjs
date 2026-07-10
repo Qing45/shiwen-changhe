@@ -2320,8 +2320,8 @@ var KEYWORDS = [].concat(KEYWORD_GROUPS.entry, KEYWORD_GROUPS.mid, KEYWORD_GROUP
 const feihuaPrimaryKeywordsCode = `
 // ===== play/primaryKeywords.ts =====
 var PRIMARY_KEYWORD_GROUPS = {
-  entry: ['春','月','花','风','山','水','人','天'],
-  mid: ['雪','江','日','雨','寒','明','酒','落','清','城','舟','头'],
+  entry: ['春','月','花','风','山','水','人','一'],
+  mid: ['雪','来','日','雨','绿','明','时','上','尽','万','舟','头'],
 };
 var PRIMARY_KEYWORDS = [].concat(PRIMARY_KEYWORD_GROUPS.entry, PRIMARY_KEYWORD_GROUPS.mid);
 `;

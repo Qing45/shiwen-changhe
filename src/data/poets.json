@@ -325,10 +325,12 @@
   {
     "id": "8d3a77e57ae0",
     "name": "贺知章",
-    "birthYear": 700,
-    "deathYear": 750,
+    "courtesyName": "季真",
+    "pseudonym": "四明狂客",
+    "birthYear": 659,
+    "deathYear": 744,
     "dynastyId": "tang",
-    "familiarity": 2,
+    "familiarity": 3,
     "corpus": "tang"
   },
   {
@@ -705,17 +707,6 @@
     "corpus": "tang"
   },
   {
-    "id": "82cf8f7c",
-    "name": "苏轼",
-    "courtesyName": "子瞻",
-    "pseudonym": "东坡居士",
-    "birthYear": 1037,
-    "deathYear": 1101,
-    "dynastyId": "tang",
-    "familiarity": 5,
-    "corpus": "primary"
-  },
-  {
     "id": "674e7ec5",
     "name": "李绅",
     "courtesyName": "公垂",
@@ -723,6 +714,28 @@
     "deathYear": 858,
     "dynastyId": "tang",
     "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "67684e0791cc",
+    "name": "杨万里",
+    "courtesyName": "廷秀",
+    "pseudonym": "诚斋",
+    "birthYear": 1127,
+    "deathYear": 1206,
+    "dynastyId": "song",
+    "familiarity": 4,
+    "corpus": "primary"
+  },
+  {
+    "id": "738b5b8977f3",
+    "name": "王安石",
+    "courtesyName": "介甫",
+    "pseudonym": "半山",
+    "birthYear": 1021,
+    "deathYear": 1086,
+    "dynastyId": "song",
+    "familiarity": 4,
     "corpus": "primary"
   },
   {
@@ -735,14 +748,63 @@
     "corpus": "primary"
   },
   {
-    "id": "8f9b5f0375be",
-    "name": "辛弃疾",
-    "courtesyName": "幼安",
-    "pseudonym": "稼轩",
-    "birthYear": 1140,
-    "deathYear": 1207,
-    "dynastyId": "tang",
+    "id": "5317671d6c116b4c",
+    "name": "北朝民歌",
+    "birthYear": 386,
+    "deathYear": 581,
+    "dynastyId": "other",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "9ad89f0e",
+    "name": "高鼎",
+    "birthYear": 1820,
+    "deathYear": 1880,
+    "dynastyId": "qing",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "67e5614e884c",
+    "name": "查慎行",
+    "courtesyName": "悔余",
+    "birthYear": 1650,
+    "deathYear": 1727,
+    "dynastyId": "qing",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "8881679a",
+    "name": "袁枚",
+    "courtesyName": "子才",
+    "pseudonym": "简斋",
+    "birthYear": 1716,
+    "deathYear": 1797,
+    "dynastyId": "qing",
+    "familiarity": 3,
+    "corpus": "primary"
+  },
+  {
+    "id": "82cf8f7c",
+    "name": "苏轼",
+    "courtesyName": "子瞻",
+    "pseudonym": "东坡居士",
+    "birthYear": 1037,
+    "deathYear": 1101,
+    "dynastyId": "song",
     "familiarity": 5,
+    "corpus": "primary"
+  },
+  {
+    "id": "53f67ecd7fc1",
+    "name": "叶绍翁",
+    "courtesyName": "嗣宗",
+    "birthYear": 1100,
+    "deathYear": 1150,
+    "dynastyId": "song",
+    "familiarity": 2,
     "corpus": "primary"
   },
   {
@@ -752,7 +814,7 @@
     "pseudonym": "茶山居士",
     "birthYear": 1085,
     "deathYear": 1166,
-    "dynastyId": "tang",
+    "dynastyId": "song",
     "familiarity": 2,
     "corpus": "primary"
   },
@@ -761,6 +823,37 @@
     "name": "卢钺",
     "birthYear": 1100,
     "deathYear": 1150,
+    "dynastyId": "song",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "8f9b5f0375be",
+    "name": "辛弃疾",
+    "courtesyName": "幼安",
+    "pseudonym": "稼轩",
+    "birthYear": 1140,
+    "deathYear": 1207,
+    "dynastyId": "song",
+    "familiarity": 5,
+    "corpus": "primary"
+  },
+  {
+    "id": "7fc15377",
+    "name": "翁卷",
+    "courtesyName": "续古",
+    "birthYear": 1180,
+    "deathYear": 1240,
+    "dynastyId": "song",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "865e4e165357",
+    "name": "虞世南",
+    "courtesyName": "伯施",
+    "birthYear": 558,
+    "deathYear": 638,
     "dynastyId": "tang",
     "familiarity": 2,
     "corpus": "primary"
@@ -776,13 +869,33 @@
     "corpus": "primary"
   },
   {
+    "id": "96466e38",
+    "name": "陆游",
+    "courtesyName": "放翁",
+    "birthYear": 1125,
+    "deathYear": 1210,
+    "dynastyId": "song",
+    "familiarity": 5,
+    "corpus": "primary"
+  },
+  {
+    "id": "67975347",
+    "name": "林升",
+    "courtesyName": "云友",
+    "birthYear": 1120,
+    "deathYear": 1170,
+    "dynastyId": "song",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
     "id": "9f9a81ea73cd",
     "name": "龚自珍",
     "courtesyName": "璱人",
     "pseudonym": "定盦",
     "birthYear": 1792,
     "deathYear": 1841,
-    "dynastyId": "tang",
+    "dynastyId": "qing",
     "familiarity": 3,
     "corpus": "primary"
   },
@@ -792,7 +905,7 @@
     "courtesyName": "容若",
     "birthYear": 1655,
     "deathYear": 1685,
-    "dynastyId": "tang",
+    "dynastyId": "qing",
     "familiarity": 3,
     "corpus": "primary"
   },
@@ -813,7 +926,7 @@
     "pseudonym": "晦庵",
     "birthYear": 1130,
     "deathYear": 1200,
-    "dynastyId": "tang",
+    "dynastyId": "song",
     "familiarity": 4,
     "corpus": "primary"
   },
@@ -822,6 +935,24 @@
     "name": "雷震",
     "birthYear": 1100,
     "deathYear": 1150,
+    "dynastyId": "song",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "6c494e505e9c",
+    "name": "汉乐府",
+    "birthYear": -206,
+    "deathYear": 220,
+    "dynastyId": "other",
+    "familiarity": 2,
+    "corpus": "primary"
+  },
+  {
+    "id": "674e8d3a",
+    "name": "李贺",
+    "birthYear": 700,
+    "deathYear": 750,
     "dynastyId": "tang",
     "familiarity": 2,
     "corpus": "primary"
@@ -832,19 +963,8 @@
     "courtesyName": "希文",
     "birthYear": 989,
     "deathYear": 1052,
-    "dynastyId": "tang",
+    "dynastyId": "song",
     "familiarity": 3,
-    "corpus": "primary"
-  },
-  {
-    "id": "738b5b8977f3",
-    "name": "王安石",
-    "courtesyName": "介甫",
-    "pseudonym": "半山",
-    "birthYear": 1021,
-    "deathYear": 1086,
-    "dynastyId": "tang",
-    "familiarity": 4,
     "corpus": "primary"
   }
 ]

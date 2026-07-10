@@ -27,14 +27,14 @@ async function main() {
   for (const entry of tangList) {
     i++;
     try {
-      const html = await cachedFetch(entry.url);
-      const parsed = parsePoemPage(html, entry.url);
+      const result = await cachedFetch(entry.url);
+      const parsed = parsePoemPage(result.html, entry.url);
       tangRaw.push(parsed);
       console.log(`  [${i}/${tangList.length}] ${parsed.title} — ${parsed.poetName}`);
+      await rateLimitedDelay(result.cached);
     } catch (err) {
       console.error(`  [${i}/${tangList.length}] FAILED ${entry.title}:`, err);
     }
-    await rateLimitedDelay();
   }
 
   console.log('Step 3: fetching primary list...');
