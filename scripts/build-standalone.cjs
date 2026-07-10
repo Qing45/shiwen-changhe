@@ -1461,7 +1461,7 @@ const riverPageCode = `
 function RiverPage() {
   const poets = getPoets();
   const corpus = useCorpus();
-  const visiblePoems = getPoems(corpus === 'all' ? 'both' : corpus);
+  const visiblePoems = getPoemsCorpus(corpus === 'all' ? 'both' : corpus);
   const visiblePoetIds = new Set(visiblePoems.map(function (p) { return p.poetId; }));
   const visiblePoets = poets.filter(function (p) { return visiblePoetIds.has(p.id); });
   const range = computeCorpusYearRange(visiblePoets, corpus);
