@@ -194,6 +194,21 @@ function getGlobalPoemNeighbors(poemId) {
 }
 `;
 
+// data/dynasties.ts
+const dynastiesCode = `
+// ===== data/dynasties.ts =====
+const DYNASTIES = {
+  other:  { name: '南北朝', startYear: 386,  endYear: 589 },
+  tang:   { name: '唐',     startYear: 618,  endYear: 907 },
+  song:   { name: '宋',     startYear: 960,  endYear: 1279 },
+  ming:   { name: '明',     startYear: 1368, endYear: 1644 },
+  qing:   { name: '清',     startYear: 1644, endYear: 1912 },
+  modern: { name: '近现代', startYear: 1912, endYear: 1976 },
+};
+function getDynastyName(id) { return (DYNASTIES[id] && DYNASTIES[id].name) || '唐'; }
+function getDynasty(id) { return DYNASTIES[id]; }
+`;
+
 // utils/layout.ts (types dropped)
 const layoutCode = `
 // ===== utils/layout.ts =====
@@ -4144,6 +4159,7 @@ ${poemsRiverPageCode}
 ${poetPageCode}
 ${poemPageCode}
 ${feihuaTypesCode}
+${dynastiesCode}
 ${feihuaKeywordsCode}
 ${feihuaPrimaryKeywordsCode}
 ${feihuaEngineCode}
