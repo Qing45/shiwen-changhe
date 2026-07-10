@@ -46,6 +46,7 @@ export const PRIMARY_LIST: PrimaryListEntry[] = [
   { title: '饮湖上初晴后雨', dynasty: 'song', poetName: '苏轼' },
   { title: '望洞庭', dynasty: 'tang', poetName: '刘禹锡' },
   { title: '早发白帝城', dynasty: 'tang', poetName: '李白' },
+  { title: '采莲曲', dynasty: 'tang', poetName: '王昌龄' },
   // 三年级下册
   { title: '惠崇春江晚景', dynasty: 'song', poetName: '苏轼' },
   { title: '三衢道中', dynasty: 'song', poetName: '曾几' },
@@ -74,6 +75,10 @@ export const PRIMARY_LIST: PrimaryListEntry[] = [
   { title: '独坐敬亭山', dynasty: 'tang', poetName: '李白' },
   { title: '乡村四月', dynasty: 'song', poetName: '翁卷' },
   { title: '四时田园杂兴', dynasty: 'song', poetName: '范成大' }, // 其二十五/其二
+  { title: '墨梅', dynasty: 'other', poetName: '王冕' }, // 元代 · 日积月累
+  { title: '芙蓉楼送辛渐', dynasty: 'tang', poetName: '王昌龄' }, // 课标 75 / 教材未编入
+  { title: '塞下曲', dynasty: 'tang', poetName: '卢纶' }, // 课标 75 / 教材未编入
+  { title: '蜂', dynasty: 'tang', poetName: '罗隐' }, // 课标 75 / 教材未编入
   // 五年级上册
   { title: '蝉', dynasty: 'tang', poetName: '虞世南' },
   { title: '乞巧', dynasty: 'tang', poetName: '林杰' },
@@ -94,6 +99,10 @@ export const PRIMARY_LIST: PrimaryListEntry[] = [
   { title: '秋夜将晓出篱门迎凉有感', dynasty: 'song', poetName: '陆游' },
   { title: '闻官军收河南河北', dynasty: 'tang', poetName: '杜甫' },
   { title: '长歌行', dynasty: 'other', poetName: '汉乐府' },
+  { title: '寒菊', dynasty: 'song', poetName: '郑思肖' }, // 日积月累（之前错放 6下）
+  { title: '黄鹤楼送孟浩然之广陵', dynasty: 'tang', poetName: '李白' }, // 课标 75 / 教材未编入
+  { title: '江畔独步寻花', dynasty: 'tang', poetName: '杜甫' }, // 课标 75 / 教材未编入
+  { title: '游子吟', dynasty: 'tang', poetName: '孟郊' }, // 课标 75 / 教材未编入
   // 六年级上册
   { title: '过故人庄', dynasty: 'tang', poetName: '孟浩然' },
   { title: '七律·长征', dynasty: 'modern', poetName: '毛泽东' },
@@ -102,7 +111,7 @@ export const PRIMARY_LIST: PrimaryListEntry[] = [
   { title: '回乡偶书', dynasty: 'tang', poetName: '贺知章' },
   { title: '浪淘沙', dynasty: 'tang', poetName: '刘禹锡' },
   { title: '江南春', dynasty: 'tang', poetName: '杜牧' },
-  { title: '寒菊', dynasty: 'song', poetName: '郑思肖' },
+  { title: '书湖阴先生壁', dynasty: 'song', poetName: '王安石' },
   // 六年级下册
   { title: '寒食', dynasty: 'tang', poetName: '韩翃' },
   { title: '迢迢牵牛星', dynasty: 'other', poetName: '佚名' },
