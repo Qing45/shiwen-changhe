@@ -5,7 +5,7 @@
 **Goal:** 项目新增「小学必背」诗库，与现有「唐诗三百首」并列共存。TopNav 切换器即时切库，诗文长河、诗人详情页、飞花令都按当前库过滤；诗人长河本身保持 corpus-agnostic（仍展示全部诗人）。
 
 **Architecture:**
-- 数据层：单文件方案 —— `poems.json` / `poets.json` 加 `corpus` 字段；现有 320 / 76 数据加 `'tang'` 标签；新抓的 112 小学诗 + 30+ 新诗人入库
+- 数据层：单文件方案 —— `poems.json` / `poets.json` 加 `corpus` 字段；现有 320 / 76 数据加 `'tang'` 标签；新抓的 108 小学诗 + 35 位新诗人入库
 - 状态层：React Context `src/state/corpus.tsx` 维护当前 corpus，写 localStorage `feihuaCorpus`，默认 `'tang'`
 - 引擎层：飞花令 / 整句 engine 收 `corpus` 参数，从 corpus-filtered Verse 池里抽题；小学库独立维护 `PRIMARY_KEYWORDS`
 - 抓取层：扩展 `scripts/scraper/`，用 gushiwen.cn 搜索接口按诗名定位单首
@@ -17,6 +17,7 @@
 - `Poem.corpus` ∈ `'tang' | 'primary' | 'both'`；`Poet.corpus` ∈ `'tang' | 'primary'`
 - 跨库共有的诗（如 静夜思 / 春晓 / 望庐山瀑布）：`corpus: 'both'`，**不**重复入库
 - 现有 320 / 76 数据的 corpus 字段缺失时由 `load.ts` 兜底为 `'tang'`，**不**改 JSON 字面
+- **2026-07-10 更新**：实际抓取后 poems 总 403 (primary 94 + both 14 + tang 295)，poets 总 114 (primary 57 + tang 57)。小学库诗文 108 全部到位；见 `scripts/scraper/primary-list.ts` (108 条按年级排序) + `scripts/cross-validate.mts` (108/108 matched)。
 - 飞花令小学库独立一套 20 字关键字（满足每字 ≥ 5 句），**不**复用唐诗 50 关键字
 - 飞花令进度按 `(corpus, keyword)` / `(corpus, level)` 存，**不**共用同一把 key
 - TopNav 切换器三 variant（main / poet / poem）都要展示，统一样式
@@ -137,8 +138,8 @@ https://www.gushiwen.cn/search.aspx?value={title}
 ### 新增脚本 `scripts/scraper/primary.ts`
 
 ```ts
-// 抓取 112 首小学必背诗，按 search.aspx 逐首定位，调用现有 parsePoemPage。
-// 输入：硬编码的 112 首 (title, expectedPoetName) 列表
+// 抓取 108 首小学必背诗，按 search.aspx 逐首定位，调用现有 parsePoemPage。
+// 输入：硬编码的 108 首 (title, expectedPoetName) 列表
 // 输出：与现有 normalize 兼容的 RawPoem[]
 ```
 
@@ -157,7 +158,7 @@ https://www.gushiwen.cn/search.aspx?value={title}
 ### 失败处理
 
 - 单首抓取失败：log error 跳过；最终输出未抓到的列表，提交前由人手核对
-- 抓取总耗时：112 首 × 1s + 余量 ≈ 3 分钟
+- 抓取总耗时：108 首 × 1s + 余量 ≈ 3 分钟
 
 ## 3. State management
 
@@ -349,7 +350,7 @@ const SENTENCE_KEY = (corpus: Corpus) => `feihuaSentenceProgress:${corpus}`;
 
 ## 9. 风险与回退
 
-- 抓取失败：112 首中若 > 10 首失败，回退到手工填诗名/作者 + 仅关键诗作
+- 抓取失败：108 首中若 > 10 首失败，回退到手工填诗名/作者 + 仅关键诗作
 - mobile 切换器拥挤：若 < 380px 视口，连 TopNav 标题一起隐藏，只露图标
 - corpus 切换瞬间 state 竞态：所有依赖 `useCorpus` 的页面用 ref 锁，渲染时一次性重算
 
