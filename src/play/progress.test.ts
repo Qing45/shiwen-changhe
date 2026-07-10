@@ -4,6 +4,7 @@ import {
   beginStage, commitStageCorrect, commitStageBlood, clearCurrent,
 } from './progress';
 import { INITIAL_PROGRESS } from './types';
+import { PRIMARY_KEYWORDS } from './primaryKeywords';
 
 describe('progress persistence', () => {
   beforeEach(() => {
@@ -25,6 +26,22 @@ describe('progress persistence', () => {
     const p = markCleared('春');
     expect(p.cleared).toContain('春');
     expect(p.unlockedIndex).toBe(1);
+  });
+
+  it('markCleared advances unlockedIndex using primary keyword order', () => {
+    saveProgress({ ...INITIAL_PROGRESS, unlockedIndex: 0, cleared: [] }, 'primary');
+    const kw = '来'; // 唐诗 KEYWORDS 里没有的小学专属字
+    const expectedIdx = PRIMARY_KEYWORDS.indexOf(kw) + 1;
+    expect(PRIMARY_KEYWORDS.includes(kw)).toBe(true);
+    const p = markCleared(kw, 'primary');
+    expect(p.cleared).toContain(kw);
+    expect(p.unlockedIndex).toBe(expectedIdx);
+  });
+
+  it('markCleared for tang still uses tang KEYWORDS order', () => {
+    saveProgress({ ...INITIAL_PROGRESS, unlockedIndex: 0, cleared: [] }, 'tang');
+    const p = markCleared('月', 'tang'); // 月 在 KEYWORDS index 1 → unlockedIndex 2
+    expect(p.unlockedIndex).toBe(2);
   });
 
   it('beginStage sets current with full blood and empty correct', () => {

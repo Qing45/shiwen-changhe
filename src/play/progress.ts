@@ -8,6 +8,7 @@
 
 import { INITIAL_PROGRESS, STAGE_BLOOD, type FeihuaProgress } from './types';
 import { KEYWORDS } from './keywords';
+import { PRIMARY_KEYWORDS } from './primaryKeywords';
 import type { Corpus } from '../state/corpus';
 
 const STORAGE_KEY = 'shiwen-feihua-progress';
@@ -68,8 +69,9 @@ export function markCleared(keyword: string, corpus: Corpus = 'tang'): FeihuaPro
     return p;
   }
   p.cleared.push(keyword);
-  // unlockedIndex = max(已解锁序号, 该字在 KEYWORDS 中的位置 + 1)
-  const idx = KEYWORDS.indexOf(keyword);
+  // unlockedIndex = max(已解锁序号, 该字在当前 corpus 关键字表中的位置 + 1)
+  const keywordList = corpus === 'primary' ? PRIMARY_KEYWORDS : KEYWORDS;
+  const idx = keywordList.indexOf(keyword);
   if (idx >= 0 && idx + 1 > p.unlockedIndex) p.unlockedIndex = idx + 1;
   p.current = null; // 通关清空 current
   saveProgress(p, corpus);
