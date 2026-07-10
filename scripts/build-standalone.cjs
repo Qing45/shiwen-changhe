@@ -1777,6 +1777,11 @@ function PoetPage() {
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState(null);
+
+  // 切换诗人时复位 window 滚动到顶部
+  useEffect(function () {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [poet && poet.id]);
   if (!poet) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>诗人未找到</div>;
   }
@@ -1992,6 +1997,18 @@ function PoemPage() {
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
   const poem = poemId ? getPoem(poemId) : undefined;
+  // 切换诗文时复位内部滚动容器到顶部
+  const paperRef = useRef(null);
+  useEffect(function () {
+    if (paperRef.current) {
+      const el = paperRef.current;
+      if (typeof el.scrollTo === 'function') {
+        el.scrollTo({ top: 0, behavior: 'auto' });
+      } else {
+        el.scrollTop = 0;
+      }
+    }
+  }, [poem && poem.id]);
   if (!poem) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>诗未找到</div>;
   }
@@ -2059,7 +2076,7 @@ function PoemPage() {
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="poem" poet={poet} poem={poem} backTo={backTo} backLabel={backLabel} />
-      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient }}>
+      <div ref={paperRef} style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient }}>
         <div style={{ position: 'relative', height: 70, overflow: 'hidden' }}>
           <div style={{
             position: 'absolute', top: 16, right: '14%',
@@ -2161,7 +2178,7 @@ function PoemPage() {
                   );
                 })}
               </div>
-              <div style={{ textAlign: 'center', marginBottom: 28, paddingTop: 16 }}>
+              <div key={'title-' + poem.id} style={{ textAlign: 'center', marginBottom: 28, paddingTop: 16, animation: 'fade-in 0.3s ease-out' }}>
                 <div style={{
                   fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
                   fontSize: titleFontSize, letterSpacing: 12,
@@ -2178,12 +2195,13 @@ function PoemPage() {
                 }} />
               </div>
 
-            <div style={{
+            <div key={'body-' + poem.id} style={{
               display: 'grid',
               gridTemplateColumns: isMobile
                 ? '1fr'
                 : (hasRightContent ? '60fr 40fr' : '1fr'),
               gap: isMobile ? 24 : 48,
+              animation: 'fade-in 0.3s ease-out',
             }}>
               <div style={{
                 fontFamily: fontFamilies.chinese, color: PAPER_TEXT,

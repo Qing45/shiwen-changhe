@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { getDynastyName } from '../data/dynasties';
 import { getPoem, getPoet, getNeighbors, getGlobalPoemNeighbors } from '../data/load';
@@ -69,6 +69,19 @@ export function PoemPage() {
     try { window.localStorage.setItem(SIZE_MODE_KEY, sizeMode); } catch { /* noop */ }
   }, [sizeMode]);
 
+  // 切换诗文时复位内部滚动容器到顶部
+  const paperRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (paperRef.current) {
+      const el = paperRef.current as HTMLDivElement & { scrollTo?: (opts: { top: number; behavior?: ScrollBehavior }) => void };
+      if (typeof el.scrollTo === 'function') {
+        el.scrollTo({ top: 0, behavior: 'auto' });
+      } else {
+        el.scrollTop = 0;
+      }
+    }
+  }, [poem.id]);
+
   // 键盘快捷键：← / → 翻诗，Esc 返回上一级
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -109,7 +122,7 @@ export function PoemPage() {
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="poem" poet={poet} poem={poem} backTo={backTo} backLabel={backLabel} />
-      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient }}>
+      <div ref={paperRef} style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient }}>
         {/* 月夜氛围带（夜空主题保留） */}
         <div style={{ position: 'relative', height: 70, overflow: 'hidden' }}>
           <div style={{
@@ -219,7 +232,7 @@ export function PoemPage() {
                 })}
               </div>
               {/* 标题区（跨栏） */}
-              <div style={{ textAlign: 'center', marginBottom: 28, paddingTop: 16 }}>
+              <div key={`title-${poem.id}`} style={{ textAlign: 'center', marginBottom: 28, paddingTop: 16, animation: 'fade-in 0.3s ease-out' }}>
                 <div style={{
                   fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
                   fontSize: titleFontSize, letterSpacing: 12,
@@ -238,12 +251,13 @@ export function PoemPage() {
               </div>
 
             {/* 主体 grid */}
-            <div style={{
+            <div key={`body-${poem.id}`} style={{
               display: 'grid',
               gridTemplateColumns: isMobile
                 ? '1fr'
                 : (hasRightContent ? '60fr 40fr' : '1fr'),
               gap: isMobile ? 24 : 48,
+              animation: 'fade-in 0.3s ease-out',
             }}>
               {/* 左：正文 */}
               <div style={{

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getPoet, getPoemsByPoet } from '../data/load';
 import { layoutPoems } from '../utils/layout';
@@ -36,6 +36,11 @@ export function PoetPage() {
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState<string | null>(null);
+
+  // 切换诗人时复位 window 滚动到顶部
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [poet?.id]);
 
   if (!poet) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>诗人未找到</div>;
