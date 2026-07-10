@@ -16201,10 +16201,11 @@ var KEYWORDS = [].concat(KEYWORD_GROUPS.entry, KEYWORD_GROUPS.mid, KEYWORD_GROUP
 
 // ===== play/primaryKeywords.ts =====
 var PRIMARY_KEYWORD_GROUPS = {
-  entry: ['春','月','花','风','山','水','人','一'],
+  entry: ['春','月','花','风','山','水','人','一','云','天'],
   mid: ['雪','来','日','雨','绿','明','时','上','尽','万','舟','头'],
+  advanced: ['江','千','声','青','夜','红','飞','秋'],
 };
-var PRIMARY_KEYWORDS = [].concat(PRIMARY_KEYWORD_GROUPS.entry, PRIMARY_KEYWORD_GROUPS.mid);
+var PRIMARY_KEYWORDS = [].concat(PRIMARY_KEYWORD_GROUPS.entry, PRIMARY_KEYWORD_GROUPS.mid, PRIMARY_KEYWORD_GROUPS.advanced);
 
 
 // ===== play/engine.ts =====
@@ -16433,7 +16434,8 @@ function markCleared(keyword, corpus) {
     return p;
   }
   p.cleared.push(keyword);
-  const idx = KEYWORDS.indexOf(keyword);
+  var keywordList = corpus === 'primary' ? PRIMARY_KEYWORDS : KEYWORDS;
+  var idx = keywordList.indexOf(keyword);
   if (idx >= 0 && idx + 1 > p.unlockedIndex) p.unlockedIndex = idx + 1;
   p.current = null;
   saveProgress(p, corpus);
@@ -17015,13 +17017,14 @@ function PlayHall() {
   var charProgress = loadProgress(corpus);
   var sentenceProgress = loadSentenceProgress(corpus);
 
-  // corpus-aware: primary has no advanced tier (only entry + mid, 20 chars / 30 sentence levels).
+  // corpus-aware: primary 三档（entry 10 + mid 12 + advanced 8 = 30 字 / 30 sentence levels）。
   // 总库 ('all') shares tang's structure — 50 字三档 — drawing from the full corpus.
   var isPrimary = corpus === 'primary';
   var charKeywords = isPrimary ? PRIMARY_KEYWORDS : KEYWORDS;
   var charGroups = isPrimary
     ? [{ tier: 'entry', words: PRIMARY_KEYWORD_GROUPS.entry },
-       { tier: 'mid', words: PRIMARY_KEYWORD_GROUPS.mid }]
+       { tier: 'mid', words: PRIMARY_KEYWORD_GROUPS.mid },
+       { tier: 'advanced', words: PRIMARY_KEYWORD_GROUPS.advanced }]
     : [{ tier: 'entry', words: KEYWORD_GROUPS.entry },
        { tier: 'mid', words: KEYWORD_GROUPS.mid },
        { tier: 'advanced', words: KEYWORD_GROUPS.advanced }];
