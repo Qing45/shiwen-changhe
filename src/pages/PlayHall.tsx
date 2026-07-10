@@ -57,7 +57,8 @@ export function PlayHall() {
   const charKeywords = isPrimary ? PRIMARY_KEYWORDS : KEYWORDS;
   const charGroups = isPrimary
     ? [{ tier: 'entry' as const, words: PRIMARY_KEYWORD_GROUPS.entry },
-       { tier: 'mid' as const, words: PRIMARY_KEYWORD_GROUPS.mid }]
+       { tier: 'mid' as const, words: PRIMARY_KEYWORD_GROUPS.mid },
+       { tier: 'advanced' as const, words: PRIMARY_KEYWORD_GROUPS.advanced }]
     : [{ tier: 'entry' as const, words: KEYWORD_GROUPS.entry },
        { tier: 'mid' as const, words: KEYWORD_GROUPS.mid },
        { tier: 'advanced' as const, words: KEYWORD_GROUPS.advanced }];

@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { PRIMARY_KEYWORDS } from '../src/play/primaryKeywords';
+import { PRIMARY_KEYWORDS, PRIMARY_KEYWORD_GROUPS } from '../src/play/primaryKeywords';
 import { buildKeywordIndex, getVersesFor } from '../src/play/engine';
 
 describe('PRIMARY_KEYWORDS', () => {
-  it('has 10-24 keywords', () => {
-    expect(PRIMARY_KEYWORDS.length).toBeGreaterThanOrEqual(10);
-    expect(PRIMARY_KEYWORDS.length).toBeLessThanOrEqual(24);
+  it('has 30 keywords across three tiers', () => {
+    expect(PRIMARY_KEYWORD_GROUPS.entry.length).toBe(10);
+    expect(PRIMARY_KEYWORD_GROUPS.mid.length).toBe(12);
+    expect(PRIMARY_KEYWORD_GROUPS.advanced.length).toBe(8);
+    expect(PRIMARY_KEYWORDS.length).toBe(30);
   });
 
   it('each keyword has ≥ 5 primary-corpus verses', () => {
