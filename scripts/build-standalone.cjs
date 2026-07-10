@@ -209,6 +209,43 @@ function getDynastyName(id) { return (DYNASTIES[id] && DYNASTIES[id].name) || '�
 function getDynasty(id) { return DYNASTIES[id]; }
 `;
 
+// utils/yearRange.ts (types dropped)
+const yearRangeCode = `
+// ===== utils/yearRange.ts =====
+function _pad(value, percent, direction) {
+  const delta = Math.ceil((value * percent) / 10) * 10;
+  return value + delta * direction;
+}
+function _tickInterval(span) {
+  if (span <= 300) return 30;
+  if (span <= 700) return 50;
+  return 100;
+}
+function computeCorpusYearRange(poets, _corpus) {
+  if (poets.length === 0) {
+    return { minYear: 618, maxYear: 907, ticks: [], leftLabel: '618 · 唐', rightLabel: '907' };
+  }
+  const minBirth = Math.min.apply(null, poets.map(function (p) { return p.birthYear; }));
+  const maxDeath = Math.max.apply(null, poets.map(function (p) { return p.deathYear; }));
+  const minYear = _pad(minBirth, 0.03, -1);
+  const maxYear = _pad(maxDeath, 0.03, 1);
+  const span = maxYear - minYear;
+  const interval = _tickInterval(span);
+  const ticks = [];
+  const start = Math.ceil(minYear / interval) * interval;
+  for (let y = start; y <= maxYear; y += interval) {
+    ticks.push({ year: y, label: String(y), pos: ((y - minYear) / span) * 100 });
+  }
+  let earliest = poets[0];
+  for (let i = 1; i < poets.length; i++) {
+    if (poets[i].birthYear < earliest.birthYear) earliest = poets[i];
+  }
+  const leftLabel = minYear + ' · ' + getDynastyName(earliest.dynastyId);
+  const rightLabel = String(maxYear);
+  return { minYear: minYear, maxYear: maxYear, ticks: ticks, leftLabel: leftLabel, rightLabel: rightLabel };
+}
+`;
+
 // utils/layout.ts (types dropped)
 const layoutCode = `
 // ===== utils/layout.ts =====
@@ -4160,6 +4197,7 @@ ${poetPageCode}
 ${poemPageCode}
 ${feihuaTypesCode}
 ${dynastiesCode}
+${yearRangeCode}
 ${feihuaKeywordsCode}
 ${feihuaPrimaryKeywordsCode}
 ${feihuaEngineCode}
