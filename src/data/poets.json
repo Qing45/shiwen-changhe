@@ -966,5 +966,113 @@
     "dynastyId": "song",
     "familiarity": 3,
     "corpus": "primary"
+  },
+  {
+    "id": "2ac5a099",
+    "name": "李峤",
+    "birthYear": 644,
+    "deathYear": 713,
+    "dynastyId": "tang",
+    "familiarity": 1,
+    "corpus": "primary"
+  },
+  {
+    "id": "cfab8a18",
+    "name": "唐寅",
+    "birthYear": 1470,
+    "deathYear": 1524,
+    "dynastyId": "ming",
+    "familiarity": 1,
+    "corpus": "primary"
+  },
+  {
+    "id": "b081667b",
+    "name": "李清照",
+    "birthYear": 1084,
+    "deathYear": 1155,
+    "dynastyId": "song",
+    "familiarity": 1,
+    "corpus": "primary"
+  },
+  {
+    "id": "590219f9",
+    "name": "王观",
+    "birthYear": 1035,
+    "deathYear": 1106,
+    "dynastyId": "song",
+    "familiarity": 1,
+    "corpus": "primary"
+  },
+  {
+    "id": "7acd2258",
+    "name": "范成大",
+    "birthYear": 1126,
+    "deathYear": 1193,
+    "dynastyId": "song",
+    "familiarity": 1,
+    "corpus": "primary"
+  },
+  {
+    "id": "148a7027",
+    "name": "王冕",
+    "birthYear": 1287,
+    "deathYear": 1359,
+    "dynastyId": "other",
+    "familiarity": 1,
+    "corpus": "primary"
+  },
+  {
+    "id": "6c2edeb4",
+    "name": "罗隐",
+    "birthYear": 833,
+    "deathYear": 909,
+    "dynastyId": "tang",
+    "familiarity": 1,
+    "corpus": "primary"
+  },
+  {
+    "id": "4efb78c5",
+    "name": "郑思肖",
+    "birthYear": 1241,
+    "deathYear": 1318,
+    "dynastyId": "song",
+    "familiarity": 1,
+    "corpus": "primary"
+  },
+  {
+    "id": "6caa2050",
+    "name": "毛泽东",
+    "birthYear": 1893,
+    "deathYear": 1976,
+    "dynastyId": "modern",
+    "familiarity": 1,
+    "corpus": "primary"
+  },
+  {
+    "id": "5c8bc242",
+    "name": "于谦",
+    "birthYear": 1398,
+    "deathYear": 1457,
+    "dynastyId": "ming",
+    "familiarity": 1,
+    "corpus": "primary"
+  },
+  {
+    "id": "28ca7a4e",
+    "name": "郑燮",
+    "birthYear": 1693,
+    "deathYear": 1765,
+    "dynastyId": "qing",
+    "familiarity": 1,
+    "corpus": "primary"
+  },
+  {
+    "id": "e4c05e19",
+    "name": "黄庭坚",
+    "birthYear": 1045,
+    "deathYear": 1105,
+    "dynastyId": "song",
+    "familiarity": 1,
+    "corpus": "primary"
   }
 ]
