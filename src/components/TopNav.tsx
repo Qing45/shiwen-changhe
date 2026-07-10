@@ -4,6 +4,7 @@ import { SearchBox } from './SearchBox';
 import { CorpusSwitcher } from './CorpusSwitcher';
 import { getPoets, getPoems } from '../data/load';
 import { useBreakpoint } from '../hooks/useBreakpoint';
+import { getDynastyName } from '../data/dynasties';
 import type { Poet, Poem } from '../types';
 
 interface BaseProps {
@@ -49,7 +50,6 @@ export function TopNav(props: Props) {
           )}
           <RiverToggle compact={isMobile} />
           <SearchBox />
-          <DynastyLabel />
           <CorpusSwitcher />
         </>
       )}
@@ -72,7 +72,7 @@ export function TopNav(props: Props) {
               return meta ? `${meta} · ${years}` : years;
             })()}
           </div>
-          <DynastyLabel />
+          <DynastyLabel dynastyId={props.poet.dynastyId} />
           <CorpusSwitcher />
         </>
       )}
@@ -97,6 +97,7 @@ export function TopNav(props: Props) {
           }}>{props.poem.creationYear != null
             ? `${props.poet.name} · ${props.poem.creationYear}`
             : props.poet.name}</div>
+          <DynastyLabel dynastyId={props.poet.dynastyId} />
           <div style={{ marginLeft: 'auto' }}><CorpusSwitcher /></div>
         </>
       )}
@@ -142,7 +143,8 @@ function metaString(poet: Poet): string {
   return parts.join(' · ');
 }
 
-function DynastyLabel() {
+function DynastyLabel({ dynastyId }: { dynastyId?: string }) {
+  if (!dynastyId) return null;
   return (
     <div style={{
       marginLeft: 'auto',
@@ -151,7 +153,7 @@ function DynastyLabel() {
       padding: '6px 14px',
       border: '1px solid rgba(216,224,240,0.2)',
       borderRadius: 3,
-    }}>唐</div>
+    }}>{getDynastyName(dynastyId)}</div>
   );
 }
 

@@ -1344,7 +1344,6 @@ function TopNav(props) {
           )}
           <RiverToggle compact={isMobile} />
           <SearchBox />
-          <DynastyLabel />
           <CorpusSwitcher />
         </>
       )}
@@ -1367,7 +1366,7 @@ function TopNav(props) {
               return meta ? \`\${meta} · \${years}\` : years;
             })()}
           </div>
-          <DynastyLabel />
+          <DynastyLabel dynastyId={props.poet.dynastyId} />
           <CorpusSwitcher />
         </>
       )}
@@ -1392,6 +1391,7 @@ function TopNav(props) {
           }}>{props.poem.creationYear != null
             ? \`\${props.poet.name} · \${props.poem.creationYear}\`
             : props.poet.name}</div>
+          <DynastyLabel dynastyId={props.poet.dynastyId} />
           <div style={{ marginLeft: 'auto' }}><CorpusSwitcher /></div>
         </>
       )}
@@ -1436,7 +1436,8 @@ function metaString(poet) {
   return parts.join(' · ');
 }
 
-function DynastyLabel() {
+function DynastyLabel({ dynastyId }) {
+  if (!dynastyId) return null;
   return (
     <div style={{
       marginLeft: 'auto',
@@ -1445,7 +1446,7 @@ function DynastyLabel() {
       padding: '6px 14px',
       border: '1px solid rgba(216,224,240,0.2)',
       borderRadius: 3,
-    }}>唐</div>
+    }}>{getDynastyName(dynastyId)}</div>
   );
 }
 
