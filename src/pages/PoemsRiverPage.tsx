@@ -5,19 +5,11 @@ import { layoutAllPoems } from '../utils/layout';
 import { useRiverViewport } from '../hooks/useRiverViewport';
 import { useVisited } from '../hooks/useVisited';
 import { useCorpus } from '../state/corpus';
+import { computeCorpusYearRange } from '../utils/yearRange';
 import { RiverBackground } from '../components/RiverBackground';
 import { TimeAxis } from '../components/TimeAxis';
 import { TopNav } from '../components/TopNav';
 import { colors, fontFamilies, fontSizes, contentLengthToSize } from '../theme';
-
-const POEMS_RIVER_TICKS: { year: number; label?: string; pos: number }[] = (() => {
-  const out: { year: number; label?: string; pos: number }[] = [];
-  for (let y = 618; y <= 897; y += 30) {
-    const isMajor = y % 30 === 0;
-    out.push({ year: y, label: isMajor ? String(y) : undefined, pos: ((y - 618) / (907 - 618)) * 100 });
-  }
-  return out;
-})();
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + '…' : s;
@@ -27,7 +19,10 @@ export function PoemsRiverPage() {
   const corpus = useCorpus();
   const poems = getPoems(corpus === 'all' ? 'both' : corpus);
   const poets = getPoets();
-  const positioned = layoutAllPoems(poems, poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
+  const visiblePoetIds = new Set(poems.map((p) => p.poetId));
+  const visiblePoets = poets.filter((p) => visiblePoetIds.has(p.id));
+  const range = computeCorpusYearRange(visiblePoets, corpus);
+  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 });
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -154,7 +149,7 @@ export function PoemsRiverPage() {
             );
           })}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-            <TimeAxis left="618 · 唐" right="907" ticks={POEMS_RIVER_TICKS} />
+            <TimeAxis left={range.leftLabel} right={range.rightLabel} ticks={range.ticks} />
           </div>
         </div>
       </div>

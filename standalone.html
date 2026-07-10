@@ -13941,15 +13941,6 @@ function RiverPage() {
 
 
 // ===== pages/PoemsRiverPage.tsx =====
-const POEMS_RIVER_TICKS = (function () {
-  const out = [];
-  for (let y = 618; y <= 897; y += 30) {
-    const isMajor = y % 30 === 0;
-    out.push({ year: y, label: isMajor ? String(y) : undefined, pos: ((y - 618) / (907 - 618)) * 100 });
-  }
-  return out;
-})();
-
 function truncateStr(s, n) {
   return s.length > n ? s.slice(0, n) + '…' : s;
 }
@@ -13958,7 +13949,10 @@ function PoemsRiverPage() {
   const corpus = useCorpus();
   const poems = getPoemsCorpus(corpus === 'all' ? 'both' : corpus);
   const poets = getPoets();
-  const positioned = layoutAllPoems(poems, poets, { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
+  const visiblePoetIds = new Set(poems.map(function (p) { return p.poetId; }));
+  const visiblePoets = poets.filter(function (p) { return visiblePoetIds.has(p.id); });
+  const range = computeCorpusYearRange(visiblePoets, corpus);
+  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 });
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState(null);
@@ -14085,7 +14079,7 @@ function PoemsRiverPage() {
             );
           })}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-            <TimeAxis left="618 · 唐" right="907" ticks={POEMS_RIVER_TICKS} />
+            <TimeAxis left={range.leftLabel} right={range.rightLabel} ticks={range.ticks} />
           </div>
         </div>
       </div>
