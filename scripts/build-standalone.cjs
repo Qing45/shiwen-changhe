@@ -3861,6 +3861,355 @@ function SentencePlay() {
 }
 `;
 
+// pages/TitlePlay.tsx
+const titlePlayCode = `
+// ===== pages/TitlePlay.tsx =====
+var TITLE_PAPER_TEXT = '#000000';
+var TITLE_PAPER_TEXT_DIM = '#8b7355';
+var TITLE_PAPER_GREEN = '#4a7c4a';
+var TITLE_PAPER_RED = '#a8302a';
+var TITLE_TOTAL_LEVELS = 50;
+
+var TITLE_TIER_LABEL = {
+  entry: '入 门',
+  mid: '进 阶',
+  advanced: '高 阶',
+};
+
+var titleBtnStyle = {
+  padding: '8px 20px',
+  background: 'transparent',
+  color: TITLE_PAPER_TEXT,
+  border: '1px solid ' + TITLE_PAPER_TEXT,
+  borderRadius: 3,
+  fontFamily: fontFamilies.chinese,
+  fontSize: 14,
+  cursor: 'pointer',
+};
+
+function titleToChineseNum(n) {
+  var digits = ['零','一','二','三','四','五','六','七','八','九','十'];
+  if (n <= 10) return digits[n];
+  if (n < 20) return '十' + digits[n - 10];
+  if (n === 20) return '二十';
+  if (n < 30) return '二十' + digits[n - 20];
+  if (n === 30) return '三十';
+  if (n < 40) return '三十' + digits[n - 30];
+  if (n === 40) return '四十';
+  if (n <= 50) return '四十' + digits[n - 40];
+  return String(n);
+}
+
+function TitlePlay() {
+  var params = useParams();
+  var levelParam = params.level;
+  var navigate = useNavigate();
+  var level = parseInt(levelParam || '', 10);
+  var validLevel = Number.isFinite(level) && level >= 1 && level <= TITLE_TOTAL_LEVELS;
+  var tier = validLevel ? tierOfLevel(level) : 'entry';
+  var levelKey = String(level);
+
+  var corpus = useCorpus();
+  var poemCorpus = corpus === 'all' ? 'both' : corpus;
+
+  var _stage0 = function () {
+    if (!validLevel) return null;
+    var progress = loadTitleProgress(corpus);
+    if (progress.current && progress.current.keyword === levelKey) return progress.current;
+    return beginTitleStage(levelKey, corpus).current;
+  };
+  var _used0 = new Set((_stage0() && _stage0().correct) || []);
+  var _q0 = function () {
+    if (!validLevel) return null;
+    return pickTitleQuestion(level, _used0, poemCorpus);
+  };
+
+  var stageState = useState(_stage0);
+  var stage = stageState[0]; var setStage = stageState[1];
+
+  var usedPoemIdsRef = useRef(new Set(stage ? (stage.correct || []) : []));
+
+  var questionState = useState(_q0);
+  var question = questionState[0]; var setQuestion = questionState[1];
+
+  var pickedState = useState(null);
+  var picked = pickedState[0]; var setPicked = pickedState[1];
+  var gradingState = useState(false);
+  var grading = gradingState[0]; var setGrading = gradingState[1];
+  var secondsState = useState(STAGE_TIMEBOX);
+  var secondsLeft = secondsState[0]; var setSecondsLeft = secondsState[1];
+  var resultState = useState(null);
+  var result = resultState[0]; var setResult = resultState[1];
+
+  // breakpoint 必须在 early return 之前调用（Rules of Hooks）
+  var bp = useBreakpoint();
+  var isMobile = bp === 'mobile';
+
+  var stageRef = useRef(stage); stageRef.current = stage;
+  var questionRef = useRef(question); questionRef.current = question;
+
+  useEffect(function () {
+    if (!validLevel) return;
+    if (stageRef.current && stageRef.current.keyword === levelKey) return;
+    var progress = loadTitleProgress(corpus);
+    var fresh = progress.current && progress.current.keyword === levelKey
+      ? progress.current
+      : beginTitleStage(levelKey, corpus).current;
+    setStage(fresh);
+    usedPoemIdsRef.current = new Set(fresh ? (fresh.correct || []) : []);
+    setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus));
+    setPicked(null);
+    setGrading(false);
+    setSecondsLeft(STAGE_TIMEBOX);
+    setResult(null);
+  }, [levelKey]);
+
+  useEffect(function () {
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); navigate('/play'); }
+    }
+    window.addEventListener('keydown', onKey);
+    return function () { window.removeEventListener('keydown', onKey); };
+  }, [navigate]);
+
+  function handleCorrect() {
+    if (!validLevel || !questionRef.current || !stageRef.current) return;
+    var cur = stageRef.current;
+    var poemId = questionRef.current.poemId;
+    var newCorrect = [].concat(cur.correct, [poemId]);
+
+    commitTitleCorrect(levelKey, poemId, corpus);
+    setStage(loadTitleProgress(corpus).current);
+    usedPoemIdsRef.current = new Set(newCorrect);
+
+    if (newCorrect.length >= STAGE_GOAL) {
+      markTitleCleared(levelKey, corpus);
+      setResult({ kind: 'cleared', correct: newCorrect });
+      return;
+    }
+    setGrading(true);
+    setTimeout(function () {
+      setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus));
+      setPicked(null);
+      setSecondsLeft(STAGE_TIMEBOX);
+      setGrading(false);
+    }, 800);
+  }
+
+  function handleWrong() {
+    if (!validLevel || !stageRef.current) return;
+    var cur = stageRef.current;
+    var newBlood = cur.blood - 1;
+
+    commitTitleBlood(levelKey, newBlood, corpus);
+    setStage(loadTitleProgress(corpus).current);
+
+    if (newBlood <= 0) {
+      clearTitleCurrent(corpus);
+      setResult({ kind: 'failed', correct: cur.correct });
+      return;
+    }
+    setGrading(true);
+    setTimeout(function () {
+      setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus));
+      setPicked(null);
+      setSecondsLeft(STAGE_TIMEBOX);
+      setGrading(false);
+    }, 1500);
+  }
+
+  useEffect(function () {
+    if (result || grading) return;
+    if (secondsLeft <= 0) { handleWrong(); return; }
+    var t = setTimeout(function () { setSecondsLeft(function (s) { return s - 1; }); }, 1000);
+    return function () { clearTimeout(t); };
+  }, [secondsLeft, result, grading]);
+
+  function onPick(idx) {
+    if (grading || picked !== null || !question) return;
+    setPicked(idx);
+    setGrading(true);
+    var correct = question.options[idx].title === question.poemTitle;
+    setTimeout(function () {
+      if (correct) handleCorrect();
+      else handleWrong();
+    }, 500);
+  }
+
+  if (!validLevel || !stage) {
+    return React.createElement('div', { style: { padding: 40, color: colors.textPrimary } }, '关卡序号无效');
+  }
+
+  var isLastLevel = level >= TITLE_TOTAL_LEVELS;
+  var lines = question ? splitIntoLines(question.content, 'short') : [];
+
+  return React.createElement('div', { style: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column' } },
+    React.createElement(TopNav, { variant: 'main' }),
+    React.createElement('div', {
+      style: { flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: isMobile ? '16px 12px' : '24px 28px' },
+    },
+      React.createElement('div', { style: { marginBottom: 16 } },
+        React.createElement(Link, { to: '/play', style: { color: colors.textTertiary, fontSize: 14, textDecoration: 'none' } }, '← 返回大厅')
+      ),
+      React.createElement(PaperScroll, null,
+        React.createElement('div', {
+          style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
+        },
+          React.createElement('div', {
+            style: { color: TITLE_PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 2 },
+          }, '❤'.repeat(stage.blood) + '♡'.repeat(STAGE_BLOOD - stage.blood)),
+          React.createElement('div', {
+            style: { color: TITLE_PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 2 },
+          }, '⏱ ' + secondsLeft + 's'),
+          React.createElement('div', {
+            style: { color: TITLE_PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 4 },
+          }, stage.correct.length + ' / ' + STAGE_GOAL),
+          React.createElement('button', {
+            onClick: function () { navigate('/play'); },
+            style: {
+              color: TITLE_PAPER_TEXT, fontFamily: fontFamilies.chinese,
+              fontSize: 14, fontWeight: 700, letterSpacing: 4,
+              padding: 0, background: 'transparent', border: 'none', cursor: 'pointer',
+            },
+          }, '退 出')
+        ),
+        React.createElement('div', { style: { textAlign: 'center', marginBottom: 24 } },
+          React.createElement('div', {
+            style: {
+              fontFamily: fontFamilies.chinese, color: TITLE_PAPER_TEXT,
+              fontSize: 24, letterSpacing: 8, marginBottom: 8,
+            },
+          }, '第 ' + titleToChineseNum(level) + ' 关'),
+          React.createElement('div', {
+            style: {
+              color: TITLE_PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
+              fontSize: 14, letterSpacing: 6,
+            },
+          }, TITLE_TIER_LABEL[tier] + ' · 整 篇 识 名')
+        ),
+        question ? React.createElement(React.Fragment, null,
+          React.createElement('div', {
+            style: {
+              padding: '24px 0 16px',
+              fontFamily: fontFamilies.chinese, color: TITLE_PAPER_TEXT,
+              fontSize: isMobile ? 20 : 26, letterSpacing: isMobile ? 3 : 6, lineHeight: 2.2,
+              textAlign: 'center',
+            },
+          }, lines.map(function (line, i) {
+            return React.createElement('div', { key: i }, line);
+          })),
+          React.createElement('div', {
+            style: {
+              display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+              gap: 12, maxWidth: 560, margin: '0 auto',
+            },
+          }, question.options.map(function (opt, idx) {
+            var isPicked = picked === idx;
+            var isAnswer = opt.title === question.poemTitle;
+            var bg = '#f5ebd2';
+            var border = '1px solid ' + TITLE_PAPER_TEXT_DIM;
+            var color = TITLE_PAPER_TEXT;
+            if (grading && isAnswer) {
+              bg = TITLE_PAPER_GREEN; border = '2px solid ' + TITLE_PAPER_GREEN; color = '#f5ebd2';
+            } else if (grading && isPicked && !isAnswer) {
+              bg = TITLE_PAPER_RED; border = '2px solid ' + TITLE_PAPER_RED; color = '#f5ebd2';
+            }
+            return React.createElement('button', {
+              key: idx,
+              onClick: function () { onPick(idx); },
+              disabled: grading,
+              style: {
+                padding: '16px 12px', background: bg, border: border, borderRadius: 4, color: color,
+                fontFamily: fontFamilies.chinese, fontSize: 18, letterSpacing: 3,
+                cursor: grading ? 'default' : 'pointer',
+                opacity: grading && !isPicked && !isAnswer ? 0.5 : 1,
+                transition: 'all 0.15s',
+              },
+            }, opt.title);
+          }))
+        ) : React.createElement('div', {
+          style: {
+            textAlign: 'center', padding: 40,
+            fontFamily: fontFamilies.chinese, color: TITLE_PAPER_TEXT_DIM, fontSize: 16,
+          },
+        }, '题库已空'),
+        result ? React.createElement(React.Fragment, null,
+          React.createElement('style', null, \`
+            @keyframes feihuaOverlayIn { from { opacity: 0 } to { opacity: 1 } }
+            @keyframes feihuaStampDrop {
+              0%   { opacity: 0; transform: scale(0.4) rotate(-14deg); filter: blur(3px); }
+              55%  { opacity: 1; transform: scale(1.2) rotate(5deg); filter: blur(0); }
+              75%  { transform: scale(0.95) rotate(-2deg); }
+              100% { transform: scale(1) rotate(0); }
+            }
+            @keyframes feihuaFadeUp {
+              from { opacity: 0; transform: translateY(10px); }
+              to   { opacity: 1; transform: translateY(0); }
+            }
+          \`),
+          React.createElement('div', {
+            style: {
+              position: 'absolute', inset: 0,
+              background: 'rgba(245,235,210,0.97)',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              textAlign: 'center', padding: 40,
+              animation: 'feihuaOverlayIn 260ms ease-out both',
+            },
+          },
+            React.createElement('div', {
+              style: {
+                fontFamily: fontFamilies.chinese,
+                color: result.kind === 'cleared' ? TITLE_PAPER_RED : TITLE_PAPER_TEXT,
+                fontSize: 64, letterSpacing: 16, marginBottom: 24,
+                textShadow: result.kind === 'cleared'
+                  ? '0 0 32px rgba(168,48,42,0.35), 0 4px 12px rgba(0,0,0,0.08)'
+                  : 'none',
+                animation: result.kind === 'cleared'
+                  ? 'feihuaStampDrop 650ms cubic-bezier(.34,1.56,.64,1) both'
+                  : 'feihuaFadeUp 500ms ease-out both',
+              },
+            }, result.kind === 'cleared' ? '通 关' : '失 败'),
+            result.kind === 'cleared' && question ? React.createElement('div', {
+              style: {
+                color: TITLE_PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
+                fontSize: 16, marginBottom: 32,
+                animation: 'feihuaFadeUp 400ms ease-out 240ms both',
+              },
+            }, '《' + question.poemTitle + '》') : null,
+            React.createElement('div', {
+              style: { display: 'flex', gap: 16, animation: 'feihuaFadeUp 400ms ease-out 420ms both' },
+            },
+              React.createElement('button', {
+                onClick: function () {
+                  if (result.kind === 'failed') clearTitleCurrent(corpus);
+                  navigate('/play');
+                },
+                style: titleBtnStyle,
+              }, '返回大厅'),
+              result.kind === 'cleared' && !isLastLevel
+                ? React.createElement('button', {
+                    onClick: function () { navigate('/play/title/' + (level + 1)); },
+                    style: titleBtnStyle,
+                  }, '下一关')
+                : null,
+              result.kind === 'cleared' && isLastLevel
+                ? React.createElement('div', {
+                    style: {
+                      color: TITLE_PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
+                      fontSize: 14, alignSelf: 'center', letterSpacing: 4,
+                    },
+                  }, '全 部 通 关')
+                : null
+            )
+          )
+        ) : null
+      )
+    )
+  );
+}
+`;
+
 // pages/StagePlay.tsx
 const stagePlayCode = `
 // ===== pages/StagePlay.tsx =====
@@ -4408,6 +4757,7 @@ ${nineGridCode}
 ${playHallCode}
 ${stagePlayCode}
 ${sentencePlayCode}
+${titlePlayCode}
 ${updateToastCode}
 ${appCode}
 `;
