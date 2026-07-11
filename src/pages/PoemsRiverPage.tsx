@@ -45,7 +45,8 @@ export function PoemsRiverPage() {
         <div
           key={corpus}
           style={{
-            position: 'relative', width: '600%', height: '100%',
+            // 总库诗文密集，拉长 X 轴（画布加宽）以拉开星点、避免名字碰撞
+            position: 'relative', width: corpus === 'all' ? '1100%' : '600%', height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}
