@@ -30,6 +30,7 @@ export interface Poem {
   creationYear?: number;
   familiarity: number; // 1-5
   corpus: PoemCorpus;
+  gradeBand?: number;
 }
 
 export interface VerseHit {
