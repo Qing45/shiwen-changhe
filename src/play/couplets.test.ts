@@ -1,8 +1,13 @@
 import { describe, it, expect } from 'vitest';
+import { MAX_BAND } from '../data/grades';
 import {
   buildAllCouplets,
+  countAvailableLevels,
   getAllCouplets,
+  getAvailableLevelGroups,
+  getTotalAvailableLevels,
   pickLevelQuestion,
+  tierOfAvailableLevel,
   tierOfLevel,
   _setRng,
 } from './couplets';
@@ -126,5 +131,44 @@ describe('pickLevelQuestion', () => {
       if (!q) continue;
       expect(q.upper.line).not.toBe(first.upper.line);
     }
+  });
+});
+
+describe('primary grade band filtering for sentence mode', () => {
+  it('filters couplet pools by grade band monotonically', () => {
+    const full = getAllCouplets('primary', MAX_BAND).map((p) => `${p.upper.poemId}:${p.upper.line}`);
+    let previous = 0;
+    for (let band = 1; band <= MAX_BAND; band++) {
+      const current = getAllCouplets('primary', band).map((p) => `${p.upper.poemId}:${p.upper.line}`);
+      expect(current.length).toBeGreaterThanOrEqual(previous);
+      expect(current.every((hit) => full.includes(hit))).toBe(true);
+      previous = current.length;
+    }
+  });
+
+  it('returns dynamic level groups and preserves the full primary total at band 12', () => {
+    expect(getTotalAvailableLevels('primary', MAX_BAND)).toBe(30);
+    expect(getAvailableLevelGroups('primary', MAX_BAND)).toEqual([
+      { tier: 'entry', start: 1, end: 10, count: 10 },
+      { tier: 'mid', start: 11, end: 30, count: 20 },
+    ]);
+    expect(getTotalAvailableLevels('primary', 1)).toBeLessThan(30);
+  });
+
+  it('maps dynamic level numbers back to tiers', () => {
+    expect(tierOfAvailableLevel(1, 'primary', MAX_BAND)).toBe('entry');
+    expect(tierOfAvailableLevel(10, 'primary', MAX_BAND)).toBe('entry');
+    expect(tierOfAvailableLevel(11, 'primary', MAX_BAND)).toBe('mid');
+    expect(tierOfAvailableLevel(30, 'primary', MAX_BAND)).toBe('mid');
+    expect(tierOfAvailableLevel(31, 'primary', MAX_BAND)).toBeNull();
+  });
+
+  it('keeps tang sentence mode at 50 levels', () => {
+    expect(getTotalAvailableLevels('tang')).toBe(50);
+    expect(getAvailableLevelGroups('tang')).toEqual([
+      { tier: 'entry', start: 1, end: 10, count: 10 },
+      { tier: 'mid', start: 11, end: 30, count: 20 },
+      { tier: 'advanced', start: 31, end: 50, count: 20 },
+    ]);
   });
 });
