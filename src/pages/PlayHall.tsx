@@ -1,6 +1,6 @@
-// 飞花令大厅：[单字] [整句] 两种玩法 tab。
-// 单字：50 个关键字印章，三档递进解锁。
-// 整句：50 关按句长分三档（入门 5 言 / 进阶 7 言 / 高阶混合），入口显示「第 N 关」。
+// 飞花令大厅：[单字] [整句] [整篇] 三种玩法 tab。
+// 单字：关键字印章按三档递进解锁；总数随诗库自适应（小学库按年级端点累加）。
+// 整句 / 整篇：按句长 / 池大小分档，关数随诗库自适应。
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -63,6 +63,7 @@ export function PlayHall() {
   const isPrimary = corpus === 'primary';
   const [band, setBand] = useState(() => loadGrade());
   const activeBand = isPrimary ? band : undefined;
+  // 总库（'all'）映射到底层 'both'，与引擎/数据层语料枚举一致。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
 
   const onBandChange = (next: number) => {
