@@ -310,7 +310,7 @@ export function StagePlay() {
         <TopNav variant="main" />
         <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: 40 }}>
           <div style={{ color: colors.textPrimary, fontSize: 16, marginBottom: 16 }}>关卡不存在</div>
-          <Link to="/play" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>←</Link>
+          <Link to="/play" aria-label="返回大厅" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>←</Link>
         </div>
       </div>
     );

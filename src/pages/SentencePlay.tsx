@@ -240,7 +240,7 @@ export function SentencePlay() {
     return (
       <div style={{ padding: 40, color: colors.textPrimary }}>
         <div style={{ marginBottom: 16 }}>关卡不存在</div>
-        <Link to="/play" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>←</Link>
+        <Link to="/play" aria-label="返回大厅" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>←</Link>
       </div>
     );
   }
