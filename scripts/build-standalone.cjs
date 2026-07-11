@@ -275,7 +275,8 @@ function mulberry32(seed) {
   };
 }
 
-function scatterPositions(count, nominalX, existing) {
+function scatterPositions(count, nominalX, existing, minDx) {
+  if (minDx == null) minDx = SCATTER_MIN_DX;
   const baseRange = Math.min(SCATTER_X_RANGE_CAP, Math.max(X_JITTER_RANGE, Math.sqrt(count) * 12));
   const edgeLimit = Math.max(X_JITTER_RANGE, Math.min(nominalX, 100 - nominalX) - SCATTER_BOUND_PAD);
   const xRange = Math.min(baseRange, edgeLimit);
@@ -289,7 +290,7 @@ function scatterPositions(count, nominalX, existing) {
       const y = -SCATTER_Y_RANGE + rand() * 2 * SCATTER_Y_RANGE;
       let collisions = 0;
       for (const p of placed) {
-        if (Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY) collisions++;
+        if (Math.abs(p.x - x) < minDx && Math.abs(p.y - y) < SCATTER_MIN_DY) collisions++;
       }
       if (collisions === 0) { bestX = x; bestY = y; bestCollisions = 0; break; }
       if (collisions < bestCollisions) { bestX = x; bestY = y; bestCollisions = collisions; }
@@ -300,7 +301,8 @@ function scatterPositions(count, nominalX, existing) {
   return added;
 }
 
-function assignPositions(items) {
+function assignPositions(items, minDx) {
+  if (minDx == null) minDx = SCATTER_MIN_DX;
   const columns = [];
   for (const it of items) {
     const last = columns[columns.length - 1];
@@ -313,9 +315,9 @@ function assignPositions(items) {
   const out = [];
   const placed = [];
   const collides = (x, y) =>
-    placed.some((p) => Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY);
+    placed.some((p) => Math.abs(p.x - x) < minDx && Math.abs(p.y - y) < SCATTER_MIN_DY);
   const countCollisions = (x, y) =>
-    placed.reduce((sum, p) => sum + ((Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY) ? 1 : 0), 0);
+    placed.reduce((sum, p) => sum + ((Math.abs(p.x - x) < minDx && Math.abs(p.y - y) < SCATTER_MIN_DY) ? 1 : 0), 0);
   for (const col of columns) {
     const n = col.items.length;
     if (n === 1) {
@@ -336,7 +338,7 @@ function assignPositions(items) {
       out.push({ item: it.item, x: it.x, y });
       placed.push({ x: it.x, y });
     } else {
-      const positions = scatterPositions(n, col.x, placed);
+      const positions = scatterPositions(n, col.x, placed, minDx);
       positions.forEach((pos, i) => {
         const it = col.items[i];
         out.push({ item: it.item, x: pos.x, y: pos.y });
@@ -382,7 +384,7 @@ function layoutPoems(poems, poet, padding) {
   return assignPositions(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
 }
 
-function layoutAllPoems(poems, poets, range) {
+function layoutAllPoems(poems, poets, range, minDx) {
   const poetMap = new Map(poets.map((p) => [p.id, p]));
   const sorted = [...poems].sort((a, b) => {
     const ya = a.creationYear != null ? a.creationYear : (poetMap.get(a.poetId) ? poetMap.get(a.poetId).birthYear : 0);
@@ -397,7 +399,7 @@ function layoutAllPoems(poems, poets, range) {
     const pct = computePercent(year, range.minYear, range.maxYear);
     return { item: poem, x: range.leftPadding + (pct / 100) * span };
   });
-  return assignPositions(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
+  return assignPositions(withX, minDx).map(({ item: poem, x, y }) => ({ poem, x, y }));
 }
 `;
 
@@ -1492,7 +1494,7 @@ function RiverPage() {
         <div
           key={corpus}
           style={{
-            position: 'relative', width: corpus === 'all' ? '1600%' : '600%', height: '100%',
+            position: 'relative', width: '600%', height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}
@@ -1631,7 +1633,8 @@ function PoemsRiverPage() {
   const visiblePoetIds = new Set(poems.map(function (p) { return p.poetId; }));
   const visiblePoets = poets.filter(function (p) { return visiblePoetIds.has(p.id); });
   const range = computeCorpusYearRange(visiblePoets, corpus);
-  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 });
+  const isAll = corpus === 'all';
+  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, isAll ? 0.4 : undefined);
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState(null);
@@ -1654,7 +1657,7 @@ function PoemsRiverPage() {
         <div
           key={corpus}
           style={{
-            position: 'relative', width: corpus === 'all' ? '1600%' : '600%', height: '100%',
+            position: 'relative', width: isAll ? '2250%' : '600%', height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}

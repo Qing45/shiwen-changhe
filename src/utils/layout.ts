@@ -78,6 +78,7 @@ function scatterPositions(
   count: number,
   nominalX: number,
   existing: { x: number; y: number }[] = [],
+  minDx: number = SCATTER_MIN_DX,
 ): { x: number; y: number }[] {
   // Adaptive X jitter: dense columns spread wider so 60+ poems in one decade
   // don't pile on top of each other. sqrt scaling with multiplier 12 — a
@@ -113,7 +114,7 @@ function scatterPositions(
       const y = -SCATTER_Y_RANGE + rand() * 2 * SCATTER_Y_RANGE;
       let collisions = 0;
       for (const p of placed) {
-        if (Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY) {
+        if (Math.abs(p.x - x) < minDx && Math.abs(p.y - y) < SCATTER_MIN_DY) {
           collisions++;
         }
       }
@@ -142,7 +143,7 @@ function scatterPositions(
  * appears as a "star cloud" around the nominal X position rather than a
  * regular grid or an impossibly dense vertical stack.
  */
-function assignPositions<T>(items: { item: T; x: number }[]): { item: T; x: number; y: number }[] {
+function assignPositions<T>(items: { item: T; x: number }[], minDx: number = SCATTER_MIN_DX): { item: T; x: number; y: number }[] {
   const columns: { x: number; items: { item: T; x: number }[] }[] = [];
   for (const it of items) {
     const last = columns[columns.length - 1];
@@ -160,9 +161,9 @@ function assignPositions<T>(items: { item: T; x: number }[]): { item: T; x: numb
   const placed: { x: number; y: number }[] = [];
 
   const collides = (x: number, y: number) =>
-    placed.some((p) => Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY);
+    placed.some((p) => Math.abs(p.x - x) < minDx && Math.abs(p.y - y) < SCATTER_MIN_DY);
   const countCollisions = (x: number, y: number) =>
-    placed.reduce((sum, p) => sum + ((Math.abs(p.x - x) < SCATTER_MIN_DX && Math.abs(p.y - y) < SCATTER_MIN_DY) ? 1 : 0), 0);
+    placed.reduce((sum, p) => sum + ((Math.abs(p.x - x) < minDx && Math.abs(p.y - y) < SCATTER_MIN_DY) ? 1 : 0), 0);
 
   for (const col of columns) {
     const n = col.items.length;
@@ -193,7 +194,7 @@ function assignPositions<T>(items: { item: T; x: number }[]): { item: T; x: numb
       out.push({ item: it.item, x: it.x, y });
       placed.push({ x: it.x, y });
     } else {
-      const positions = scatterPositions(n, col.x, placed);
+      const positions = scatterPositions(n, col.x, placed, minDx);
       positions.forEach((pos, i) => {
         const it = col.items[i];
         out.push({ item: it.item, x: pos.x, y: pos.y });
@@ -252,6 +253,7 @@ export function layoutAllPoems(
   poems: Poem[],
   poets: Poet[],
   range: LayoutRange,
+  minDx: number = SCATTER_MIN_DX,
 ): { poem: Poem; x: number; y: number }[] {
   const poetMap = new Map(poets.map((p) => [p.id, p]));
   const sorted = [...poems].sort((a, b) => {
@@ -265,5 +267,5 @@ export function layoutAllPoems(
     const pct = computePercent(year, range.minYear, range.maxYear);
     return { item: poem, x: range.leftPadding + (pct / 100) * span };
   });
-  return assignPositions(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
+  return assignPositions(withX, minDx).map(({ item: poem, x, y }) => ({ poem, x, y }));
 }

@@ -22,7 +22,10 @@ export function PoemsRiverPage() {
   const visiblePoetIds = new Set(poems.map((p) => p.poetId));
   const visiblePoets = poets.filter((p) => visiblePoetIds.has(p.id));
   const range = computeCorpusYearRange(visiblePoets, corpus);
-  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 });
+  // 总库诗文 403 首密集，收紧碰撞阈值到 0.4% 保证不重合；画布同比放大到
+  // 2250%（=600%×1.5/0.4）以保持与唐诗视图相同的标签像素间距。
+  const isAll = corpus === 'all';
+  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, isAll ? 0.4 : undefined);
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -45,8 +48,8 @@ export function PoemsRiverPage() {
         <div
           key={corpus}
           style={{
-            // 总库诗文密集，拉长 X 轴（画布加宽）以拉开星点、避免名字碰撞
-            position: 'relative', width: corpus === 'all' ? '1600%' : '600%', height: '100%',
+            // 总库画布放大到 2250%（配合 minDx=0.4% 保持标签像素间距，见上）
+            position: 'relative', width: isAll ? '2250%' : '600%', height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}
