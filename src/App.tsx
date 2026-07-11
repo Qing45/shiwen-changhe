@@ -13,7 +13,7 @@ import { UpdateToast } from './components/UpdateToast';
 export default function App() {
   return (
     <CorpusProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
         <Routes>
           <Route path="/" element={<RiverPage />} />
           <Route path="/poems" element={<PoemsRiverPage />} />
