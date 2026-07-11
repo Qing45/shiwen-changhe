@@ -6,17 +6,18 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { TopNav } from '../components/TopNav';
 import { PaperScroll } from '../components/PaperScroll';
-import { pickTitleQuestion, type TitleQuestion } from '../play/titles';
+import { countAvailableTitleLevels, pickTitleQuestion, type TitleQuestion } from '../play/titles';
 import {
   loadTitleProgress, markTitleCleared, beginTitleStage,
   commitTitleCorrect, commitTitleBlood, clearTitleCurrent,
 } from '../play/titleProgress';
-import { tierOfLevel } from '../play/couplets';
+import { tierOfAvailableLevel } from '../play/couplets';
 import { STAGE_BLOOD, STAGE_GOAL, STAGE_TIMEBOX } from '../play/types';
 import { splitIntoLines } from '../utils/poemText';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { useCorpus } from '../state/corpus';
 import { colors, fontFamilies } from '../theme';
+import { loadGrade } from '../state/primaryGrade';
 
 const PAPER_TEXT = '#000000';
 const PAPER_TEXT_DIM = '#8b7355';
@@ -28,8 +29,6 @@ const TIER_LABEL: Record<'entry' | 'mid' | 'advanced', string> = {
   mid: '进 阶',
   advanced: '高 阶',
 };
-
-const TITLE_TOTAL_LEVELS = 50;
 
 const btnStyle: React.CSSProperties = {
   padding: '8px 20px',
@@ -59,22 +58,26 @@ export function TitlePlay() {
   const { level: levelParam } = useParams<{ level: string }>();
   const navigate = useNavigate();
   const level = parseInt(levelParam ?? '', 10);
-  const validLevel = Number.isFinite(level) && level >= 1 && level <= TITLE_TOTAL_LEVELS;
-
-  const tier = validLevel ? tierOfLevel(level) : 'entry';
-
-  const levelKey = String(level);
 
   const corpus = useCorpus();
   // 引擎/题库（titles.ts）接受 PoemCorpus，state 层 Corpus 含 'all'。
   // 'all' → 'both' 边界映射。进度函数接受 Corpus，仍传 raw corpus。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
+  // 仅 primary 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
+  const activeBand = corpus === 'primary' ? loadGrade() : undefined;
+
+  // 关数按 (corpus, band) 动态计算：tang 50、primary band=1 较小；依语料库变动。
+  const totalLevels = countAvailableTitleLevels(poemCorpus, activeBand);
+  const validLevel = Number.isFinite(level) && level >= 1 && level <= totalLevels;
+  const tier = validLevel ? tierOfAvailableLevel(level, poemCorpus, activeBand) : null;
+
+  const levelKey = String(level);
 
   const [stage, setStage] = useState(() => {
     if (!validLevel) return null;
-    const progress = loadTitleProgress(corpus);
+    const progress = loadTitleProgress(corpus, activeBand);
     if (progress.current && progress.current.keyword === levelKey) return progress.current;
-    return beginTitleStage(levelKey, corpus).current;
+    return beginTitleStage(levelKey, corpus, activeBand).current;
   });
 
   const usedPoemIdsRef = useRef<Set<string>>(
@@ -83,7 +86,7 @@ export function TitlePlay() {
 
   const [question, setQuestion] = useState<TitleQuestion | null>(() => {
     if (!validLevel) return null;
-    return pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus);
+    return pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand);
   });
 
   const [picked, setPicked] = useState<number | null>(null);
@@ -104,14 +107,14 @@ export function TitlePlay() {
   useEffect(() => {
     if (!validLevel) return;
     if (stageRef.current && stageRef.current.keyword === levelKey) return;
-    const progress = loadTitleProgress(corpus);
+    const progress = loadTitleProgress(corpus, activeBand);
     const fresh =
       progress.current && progress.current.keyword === levelKey
         ? progress.current
-        : beginTitleStage(levelKey, corpus).current;
+        : beginTitleStage(levelKey, corpus, activeBand).current;
     setStage(fresh);
     usedPoemIdsRef.current = new Set(fresh ? (fresh.correct ?? []) : []);
-    setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus));
+    setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand));
     setPicked(null);
     setGrading(false);
     setSecondsLeft(STAGE_TIMEBOX);
@@ -137,18 +140,18 @@ export function TitlePlay() {
     const poemId = questionRef.current.poemId;
     const newCorrect = [...cur.correct, poemId];
 
-    commitTitleCorrect(levelKey, poemId, corpus);
-    setStage(loadTitleProgress(corpus).current);
+    commitTitleCorrect(levelKey, poemId, corpus, activeBand);
+    setStage(loadTitleProgress(corpus, activeBand).current);
     usedPoemIdsRef.current = new Set(newCorrect);
 
     if (newCorrect.length >= STAGE_GOAL) {
-      markTitleCleared(levelKey, corpus);
+      markTitleCleared(levelKey, corpus, activeBand);
       setResult({ kind: 'cleared', correct: newCorrect });
       return;
     }
     setGrading(true);
     setTimeout(() => {
-      setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus));
+      setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand));
       setPicked(null);
       setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
@@ -160,17 +163,17 @@ export function TitlePlay() {
     const cur = stageRef.current;
     const newBlood = cur.blood - 1;
 
-    commitTitleBlood(levelKey, newBlood, corpus);
-    setStage(loadTitleProgress(corpus).current);
+    commitTitleBlood(levelKey, newBlood, corpus, activeBand);
+    setStage(loadTitleProgress(corpus, activeBand).current);
 
     if (newBlood <= 0) {
-      clearTitleCurrent(corpus);
+      clearTitleCurrent(corpus, activeBand);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
     setGrading(true);
     setTimeout(() => {
-      setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus));
+      setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand));
       setPicked(null);
       setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
@@ -198,10 +201,15 @@ export function TitlePlay() {
   }
 
   if (!validLevel || !stage) {
-    return <div style={{ padding: 40, color: colors.textPrimary }}>关卡序号无效</div>;
+    return (
+      <div style={{ padding: 40, color: colors.textPrimary }}>
+        <div style={{ marginBottom: 16 }}>关卡不存在</div>
+        <Link to="/play" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>←</Link>
+      </div>
+    );
   }
 
-  const isLastLevel = level >= TITLE_TOTAL_LEVELS;
+  const isLastLevel = level >= totalLevels;
 
   const lines = question ? splitIntoLines(question.content, 'short') : [];
 
@@ -248,7 +256,7 @@ export function TitlePlay() {
             <div style={{
               color: PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
               fontSize: 14, letterSpacing: 6,
-            }}>{TIER_LABEL[tier]} · 整 篇 识 名</div>
+            }}>{tier ? TIER_LABEL[tier] : ''} · 整 篇 识 名</div>
           </div>
 
           {question ? (
@@ -357,7 +365,7 @@ export function TitlePlay() {
                 }}>
                   <button
                     onClick={() => {
-                      if (result.kind === 'failed') clearTitleCurrent(corpus);
+                      if (result.kind === 'failed') clearTitleCurrent(corpus, activeBand);
                       navigate('/play');
                     }}
                     style={btnStyle}

@@ -5,7 +5,7 @@ import { PaperScroll } from '../components/PaperScroll';
 import { NineGrid } from '../components/NineGrid';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { colors, fontFamilies } from '../theme';
-import { pickStageQuestion, buildNineGrid } from '../play/engine';
+import { pickStageQuestion, buildNineGrid, getCharKeywords } from '../play/engine';
 import {
   beginStage,
   loadProgress,
@@ -15,9 +15,8 @@ import {
   clearCurrent,
 } from '../play/progress';
 import { STAGE_GOAL, STAGE_BLOOD, STAGE_TIMEBOX, type Verse } from '../play/types';
-import { KEYWORDS } from '../play/keywords';
-import { PRIMARY_KEYWORDS } from '../play/primaryKeywords';
 import { useCorpus } from '../state/corpus';
+import { loadGrade } from '../state/primaryGrade';
 
 type CharStatus = 'correct' | 'wrong' | null;
 
@@ -45,15 +44,17 @@ export function StagePlay() {
   // 而 state 层 Corpus 含 'all'。此处做一次边界映射：'all' → 'both'。
   // 进度函数（loadProgress 等）接受 Corpus，仍传 raw corpus —— 进度 key 自然后缀 :all。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
+  // 仅 primary 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
+  const activeBand = corpus === 'primary' ? loadGrade() : undefined;
 
   // 进入页面时初始化局：current 已是本关键字则续传，否则开新局
   const [stage, setStage] = useState(() => {
     if (!kw) return null;
-    const progress = loadProgress(corpus);
+    const progress = loadProgress(corpus, activeBand);
     if (progress.current && progress.current.keyword === kw) {
       return progress.current;
     }
-    return beginStage(kw, corpus).current;
+    return beginStage(kw, corpus, activeBand).current;
   });
 
   // 从原文页返回时取出"已查看"的题面句，加进排除集，避免回到题面后又看到同一题
@@ -77,7 +78,7 @@ export function StagePlay() {
   // 当前题目（可变：答对后切换下一题）
   const [question, setQuestion] = useState<{ verse: Verse; blanks: number[] } | null>(() => {
     if (!kw) return null;
-    return pickStageQuestion(kw, used, poemCorpus);
+    return pickStageQuestion(kw, used, poemCorpus, activeBand);
   });
 
   // 九宫格字块与玩家已填字符
@@ -130,13 +131,13 @@ export function StagePlay() {
   useEffect(() => {
     if (!kw) return;
     if (stageRef.current?.keyword === kw) return;
-    const progress = loadProgress(corpus);
+    const progress = loadProgress(corpus, activeBand);
     const fresh =
       progress.current && progress.current.keyword === kw
         ? progress.current
-        : beginStage(kw, corpus).current;
+        : beginStage(kw, corpus, activeBand).current;
     setStage(fresh);
-    setQuestion(pickStageQuestion(kw, new Set(fresh?.correct ?? []), poemCorpus));
+    setQuestion(pickStageQuestion(kw, new Set(fresh?.correct ?? []), poemCorpus, activeBand));
     setResult(null);
     setGrading(false);
     setSecondsLeft(STAGE_TIMEBOX);
@@ -150,11 +151,11 @@ export function StagePlay() {
     const line = questionRef.current.verse.line;
     const newCorrect = [...cur.correct, line];
 
-    commitStageCorrect(kw, line, corpus);
-    setStage(loadProgress(corpus).current);
+    commitStageCorrect(kw, line, corpus, activeBand);
+    setStage(loadProgress(corpus, activeBand).current);
 
     if (newCorrect.length >= STAGE_GOAL) {
-      markCleared(kw, corpus);
+      markCleared(kw, corpus, activeBand);
       setResult({ kind: 'cleared', correct: newCorrect });
       return;
     }
@@ -162,7 +163,7 @@ export function StagePlay() {
     setGrading(true);
     setTimeout(() => {
       const nextUsed = new Set(newCorrect);
-      setQuestion(pickStageQuestion(kw, nextUsed, poemCorpus));
+      setQuestion(pickStageQuestion(kw, nextUsed, poemCorpus, activeBand));
       setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
     }, 800);
@@ -174,11 +175,11 @@ export function StagePlay() {
     const cur = stageRef.current;
     const newBlood = cur.blood - 1;
 
-    commitStageBlood(kw, newBlood, corpus);
-    setStage(loadProgress(corpus).current);
+    commitStageBlood(kw, newBlood, corpus, activeBand);
+    setStage(loadProgress(corpus, activeBand).current);
 
     if (newBlood <= 0) {
-      clearCurrent(corpus);
+      clearCurrent(corpus, activeBand);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
@@ -198,11 +199,11 @@ export function StagePlay() {
     const cur = stageRef.current;
     const newBlood = cur.blood - 1;
 
-    commitStageBlood(kw, newBlood, corpus);
-    setStage(loadProgress(corpus).current);
+    commitStageBlood(kw, newBlood, corpus, activeBand);
+    setStage(loadProgress(corpus, activeBand).current);
 
     if (newBlood <= 0) {
-      clearCurrent(corpus);
+      clearCurrent(corpus, activeBand);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
@@ -225,9 +226,9 @@ export function StagePlay() {
     const line = questionRef.current.verse.line;
     const poemId = questionRef.current.verse.poemId;
 
-    commitStageBlood(kw, newBlood, corpus);
+    commitStageBlood(kw, newBlood, corpus, activeBand);
     sessionStorage.setItem(`feihuaStageViewed:${kw}`, line);
-    setStage(loadProgress(corpus).current);
+    setStage(loadProgress(corpus, activeBand).current);
     navigate(`/poem/${poemId}`, { state: { from: `/play/stage/${kw}` } });
   };
 
@@ -296,12 +297,25 @@ export function StagePlay() {
         .join('')
     : '';
 
-  // 末关判定：当前关已是 KEYWORDS 最后一关时不再显示「下一关」
-  const charKeywords = corpus === 'primary' ? PRIMARY_KEYWORDS : KEYWORDS;
+  // 按 band 过滤后的关键字表（仅 primary 生效；tang 走默认 KEYWORDS）
+  const charKeywords = getCharKeywords(poemCorpus, activeBand);
   const kwIndex = charKeywords.indexOf(kw);
-  const isLastKeyword = kwIndex < 0 || kwIndex + 1 >= charKeywords.length;
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
+
+  // 当前关键字不在所选 band 的可用表中 —— 视为关卡不存在
+  if (kwIndex < 0) {
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <TopNav variant="main" />
+        <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: 40 }}>
+          <div style={{ color: colors.textPrimary, fontSize: 16, marginBottom: 16 }}>关卡不存在</div>
+          <Link to="/play" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>←</Link>
+        </div>
+      </div>
+    );
+  }
+  const isLastKeyword = kwIndex + 1 >= charKeywords.length;
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -491,7 +505,7 @@ export function StagePlay() {
                 }}>
                   <button
                     onClick={() => {
-                      if (result.kind === 'failed') clearCurrent(corpus);
+                      if (result.kind === 'failed') clearCurrent(corpus, activeBand);
                       navigate('/play');
                     }}
                     style={btnStyle}
