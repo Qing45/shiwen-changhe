@@ -2818,6 +2818,70 @@ function pickLevelQuestion(tier, usedUpperLines, corpus) {
 }
 `;
 
+// play/titles.ts
+const feihuaTitlesCode = `
+// ===== play/titles.ts =====
+var _titleRng = Math.random;
+function _setTitleRng(rng) { _titleRng = rng; }
+function _titleShuffle(arr) {
+  var a = [].concat(arr);
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(_titleRng() * (i + 1));
+    var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+  }
+  return a;
+}
+function _titleBuildPool(corpus) {
+  return getPoems(corpus).filter(function (p) { return p.content && p.content.length > 0; });
+}
+function pickTitleQuestion(level, usedPoemIds, corpus) {
+  var pool = _titleBuildPool(corpus);
+  if (pool.length === 0) return null;
+  var candidates = pool.filter(function (p) { return !usedPoemIds.has(p.id); });
+  if (candidates.length === 0) return null;
+
+  var chosen = candidates[Math.floor(_titleRng() * candidates.length)];
+  for (var i = 0; i < 100; i++) {
+    var cand = candidates[Math.floor(_titleRng() * candidates.length)];
+    var others = pool.filter(function (p) { return p.poetId === cand.poetId && p.id !== cand.id; });
+    if (others.length > 0) { chosen = cand; break; }
+  }
+
+  var authorOthers = pool.filter(function (p) { return p.poetId === chosen.poetId && p.id !== chosen.id; });
+  var authorTitles = _titleShuffle(authorOthers.map(function (p) { return { id: p.id, title: p.title }; }));
+
+  var distractors = [];
+  var seenTitles = new Set([chosen.title]);
+  for (var j = 0; j < authorTitles.length && distractors.length < 3; j++) {
+    var t = authorTitles[j];
+    if (!seenTitles.has(t.title)) {
+      distractors.push(t);
+      seenTitles.add(t.title);
+    }
+  }
+  if (distractors.length < 3) {
+    var fallback = _titleShuffle(pool.map(function (p) { return { id: p.id, title: p.title }; }));
+    for (var k = 0; k < fallback.length && distractors.length < 3; k++) {
+      var f = fallback[k];
+      if (f.id === chosen.id) continue;
+      if (seenTitles.has(f.title)) continue;
+      distractors.push(f);
+      seenTitles.add(f.title);
+    }
+  }
+  if (distractors.length < 3) return null;
+
+  var options = _titleShuffle([{ id: chosen.id, title: chosen.title }].concat(distractors));
+  var cleanText = extractVariants(chosen.content).cleanText;
+  return {
+    poemId: chosen.id,
+    content: cleanText,
+    poemTitle: chosen.title,
+    options: options,
+  };
+}
+`;
+
 // play/sentenceProgress.ts
 const feihuaSentenceProgressCode = `
 // ===== play/sentenceProgress.ts =====
@@ -4245,6 +4309,7 @@ ${feihuaPrimaryKeywordsCode}
 ${feihuaEngineCode}
 ${feihuaProgressCode}
 ${feihuaCoupletsCode}
+${feihuaTitlesCode}
 ${feihuaSentenceProgressCode}
 ${keywordSealCode}
 ${paperScrollCode}
