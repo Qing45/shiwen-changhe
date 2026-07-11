@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { Verse } from './types';
 import { buildKeywordIndex, getVersesFor, getKeywordIndex, pickStageQuestion, buildNineGrid, validateStageInput } from './engine';
 import { KEYWORDS } from './keywords';
+import { MAX_BAND } from '../data/grades';
+import { PRIMARY_KEYWORDS } from './primaryKeywords';
+import { countAvailableCharStages, getCharKeywordGroups, getCharKeywords } from './engine';
 
 describe('buildKeywordIndex', () => {
   let index: Map<string, Verse[]>;
@@ -154,5 +157,42 @@ describe('validateStageInput', () => {
   it('rejects wrong length', () => {
     expect(validateStageInput('春', '春眠不觉晓', [0, 2])).toBe(false);
     expect(validateStageInput('春不觉', '春眠不觉晓', [0, 2])).toBe(false);
+  });
+});
+
+// ============ Task 3: 单字引擎 band 过滤与自适应关键字 ============
+
+describe('primary grade band filtering for char mode', () => {
+  it('getVersesFor(primary, band) is a subset of the full primary pool and grows monotonically', () => {
+    const keyword = '春';
+    const full = getVersesFor(keyword, 'primary', MAX_BAND).map((v) => `${v.poemId}:${v.line}`);
+    let previous = 0;
+    for (let band = 1; band <= MAX_BAND; band++) {
+      const current = getVersesFor(keyword, 'primary', band).map((v) => `${v.poemId}:${v.line}`);
+      expect(current.length).toBeGreaterThanOrEqual(previous);
+      expect(current.every((hit) => full.includes(hit))).toBe(true);
+      previous = current.length;
+    }
+  });
+
+  it('filters primary keywords by the current cumulative pool while preserving order', () => {
+    const low = getCharKeywords('primary', 1);
+    const full = getCharKeywords('primary', MAX_BAND);
+    expect(full).toEqual(PRIMARY_KEYWORDS);
+    expect(low.length).toBeLessThan(full.length);
+    expect(low.every((kw) => PRIMARY_KEYWORDS.includes(kw))).toBe(true);
+    expect(low).toEqual(PRIMARY_KEYWORDS.filter((kw) => low.includes(kw)));
+  });
+
+  it('returns grouped primary keywords with empty groups removed for a low band', () => {
+    const groups = getCharKeywordGroups('primary', 3);
+    expect(groups.length).toBeGreaterThan(0);
+    expect(groups.every((g) => g.words.length > 0)).toBe(true);
+    expect(groups.flatMap((g) => [...g.words])).toEqual(getCharKeywords('primary', 3));
+  });
+
+  it('keeps tang and full primary char counts unchanged', () => {
+    expect(countAvailableCharStages('tang')).toBe(50);
+    expect(countAvailableCharStages('primary', MAX_BAND)).toBe(30);
   });
 });
