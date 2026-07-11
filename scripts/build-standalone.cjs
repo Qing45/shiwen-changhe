@@ -1492,7 +1492,7 @@ function RiverPage() {
         <div
           key={corpus}
           style={{
-            position: 'relative', width: corpus === 'all' ? '1100%' : '600%', height: '100%',
+            position: 'relative', width: corpus === 'all' ? '1600%' : '600%', height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}
@@ -1654,7 +1654,7 @@ function PoemsRiverPage() {
         <div
           key={corpus}
           style={{
-            position: 'relative', width: corpus === 'all' ? '1100%' : '600%', height: '100%',
+            position: 'relative', width: corpus === 'all' ? '1600%' : '600%', height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}

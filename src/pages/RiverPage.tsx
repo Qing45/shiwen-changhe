@@ -46,7 +46,7 @@ export function RiverPage() {
           key={corpus}
           style={{
             // 总库诗人密集，拉长 X 轴（画布加宽）以拉开节点、避免名字碰撞
-            position: 'relative', width: corpus === 'all' ? '1100%' : '600%', height: '100%',
+            position: 'relative', width: corpus === 'all' ? '1600%' : '600%', height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}
