@@ -2973,6 +2973,96 @@ function clearSentenceCurrent(corpus) {
 }
 `;
 
+// play/titleProgress.ts
+const feihuaTitleProgressCode = `
+// ===== play/titleProgress.ts =====
+var TITLE_STORAGE_KEY = 'shiwen-feihua-title-progress';
+
+function _titleStorageKey(corpus) {
+  corpus = corpus || 'tang';
+  return corpus === 'tang' ? TITLE_STORAGE_KEY : TITLE_STORAGE_KEY + ':' + corpus;
+}
+
+function loadTitleProgress(corpus) {
+  corpus = corpus || 'tang';
+  try {
+    var raw = window.localStorage.getItem(_titleStorageKey(corpus));
+    if (!raw) return { unlockedIndex: 0, cleared: [], current: null };
+    var parsed = JSON.parse(raw);
+    return {
+      unlockedIndex: typeof parsed.unlockedIndex === 'number' ? parsed.unlockedIndex : 0,
+      cleared: Array.isArray(parsed.cleared)
+        ? parsed.cleared.filter(function (s) { return typeof s === 'string'; })
+        : [],
+      current: parsed.current && typeof parsed.current === 'object'
+        ? {
+            keyword: String(parsed.current.keyword != null ? parsed.current.keyword : ''),
+            correct: Array.isArray(parsed.current.correct) ? parsed.current.correct : [],
+            blood: typeof parsed.current.blood === 'number' ? parsed.current.blood : STAGE_BLOOD,
+          }
+        : null,
+    };
+  } catch (e) {
+    return { unlockedIndex: 0, cleared: [], current: null };
+  }
+}
+
+function saveTitleProgress(p, corpus) {
+  corpus = corpus || 'tang';
+  try { window.localStorage.setItem(_titleStorageKey(corpus), JSON.stringify(p)); } catch (e) {}
+}
+
+function markTitleCleared(keyword, corpus) {
+  corpus = corpus || 'tang';
+  var p = loadTitleProgress(corpus);
+  if (p.cleared.indexOf(keyword) >= 0) {
+    p.current = null;
+    saveTitleProgress(p, corpus);
+    return p;
+  }
+  p.cleared.push(keyword);
+  var n = parseInt(keyword, 10);
+  if (!Number.isNaN(n) && n > p.unlockedIndex) p.unlockedIndex = n;
+  p.current = null;
+  saveTitleProgress(p, corpus);
+  return p;
+}
+
+function beginTitleStage(keyword, corpus) {
+  corpus = corpus || 'tang';
+  var p = loadTitleProgress(corpus);
+  p.current = { keyword: keyword, correct: [], blood: STAGE_BLOOD };
+  saveTitleProgress(p, corpus);
+  return p;
+}
+
+function commitTitleCorrect(keyword, line, corpus) {
+  corpus = corpus || 'tang';
+  var p = loadTitleProgress(corpus);
+  if (!p.current || p.current.keyword !== keyword) return p;
+  if (p.current.correct.indexOf(line) < 0) p.current.correct.push(line);
+  saveTitleProgress(p, corpus);
+  return p;
+}
+
+function commitTitleBlood(keyword, blood, corpus) {
+  corpus = corpus || 'tang';
+  var p = loadTitleProgress(corpus);
+  if (!p.current || p.current.keyword !== keyword) return p;
+  p.current.blood = blood;
+  saveTitleProgress(p, corpus);
+  return p;
+}
+
+function clearTitleCurrent(corpus) {
+  corpus = corpus || 'tang';
+  var p = loadTitleProgress(corpus);
+  p.current = null;
+  saveTitleProgress(p, corpus);
+  return p;
+}
+`;
+
 const keywordSealCode = `
 // ===== components/KeywordSeal.tsx =====
 var SEAL_COLORS = {
@@ -4311,6 +4401,7 @@ ${feihuaProgressCode}
 ${feihuaCoupletsCode}
 ${feihuaTitlesCode}
 ${feihuaSentenceProgressCode}
+${feihuaTitleProgressCode}
 ${keywordSealCode}
 ${paperScrollCode}
 ${nineGridCode}
