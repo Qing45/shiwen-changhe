@@ -40,4 +40,11 @@ for (const name of fs.readdirSync(assetsSrc)) {
   console.log(`copied assets/${name}`);
 }
 
+// 4) SPA 路由 fallback：把 index.html 复制成 404.html。
+// GitHub Pages 不像 Vercel/Netlify 会自动 fallback，未知路径（如 /play/title/1）
+// 默认返回 404。把 index.html 放到 404.html，GitHub Pages 会把它当成 fallback 页
+// 返回 200 + index.html 内容，React Router 接过来接管路由。
+fs.copyFileSync(path.join(root, 'index.html'), path.join(root, '404.html'));
+console.log('copied 404.html');
+
 console.log('\nDeployed Vite build to repo root. Commit and push to publish to GitHub Pages.');
