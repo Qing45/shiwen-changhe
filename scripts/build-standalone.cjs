@@ -2421,16 +2421,79 @@ var PRIMARY_KEYWORD_GROUPS = {
 var PRIMARY_KEYWORDS = [].concat(PRIMARY_KEYWORD_GROUPS.entry, PRIMARY_KEYWORD_GROUPS.mid, PRIMARY_KEYWORD_GROUPS.advanced);
 `;
 
+// data/grades.ts
+const gradesCode = `
+// ===== data/grades.ts =====
+var GRADE_BANDS = [
+  { value: 1, label: '一上' }, { value: 2, label: '一下' },
+  { value: 3, label: '二上' }, { value: 4, label: '二下' },
+  { value: 5, label: '三上' }, { value: 6, label: '三下' },
+  { value: 7, label: '四上' }, { value: 8, label: '四下' },
+  { value: 9, label: '五上' }, { value: 10, label: '五下' },
+  { value: 11, label: '六上' }, { value: 12, label: '六下' },
+];
+var MAX_BAND = 12;
+
+function normalizeBand(value) {
+  return Number.isInteger(value) && value >= 1 && value <= MAX_BAND ? value : MAX_BAND;
+}
+
+function getPrimaryPoemsUpTo(band) {
+  var normalized = normalizeBand(band);
+  return getPoems('primary').filter(function(p) {
+    return typeof p.gradeBand === 'number' && p.gradeBand <= normalized;
+  });
+}
+
+function getAvailableBands() {
+  var present = new Set(
+    getPoems('primary')
+      .map(function(p) { return p.gradeBand; })
+      .filter(function(b) { return typeof b === 'number'; })
+  );
+  return GRADE_BANDS.filter(function(b) { return present.has(b.value); });
+}
+
+function getPoemsForPlay(corpus, band) {
+  if (corpus !== 'tang' && band != null) return getPrimaryPoemsUpTo(band);
+  return corpus === 'both' ? getPoems() : getPoems(corpus);
+}
+
+function engineCacheKey(corpus, band) {
+  return band == null ? corpus : corpus + ':' + band;
+}
+`;
+
+// state/primaryGrade.ts
+const primaryGradeCode = `
+// ===== state/primaryGrade.ts =====
+var PRIMARY_GRADE_KEY = 'shiwen-feihua-grade';
+
+function loadGrade() {
+  try {
+    var raw = window.localStorage.getItem(PRIMARY_GRADE_KEY);
+    var parsed = raw == null ? Number.NaN : parseInt(raw, 10);
+    return normalizeBand(parsed);
+  } catch (e) {
+    return MAX_BAND;
+  }
+}
+
+function saveGrade(band) {
+  try { window.localStorage.setItem(PRIMARY_GRADE_KEY, String(normalizeBand(band))); } catch (e) {}
+}
+`;
+
 // play/engine.ts
 const feihuaEngineCode = `
 // ===== play/engine.ts =====
-// 语料分桶缓存（PoemCorpus -> index）
+// 语料分桶缓存（PoemCorpus + band -> index）
 var _keywordCache = new Map();
 var _fullScanCache = new Map();
 
-function buildKeywordIndex(corpus) {
+function buildKeywordIndex(corpus, band) {
   corpus = corpus || 'tang';
-  var poems = corpus === 'both' ? getPoems() : getPoems(corpus);
+  var poems = getPoemsForPlay(corpus, band);
   var index = new Map();
   for (var ki = 0; ki < KEYWORDS.length; ki++) index.set(KEYWORDS[ki], []);
 
@@ -2463,9 +2526,9 @@ function buildKeywordIndex(corpus) {
   return index;
 }
 
-function buildKeywordIndexFullScan(corpus) {
+function buildKeywordIndexFullScan(corpus, band) {
   corpus = corpus || 'tang';
-  var poems = corpus === 'both' ? getPoems() : getPoems(corpus);
+  var poems = getPoemsForPlay(corpus, band);
   var index = new Map();
   for (var pi = 0; pi < poems.length; pi++) {
     var poem = poems[pi];
@@ -2497,24 +2560,66 @@ function buildKeywordIndexFullScan(corpus) {
   return index;
 }
 
-function getKeywordIndex(corpus) {
+function getKeywordIndex(corpus, band) {
   corpus = corpus || 'tang';
-  if (!_keywordCache.has(corpus)) _keywordCache.set(corpus, buildKeywordIndex(corpus));
-  return _keywordCache.get(corpus);
+  var key = engineCacheKey(corpus, band);
+  if (!_keywordCache.has(key)) _keywordCache.set(key, buildKeywordIndex(corpus, band));
+  return _keywordCache.get(key);
 }
 
-function getKeywordIndexFullScan(corpus) {
+function getKeywordIndexFullScan(corpus, band) {
   corpus = corpus || 'tang';
-  if (!_fullScanCache.has(corpus)) _fullScanCache.set(corpus, buildKeywordIndexFullScan(corpus));
-  return _fullScanCache.get(corpus);
+  var key = engineCacheKey(corpus, band);
+  if (!_fullScanCache.has(key)) _fullScanCache.set(key, buildKeywordIndexFullScan(corpus, band));
+  return _fullScanCache.get(key);
 }
 
-function getVersesFor(keyword, corpus) {
+function getVersesFor(keyword, corpus, band) {
   corpus = corpus || 'tang';
   if (KEYWORDS.indexOf(keyword) >= 0) {
-    return getKeywordIndex(corpus).get(keyword) || [];
+    return getKeywordIndex(corpus, band).get(keyword) || [];
   }
-  return getKeywordIndexFullScan(corpus).get(keyword) || [];
+  return getKeywordIndexFullScan(corpus, band).get(keyword) || [];
+}
+
+var FEIHUA_TANG_CHAR_GROUPS = [
+  { tier: 'entry', words: KEYWORD_GROUPS.entry },
+  { tier: 'mid', words: KEYWORD_GROUPS.mid },
+  { tier: 'advanced', words: KEYWORD_GROUPS.advanced },
+];
+
+var FEIHUA_PRIMARY_CHAR_GROUPS = [
+  { tier: 'entry', words: PRIMARY_KEYWORD_GROUPS.entry },
+  { tier: 'mid', words: PRIMARY_KEYWORD_GROUPS.mid },
+  { tier: 'advanced', words: PRIMARY_KEYWORD_GROUPS.advanced },
+];
+
+function getCharKeywordGroups(corpus, band) {
+  corpus = corpus || 'tang';
+  if (corpus !== 'primary') return FEIHUA_TANG_CHAR_GROUPS.slice();
+  return FEIHUA_PRIMARY_CHAR_GROUPS
+    .map(function(group) {
+      return {
+        tier: group.tier,
+        words: group.words.filter(function(kw) {
+          return getVersesFor(kw, 'primary', band).length >= STAGE_GOAL;
+        }),
+      };
+    })
+    .filter(function(group) { return group.words.length > 0; });
+}
+
+function getCharKeywords(corpus, band) {
+  corpus = corpus || 'tang';
+  if (corpus !== 'primary') return KEYWORDS;
+  return getCharKeywordGroups('primary', band).flatMap(function(group) {
+    return group.words.slice();
+  });
+}
+
+function countAvailableCharStages(corpus, band) {
+  corpus = corpus || 'tang';
+  return getCharKeywords(corpus, band).length;
 }
 
 var DISTRACTOR_POOL_SOURCE =
@@ -2524,36 +2629,36 @@ var DISTRACTOR_POOL = Array.from(new Set(DISTRACTOR_POOL_SOURCE.split(''))).join
 
 var PUNCT_RE = /[，。？！；：、,\\.\\?!;:]/;
 
-function pickStageQuestion(keyword, used, corpus) {
+function pickStageQuestion(keyword, used, corpus, band) {
   corpus = corpus || 'tang';
-  const pool = getVersesFor(keyword, corpus).filter(v => !used.has(v.line));
+  var pool = getVersesFor(keyword, corpus, band).filter(function(v) { return !used.has(v.line); });
   if (pool.length === 0) return null;
-  const verse = pool[Math.floor(Math.random() * pool.length)];
+  var verse = pool[Math.floor(Math.random() * pool.length)];
 
-  const kwPositions = [];
-  for (let i = 0; i < verse.line.length; i++) {
+  var kwPositions = [];
+  for (var i = 0; i < verse.line.length; i++) {
     if (verse.line[i] === keyword) kwPositions.push(i);
   }
-  const blanks = new Set([kwPositions[0]]);
+  var blanks = new Set([kwPositions[0]]);
 
-  const candidates = [];
-  for (let i = 0; i < verse.line.length; i++) {
-    if (kwPositions.includes(i)) continue;
-    if (PUNCT_RE.test(verse.line[i])) continue;
-    candidates.push(i);
+  var candidates = [];
+  for (var ii = 0; ii < verse.line.length; ii++) {
+    if (kwPositions.indexOf(ii) >= 0) continue;
+    if (PUNCT_RE.test(verse.line[ii])) continue;
+    candidates.push(ii);
   }
-  for (let i = candidates.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const tmp = candidates[i];
-    candidates[i] = candidates[j];
-    candidates[j] = tmp;
+  for (var j = candidates.length - 1; j > 0; j--) {
+    var kk = Math.floor(Math.random() * (j + 1));
+    var tmp = candidates[j];
+    candidates[j] = candidates[kk];
+    candidates[kk] = tmp;
   }
-  const extra = candidates.length === 0 ? 0 : Math.random() < 0.5 ? 1 : 2;
-  for (let i = 0; i < extra && i < candidates.length; i++) {
-    blanks.add(candidates[i]);
+  var extra = candidates.length === 0 ? 0 : Math.random() < 0.5 ? 1 : 2;
+  for (var m = 0; m < extra && m < candidates.length; m++) {
+    blanks.add(candidates[m]);
   }
 
-  return { verse, blanks: Array.from(blanks).sort((a, b) => a - b) };
+  return { verse: verse, blanks: Array.from(blanks).sort(function(a, b) { return a - b; }) };
 }
 
 function buildNineGrid(answer, blanks) {
@@ -2599,22 +2704,25 @@ const feihuaProgressCode = `
 // ===== play/progress.ts =====
 var FEIHUA_STORAGE_KEY = 'shiwen-feihua-progress';
 
-function _progressKey(corpus) {
+function _progressKey(corpus, band) {
   corpus = corpus || 'tang';
-  return corpus === 'tang' ? FEIHUA_STORAGE_KEY : FEIHUA_STORAGE_KEY + ':' + corpus;
+  if (corpus === 'tang') return FEIHUA_STORAGE_KEY;
+  var base = FEIHUA_STORAGE_KEY + ':' + corpus;
+  if (corpus !== 'primary' || band == null || band === MAX_BAND) return base;
+  return base + ':g' + band;
 }
 
-function loadProgress(corpus) {
+function loadProgress(corpus, band) {
   corpus = corpus || 'tang';
   try {
-    const raw = window.localStorage.getItem(_progressKey(corpus));
+    var raw = window.localStorage.getItem(_progressKey(corpus, band));
     // cleared 必须返回全新数组 —— 否则 caller 的 push 会污染共享的 INITIAL_PROGRESS.cleared。
     if (!raw) return { ...INITIAL_PROGRESS, cleared: [] };
-    const parsed = JSON.parse(raw);
+    var parsed = JSON.parse(raw);
     return {
       unlockedIndex: typeof parsed.unlockedIndex === 'number' ? parsed.unlockedIndex : 0,
       cleared: Array.isArray(parsed.cleared)
-        ? parsed.cleared.filter(s => typeof s === 'string')
+        ? parsed.cleared.filter(function(s) { return typeof s === 'string'; })
         : [],
       current:
         parsed.current && typeof parsed.current === 'object'
@@ -2633,21 +2741,21 @@ function loadProgress(corpus) {
   }
 }
 
-function saveProgress(p, corpus) {
+function saveProgress(p, corpus, band) {
   corpus = corpus || 'tang';
   try {
-    window.localStorage.setItem(_progressKey(corpus), JSON.stringify(p));
+    window.localStorage.setItem(_progressKey(corpus, band), JSON.stringify(p));
   } catch (e) {
     // localStorage 不可用或配额满 — 静默失败
   }
 }
 
-function markCleared(keyword, corpus) {
+function markCleared(keyword, corpus, band) {
   corpus = corpus || 'tang';
-  const p = loadProgress(corpus);
-  if (p.cleared.includes(keyword)) {
+  var p = loadProgress(corpus, band);
+  if (p.cleared.indexOf(keyword) >= 0) {
     p.current = null;
-    saveProgress(p, corpus);
+    saveProgress(p, corpus, band);
     return p;
   }
   p.cleared.push(keyword);
@@ -2655,41 +2763,41 @@ function markCleared(keyword, corpus) {
   var idx = keywordList.indexOf(keyword);
   if (idx >= 0 && idx + 1 > p.unlockedIndex) p.unlockedIndex = idx + 1;
   p.current = null;
-  saveProgress(p, corpus);
+  saveProgress(p, corpus, band);
   return p;
 }
 
-function beginStage(keyword, corpus) {
+function beginStage(keyword, corpus, band) {
   corpus = corpus || 'tang';
-  const p = loadProgress(corpus);
-  p.current = { keyword, correct: [], blood: STAGE_BLOOD };
-  saveProgress(p, corpus);
+  var p = loadProgress(corpus, band);
+  p.current = { keyword: keyword, correct: [], blood: STAGE_BLOOD };
+  saveProgress(p, corpus, band);
   return p;
 }
 
-function commitStageCorrect(keyword, line, corpus) {
+function commitStageCorrect(keyword, line, corpus, band) {
   corpus = corpus || 'tang';
-  const p = loadProgress(corpus);
+  var p = loadProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
-  if (!p.current.correct.includes(line)) p.current.correct.push(line);
-  saveProgress(p, corpus);
+  if (p.current.correct.indexOf(line) < 0) p.current.correct.push(line);
+  saveProgress(p, corpus, band);
   return p;
 }
 
-function commitStageBlood(keyword, blood, corpus) {
+function commitStageBlood(keyword, blood, corpus, band) {
   corpus = corpus || 'tang';
-  const p = loadProgress(corpus);
+  var p = loadProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   p.current.blood = blood;
-  saveProgress(p, corpus);
+  saveProgress(p, corpus, band);
   return p;
 }
 
-function clearCurrent(corpus) {
+function clearCurrent(corpus, band) {
   corpus = corpus || 'tang';
-  const p = loadProgress(corpus);
+  var p = loadProgress(corpus, band);
   p.current = null;
-  saveProgress(p, corpus);
+  saveProgress(p, corpus, band);
   return p;
 }
 `;
@@ -2704,9 +2812,13 @@ var _allPairsCacheByCorpus = new Map();
 var _shortPoolCacheByCorpus = new Map();
 var _longPoolCacheByCorpus = new Map();
 
-function buildAllCouplets(corpus) {
+function _coupletsCacheKey(corpus, band) {
+  return band == null ? corpus : corpus + ':' + band;
+}
+
+function buildAllCouplets(corpus, band) {
   corpus = corpus || 'tang';
-  var poems = corpus === 'both' ? getPoems() : getPoems(corpus);
+  var poems = getPoemsForPlay(corpus, band);
   var out = [];
   for (var pi = 0; pi < poems.length; pi++) {
     var poem = poems[pi];
@@ -2729,37 +2841,40 @@ function buildAllCouplets(corpus) {
   return out;
 }
 
-function getAllCouplets(corpus) {
+function getAllCouplets(corpus, band) {
   corpus = corpus || 'tang';
-  if (!_allPairsCacheByCorpus.has(corpus)) {
-    _allPairsCacheByCorpus.set(corpus, buildAllCouplets(corpus));
+  var key = _coupletsCacheKey(corpus, band);
+  if (!_allPairsCacheByCorpus.has(key)) {
+    _allPairsCacheByCorpus.set(key, buildAllCouplets(corpus, band));
   }
-  return _allPairsCacheByCorpus.get(corpus);
+  return _allPairsCacheByCorpus.get(key);
 }
 
-function _getShortPool(corpus) {
+function _getShortPool(corpus, band) {
   corpus = corpus || 'tang';
-  if (!_shortPoolCacheByCorpus.has(corpus)) {
-    var all = getAllCouplets(corpus);
-    _shortPoolCacheByCorpus.set(corpus, all.filter(function(p) { return _stripPunct(p.lower.line).length === 5; }));
+  var key = _coupletsCacheKey(corpus, band);
+  if (!_shortPoolCacheByCorpus.has(key)) {
+    var all = getAllCouplets(corpus, band);
+    _shortPoolCacheByCorpus.set(key, all.filter(function(p) { return _stripPunct(p.lower.line).length === 5; }));
   }
-  return _shortPoolCacheByCorpus.get(corpus);
+  return _shortPoolCacheByCorpus.get(key);
 }
 
-function _getLongPool(corpus) {
+function _getLongPool(corpus, band) {
   corpus = corpus || 'tang';
-  if (!_longPoolCacheByCorpus.has(corpus)) {
-    var all = getAllCouplets(corpus);
-    _longPoolCacheByCorpus.set(corpus, all.filter(function(p) { return _stripPunct(p.lower.line).length === 7; }));
+  var key = _coupletsCacheKey(corpus, band);
+  if (!_longPoolCacheByCorpus.has(key)) {
+    var all = getAllCouplets(corpus, band);
+    _longPoolCacheByCorpus.set(key, all.filter(function(p) { return _stripPunct(p.lower.line).length === 7; }));
   }
-  return _longPoolCacheByCorpus.get(corpus);
+  return _longPoolCacheByCorpus.get(key);
 }
 
-function _getPoolForTier(tier, corpus) {
+function _getPoolForTier(tier, corpus, band) {
   corpus = corpus || 'tang';
-  if (tier === 'entry') return _getShortPool(corpus);
-  if (tier === 'mid') return _getLongPool(corpus);
-  return getAllCouplets(corpus);
+  if (tier === 'entry') return _getShortPool(corpus, band);
+  if (tier === 'mid') return _getLongPool(corpus, band);
+  return getAllCouplets(corpus, band);
 }
 
 function tierOfLevel(level) {
@@ -2777,15 +2892,15 @@ function _shuffleArr(arr) {
   return a;
 }
 
-function pickLevelQuestion(tier, usedUpperLines, corpus) {
+function pickLevelQuestion(tier, usedUpperLines, corpus, band) {
   corpus = corpus || 'tang';
-  var pool = _getPoolForTier(tier, corpus).filter(function(p) { return !usedUpperLines.has(p.upper.line); });
+  var pool = _getPoolForTier(tier, corpus, band).filter(function(p) { return !usedUpperLines.has(p.upper.line); });
   if (pool.length === 0) return null;
 
   var correct = pool[Math.floor(Math.random() * pool.length)];
   var correctLen = _stripPunct(correct.lower.line).length;
 
-  var allPairs = getAllCouplets(corpus);
+  var allPairs = getAllCouplets(corpus, band);
   var distractors = [];
   var seenLines = new Set([correct.lower.line]);
 
@@ -2819,6 +2934,68 @@ function pickLevelQuestion(tier, usedUpperLines, corpus) {
   var options = _shuffleArr([correct.lower].concat(distractors));
   return { upper: correct.upper, answer: correct.lower, options: options };
 }
+
+var FEIHUA_TIER_CAPS = { entry: 10, mid: 20, advanced: 20 };
+
+function _canMakeCoupletQuestion(pair, allPairs) {
+  var correctLen = _stripPunct(pair.lower.line).length;
+  var seen = new Set([pair.lower.line]);
+  var count = 0;
+  for (var i = 0; i < allPairs.length; i++) {
+    var cand = allPairs[i];
+    if (cand.lower.poemId === pair.lower.poemId) continue;
+    if (seen.has(cand.lower.line)) continue;
+    if (_stripPunct(cand.lower.line).length !== correctLen) continue;
+    seen.add(cand.lower.line);
+    count++;
+    if (count >= 3) return true;
+  }
+  return false;
+}
+
+function countAvailableLevels(tier, corpus, band) {
+  corpus = corpus || 'tang';
+  if (corpus === 'primary' && tier === 'advanced') return 0;
+  var pool = _getPoolForTier(tier, corpus, band);
+  var allPairs = getAllCouplets(corpus, band);
+  var upperLines = new Set();
+  for (var i = 0; i < pool.length; i++) {
+    var pair = pool[i];
+    if (!_canMakeCoupletQuestion(pair, allPairs)) continue;
+    upperLines.add(pair.upper.line);
+  }
+  return Math.min(FEIHUA_TIER_CAPS[tier], upperLines.size);
+}
+
+function getAvailableLevelGroups(corpus, band) {
+  corpus = corpus || 'tang';
+  var tiers = corpus === 'primary' ? ['entry', 'mid'] : ['entry', 'mid', 'advanced'];
+  var groups = [];
+  var start = 1;
+  for (var i = 0; i < tiers.length; i++) {
+    var t = tiers[i];
+    var c = countAvailableLevels(t, corpus, band);
+    if (c === 0) continue;
+    groups.push({ tier: t, start: start, end: start + c - 1, count: c });
+    start += c;
+  }
+  return groups;
+}
+
+function getTotalAvailableLevels(corpus, band) {
+  corpus = corpus || 'tang';
+  return getAvailableLevelGroups(corpus, band).reduce(function(sum, g) { return sum + g.count; }, 0);
+}
+
+function tierOfAvailableLevel(level, corpus, band) {
+  corpus = corpus || 'tang';
+  var groups = getAvailableLevelGroups(corpus, band);
+  for (var i = 0; i < groups.length; i++) {
+    var g = groups[i];
+    if (level >= g.start && level <= g.end) return g.tier;
+  }
+  return null;
+}
 `;
 
 // play/titles.ts
@@ -2834,11 +3011,21 @@ function _titleShuffle(arr) {
   }
   return a;
 }
-function _titleBuildPool(corpus) {
-  return getPoems(corpus).filter(function (p) { return p.content && p.content.length > 0; });
+function _titleBuildPool(corpus, band) {
+  return getPoemsForPlay(corpus, band).filter(function (p) { return p.content && p.content.length > 0; });
 }
-function pickTitleQuestion(level, usedPoemIds, corpus) {
-  var pool = _titleBuildPool(corpus);
+
+var FEIHUA_TITLE_LEVEL_CAP = { tang: 50, primary: 30, both: 50 };
+
+function countAvailableTitleLevels(corpus, band) {
+  var pool = _titleBuildPool(corpus, band);
+  if (pool.length < 4) return 0;
+  var cap = FEIHUA_TITLE_LEVEL_CAP[corpus] != null ? FEIHUA_TITLE_LEVEL_CAP[corpus] : 50;
+  return Math.min(cap, pool.length);
+}
+
+function pickTitleQuestion(level, usedPoemIds, corpus, band) {
+  var pool = _titleBuildPool(corpus, band);
   if (pool.length === 0) return null;
   var candidates = pool.filter(function (p) { return !usedPoemIds.has(p.id); });
   if (candidates.length === 0) return null;
@@ -2890,15 +3077,18 @@ const feihuaSentenceProgressCode = `
 // ===== play/sentenceProgress.ts =====
 var SENTENCE_STORAGE_KEY = 'shiwen-feihua-sentence-progress';
 
-function _sentenceKey(corpus) {
+function _sentenceKey(corpus, band) {
   corpus = corpus || 'tang';
-  return corpus === 'tang' ? SENTENCE_STORAGE_KEY : SENTENCE_STORAGE_KEY + ':' + corpus;
+  if (corpus === 'tang') return SENTENCE_STORAGE_KEY;
+  var base = SENTENCE_STORAGE_KEY + ':' + corpus;
+  if (corpus !== 'primary' || band == null || band === MAX_BAND) return base;
+  return base + ':g' + band;
 }
 
-function loadSentenceProgress(corpus) {
+function loadSentenceProgress(corpus, band) {
   corpus = corpus || 'tang';
   try {
-    var raw = window.localStorage.getItem(_sentenceKey(corpus));
+    var raw = window.localStorage.getItem(_sentenceKey(corpus, band));
     if (!raw) return { unlockedIndex: 0, cleared: [], current: null };
     var parsed = JSON.parse(raw);
     return {
@@ -2920,58 +3110,58 @@ function loadSentenceProgress(corpus) {
   }
 }
 
-function saveSentenceProgress(p, corpus) {
+function saveSentenceProgress(p, corpus, band) {
   corpus = corpus || 'tang';
-  try { window.localStorage.setItem(_sentenceKey(corpus), JSON.stringify(p)); } catch (e) {}
+  try { window.localStorage.setItem(_sentenceKey(corpus, band), JSON.stringify(p)); } catch (e) {}
 }
 
-function markSentenceCleared(keyword, corpus) {
+function markSentenceCleared(keyword, corpus, band) {
   corpus = corpus || 'tang';
-  var p = loadSentenceProgress(corpus);
+  var p = loadSentenceProgress(corpus, band);
   if (p.cleared.indexOf(keyword) >= 0) {
     p.current = null;
-    saveSentenceProgress(p, corpus);
+    saveSentenceProgress(p, corpus, band);
     return p;
   }
   p.cleared.push(keyword);
   var levelNum = parseInt(keyword, 10);
   if (!Number.isNaN(levelNum) && levelNum > p.unlockedIndex) p.unlockedIndex = levelNum;
   p.current = null;
-  saveSentenceProgress(p, corpus);
+  saveSentenceProgress(p, corpus, band);
   return p;
 }
 
-function beginSentenceStage(keyword, corpus) {
+function beginSentenceStage(keyword, corpus, band) {
   corpus = corpus || 'tang';
-  var p = loadSentenceProgress(corpus);
+  var p = loadSentenceProgress(corpus, band);
   p.current = { keyword: keyword, correct: [], blood: STAGE_BLOOD };
-  saveSentenceProgress(p, corpus);
+  saveSentenceProgress(p, corpus, band);
   return p;
 }
 
-function commitSentenceCorrect(keyword, line, corpus) {
+function commitSentenceCorrect(keyword, line, corpus, band) {
   corpus = corpus || 'tang';
-  var p = loadSentenceProgress(corpus);
+  var p = loadSentenceProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   if (p.current.correct.indexOf(line) < 0) p.current.correct.push(line);
-  saveSentenceProgress(p, corpus);
+  saveSentenceProgress(p, corpus, band);
   return p;
 }
 
-function commitSentenceBlood(keyword, blood, corpus) {
+function commitSentenceBlood(keyword, blood, corpus, band) {
   corpus = corpus || 'tang';
-  var p = loadSentenceProgress(corpus);
+  var p = loadSentenceProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   p.current.blood = blood;
-  saveSentenceProgress(p, corpus);
+  saveSentenceProgress(p, corpus, band);
   return p;
 }
 
-function clearSentenceCurrent(corpus) {
+function clearSentenceCurrent(corpus, band) {
   corpus = corpus || 'tang';
-  var p = loadSentenceProgress(corpus);
+  var p = loadSentenceProgress(corpus, band);
   p.current = null;
-  saveSentenceProgress(p, corpus);
+  saveSentenceProgress(p, corpus, band);
   return p;
 }
 `;
@@ -2981,15 +3171,18 @@ const feihuaTitleProgressCode = `
 // ===== play/titleProgress.ts =====
 var TITLE_STORAGE_KEY = 'shiwen-feihua-title-progress';
 
-function _titleStorageKey(corpus) {
+function _titleStorageKey(corpus, band) {
   corpus = corpus || 'tang';
-  return corpus === 'tang' ? TITLE_STORAGE_KEY : TITLE_STORAGE_KEY + ':' + corpus;
+  if (corpus === 'tang') return TITLE_STORAGE_KEY;
+  var base = TITLE_STORAGE_KEY + ':' + corpus;
+  if (corpus !== 'primary' || band == null || band === MAX_BAND) return base;
+  return base + ':g' + band;
 }
 
-function loadTitleProgress(corpus) {
+function loadTitleProgress(corpus, band) {
   corpus = corpus || 'tang';
   try {
-    var raw = window.localStorage.getItem(_titleStorageKey(corpus));
+    var raw = window.localStorage.getItem(_titleStorageKey(corpus, band));
     if (!raw) return { unlockedIndex: 0, cleared: [], current: null };
     var parsed = JSON.parse(raw);
     return {
@@ -3010,58 +3203,58 @@ function loadTitleProgress(corpus) {
   }
 }
 
-function saveTitleProgress(p, corpus) {
+function saveTitleProgress(p, corpus, band) {
   corpus = corpus || 'tang';
-  try { window.localStorage.setItem(_titleStorageKey(corpus), JSON.stringify(p)); } catch (e) {}
+  try { window.localStorage.setItem(_titleStorageKey(corpus, band), JSON.stringify(p)); } catch (e) {}
 }
 
-function markTitleCleared(keyword, corpus) {
+function markTitleCleared(keyword, corpus, band) {
   corpus = corpus || 'tang';
-  var p = loadTitleProgress(corpus);
+  var p = loadTitleProgress(corpus, band);
   if (p.cleared.indexOf(keyword) >= 0) {
     p.current = null;
-    saveTitleProgress(p, corpus);
+    saveTitleProgress(p, corpus, band);
     return p;
   }
   p.cleared.push(keyword);
   var n = parseInt(keyword, 10);
   if (!Number.isNaN(n) && n > p.unlockedIndex) p.unlockedIndex = n;
   p.current = null;
-  saveTitleProgress(p, corpus);
+  saveTitleProgress(p, corpus, band);
   return p;
 }
 
-function beginTitleStage(keyword, corpus) {
+function beginTitleStage(keyword, corpus, band) {
   corpus = corpus || 'tang';
-  var p = loadTitleProgress(corpus);
+  var p = loadTitleProgress(corpus, band);
   p.current = { keyword: keyword, correct: [], blood: STAGE_BLOOD };
-  saveTitleProgress(p, corpus);
+  saveTitleProgress(p, corpus, band);
   return p;
 }
 
-function commitTitleCorrect(keyword, line, corpus) {
+function commitTitleCorrect(keyword, line, corpus, band) {
   corpus = corpus || 'tang';
-  var p = loadTitleProgress(corpus);
+  var p = loadTitleProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   if (p.current.correct.indexOf(line) < 0) p.current.correct.push(line);
-  saveTitleProgress(p, corpus);
+  saveTitleProgress(p, corpus, band);
   return p;
 }
 
-function commitTitleBlood(keyword, blood, corpus) {
+function commitTitleBlood(keyword, blood, corpus, band) {
   corpus = corpus || 'tang';
-  var p = loadTitleProgress(corpus);
+  var p = loadTitleProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   p.current.blood = blood;
-  saveTitleProgress(p, corpus);
+  saveTitleProgress(p, corpus, band);
   return p;
 }
 
-function clearTitleCurrent(corpus) {
+function clearTitleCurrent(corpus, band) {
   corpus = corpus || 'tang';
-  var p = loadTitleProgress(corpus);
+  var p = loadTitleProgress(corpus, band);
   p.current = null;
-  saveTitleProgress(p, corpus);
+  saveTitleProgress(p, corpus, band);
   return p;
 }
 `;
@@ -3107,6 +3300,55 @@ function KeywordSeal(props) {
         animation: state === 'current' ? 'focal-pulse 2s ease-in-out infinite' : undefined,
       },
     }, state === 'locked' ? '？' : keyword)
+  );
+}
+`;
+
+// components/GradeSelector.tsx
+const gradeSelectorCode = `
+// ===== components/GradeSelector.tsx =====
+function GradeSelector(props) {
+  var bands = props.bands;
+  var value = props.value;
+  var onChange = props.onChange;
+  return React.createElement('div', {
+    style: { margin: '0 auto 18px', maxWidth: 920 },
+  },
+    React.createElement('div', {
+      style: {
+        display: 'flex',
+        gap: 8,
+        overflowX: 'auto',
+        padding: '2px 2px 8px',
+        justifyContent: 'center',
+      },
+    },
+      bands.map(function(band) {
+        var active = band.value === value;
+        return React.createElement('button', {
+          key: band.value,
+          type: 'button',
+          'aria-pressed': active,
+          onClick: function() { onChange(band.value); },
+          style: {
+            flex: '0 0 auto',
+            minWidth: 52,
+            height: 38,
+            padding: '0 12px',
+            borderRadius: 4,
+            border: active ? '2px solid #d4af6a' : '2px solid rgba(216,224,240,0.22)',
+            background: active ? '#a8302a' : 'rgba(216,224,240,0.08)',
+            color: active ? '#f5ebd2' : 'rgba(216,224,240,0.72)',
+            fontFamily: fontFamilies.chinese,
+            fontSize: 18,
+            fontWeight: 700,
+            boxShadow: active ? '0 0 14px rgba(212,175,106,0.45)' : 'none',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          },
+        }, band.label);
+      })
+    )
   );
 }
 `;
@@ -3339,24 +3581,21 @@ function CharModeBody(props) {
 function SentenceModeBody(props) {
   var progress = props.progress;
   var compact = props.compact;
-  var isPrimary = props.isPrimary;
+  var sentenceGroups = props.sentenceGroups;
   var stateOf = function(level) {
     var key = String(level);
-    if (progress.cleared.includes(key)) return 'cleared';
+    if (progress.cleared.indexOf(key) >= 0) return 'cleared';
     if (level - 1 === progress.unlockedIndex) return 'current';
     return 'locked';
   };
-  // corpus-aware: primary has no advanced tier
-  var levelGroups = isPrimary
-    ? LEVEL_GROUPS.filter(function(g) { return g.tier !== 'advanced'; })
-    : LEVEL_GROUPS;
   return (
     <React.Fragment>
-      {levelGroups.map(function(group) {
+      {sentenceGroups.map(function(group) {
         var tier = group.tier;
-        var range = group.range;
+        var start = group.start;
+        var count = group.count;
         var levels = [];
-        for (var i = range[0]; i <= range[1]; i++) levels.push(i);
+        for (var i = 0; i < count; i++) levels.push(start + i);
         return (
           <div key={tier} style={{ marginBottom: compact ? 24 : 36 }}>
             <div style={{
@@ -3393,24 +3632,21 @@ function SentenceModeBody(props) {
 function TitleModeBody(props) {
   var progress = props.progress;
   var compact = props.compact;
-  var isPrimary = props.isPrimary;
+  var titleGroups = props.titleGroups;
   var stateOf = function(level) {
     var key = String(level);
-    if (progress.cleared.includes(key)) return 'cleared';
+    if (progress.cleared.indexOf(key) >= 0) return 'cleared';
     if (level - 1 === progress.unlockedIndex) return 'current';
     return 'locked';
   };
-  // corpus-aware: primary has no advanced tier
-  var levelGroups = isPrimary
-    ? LEVEL_GROUPS.filter(function(g) { return g.tier !== 'advanced'; })
-    : LEVEL_GROUPS;
   return (
     <React.Fragment>
-      {levelGroups.map(function(group) {
+      {titleGroups.map(function(group) {
         var tier = group.tier;
-        var range = group.range;
+        var start = group.start;
+        var count = group.count;
         var levels = [];
-        for (var i = range[0]; i <= range[1]; i++) levels.push(i);
+        for (var i = 0; i < count; i++) levels.push(start + i);
         return (
           <div key={tier} style={{ marginBottom: compact ? 24 : 36 }}>
             <div style={{
@@ -3444,30 +3680,58 @@ function TitleModeBody(props) {
   );
 }
 
+function deriveTitleGroups(totalTitleStages, isPrimary) {
+  return [
+    { tier: 'entry', start: 1, end: Math.min(10, totalTitleStages), count: Math.min(10, totalTitleStages) },
+    { tier: 'mid', start: 11, end: Math.min(30, totalTitleStages), count: Math.max(0, Math.min(20, totalTitleStages - 10)) },
+    { tier: 'advanced', start: 31, end: totalTitleStages, count: Math.max(0, totalTitleStages - 30) },
+  ].filter(function(g) { return g.count > 0 && (!isPrimary || g.tier !== 'advanced'); });
+}
+
+function PlayHallEmptyState(props) {
+  var compact = props.compact;
+  return (
+    <div style={{
+      textAlign: 'center',
+      color: colors.textSecondary,
+      fontFamily: fontFamilies.chinese,
+      padding: compact ? '24px 0' : '36px 0',
+    }}>
+      本年级暂无关卡，请选更高年级
+    </div>
+  );
+}
+
 function PlayHall() {
   const [mode, setMode] = useState('char');
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
   const corpus = useCorpus();
 
-  var charProgress = loadProgress(corpus);
-  var sentenceProgress = loadSentenceProgress(corpus);
-  var titleProgress = loadTitleProgress(corpus);
-
-  // corpus-aware: primary 三档（entry 10 + mid 12 + advanced 8 = 30 字 / 30 sentence levels）。
-  // 总库 ('all') shares tang's structure — 50 字三档 — drawing from the full corpus.
   var isPrimary = corpus === 'primary';
-  var charKeywords = isPrimary ? PRIMARY_KEYWORDS : KEYWORDS;
-  var charGroups = isPrimary
-    ? [{ tier: 'entry', words: PRIMARY_KEYWORD_GROUPS.entry },
-       { tier: 'mid', words: PRIMARY_KEYWORD_GROUPS.mid },
-       { tier: 'advanced', words: PRIMARY_KEYWORD_GROUPS.advanced }]
-    : [{ tier: 'entry', words: KEYWORD_GROUPS.entry },
-       { tier: 'mid', words: KEYWORD_GROUPS.mid },
-       { tier: 'advanced', words: KEYWORD_GROUPS.advanced }];
-  var totalCharStages = charKeywords.length;
-  var totalSentenceStages = isPrimary ? 30 : 50;
-  var totalTitleStages = isPrimary ? 30 : 50;
+  var gradeState = useState(function() { return loadGrade(); });
+  var band = gradeState[0];
+  var setBand = gradeState[1];
+  var activeBand = isPrimary ? band : undefined;
+  // 总库 ('all') shares tang's structure, mapping to engine-level 'both'.
+  var poemCorpus = corpus === 'all' ? 'both' : corpus;
+
+  var onBandChange = function(next) {
+    setBand(next);
+    saveGrade(next);
+  };
+
+  var charProgress = loadProgress(corpus, activeBand);
+  var sentenceProgress = loadSentenceProgress(corpus, activeBand);
+  var titleProgress = loadTitleProgress(corpus, activeBand);
+
+  // band-aware: 关数随 (corpus, band) 实际池子动态计算
+  var charGroups = getCharKeywordGroups(poemCorpus, activeBand);
+  var charKeywords = getCharKeywords(poemCorpus, activeBand);
+  var totalCharStages = countAvailableCharStages(poemCorpus, activeBand);
+  var sentenceGroups = getAvailableLevelGroups(poemCorpus, activeBand);
+  var totalSentenceStages = getTotalAvailableLevels(poemCorpus, activeBand);
+  var totalTitleStages = countAvailableTitleLevels(poemCorpus, activeBand);
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -3500,6 +3764,14 @@ function PlayHall() {
             </div>
           </div>
 
+          {isPrimary && (
+            <GradeSelector
+              bands={getAvailableBands()}
+              value={band}
+              onChange={onBandChange}
+            />
+          )}
+
           <div style={{
             display: 'flex', justifyContent: 'center', gap: isMobile ? 12 : 24,
             borderBottom: '1px solid rgba(216,224,240,0.15)',
@@ -3511,10 +3783,16 @@ function PlayHall() {
           </div>
 
           {mode === 'char'
-            ? <CharModeBody progress={charProgress} compact={isMobile} groups={charGroups} charKeywords={charKeywords} />
+            ? (totalCharStages === 0
+                ? <PlayHallEmptyState compact={isMobile} />
+                : <CharModeBody progress={charProgress} compact={isMobile} groups={charGroups} charKeywords={charKeywords} />)
             : mode === 'sentence'
-            ? <SentenceModeBody progress={sentenceProgress} compact={isMobile} isPrimary={isPrimary} />
-            : <TitleModeBody progress={titleProgress} compact={isMobile} isPrimary={isPrimary} />}
+            ? (totalSentenceStages === 0
+                ? <PlayHallEmptyState compact={isMobile} />
+                : <SentenceModeBody progress={sentenceProgress} compact={isMobile} sentenceGroups={sentenceGroups} />)
+            : (totalTitleStages === 0
+                ? <PlayHallEmptyState compact={isMobile} />
+                : <TitleModeBody progress={titleProgress} compact={isMobile} titleGroups={deriveTitleGroups(totalTitleStages, isPrimary)} />)}
         </div>
       </div>
     </div>
@@ -3525,7 +3803,6 @@ function PlayHall() {
 // pages/SentencePlay.tsx
 const sentencePlayCode = `
 // ===== pages/SentencePlay.tsx =====
-var SENTENCE_TOTAL_LEVELS = 50;
 var SENTENCE_TURN_SECONDS = 30;
 var SENTENCE_PAPER_TEXT = '#000000';
 var SENTENCE_PAPER_TEXT_DIM = '#8b7355';
@@ -3567,20 +3844,25 @@ function SentencePlay() {
   var levelParam = params.level;
   var navigate = useNavigate();
   var level = parseInt(levelParam || '', 10);
-  var validLevel = Number.isFinite(level) && level >= 1 && level <= SENTENCE_TOTAL_LEVELS;
-  var tier = validLevel ? tierOfLevel(level) : 'entry';
-  var levelKey = String(level);
 
   var corpus = useCorpus();
   // 引擎/题库（couplets.ts）接受 PoemCorpus，state 层 Corpus 含 'all'。
   // 'all' → 'both' 边界映射。进度函数接受 Corpus，仍传 raw corpus。
   var poemCorpus = corpus === 'all' ? 'both' : corpus;
+  // 仅 primary 库下生效的年级 band；tang 走 undefined 保持旧行为。
+  var activeBand = corpus === 'primary' ? loadGrade() : undefined;
+
+  // 关数按 (corpus, band) 动态计算：tang 50、primary band=1 至多 30，依语料库变动。
+  var totalLevels = getTotalAvailableLevels(poemCorpus, activeBand);
+  var validLevel = Number.isFinite(level) && level >= 1 && level <= totalLevels;
+  var tier = validLevel ? tierOfAvailableLevel(level, poemCorpus, activeBand) : null;
+  var levelKey = String(level);
 
   const [stage, setStage] = useState(function() {
     if (!validLevel) return null;
-    var progress = loadSentenceProgress(corpus);
+    var progress = loadSentenceProgress(corpus, activeBand);
     if (progress.current && progress.current.keyword === levelKey) return progress.current;
-    return beginSentenceStage(levelKey, corpus).current;
+    return beginSentenceStage(levelKey, corpus, activeBand).current;
   });
 
   // 从原文页返回时取出"已查看"的上句，加进排除集，避免回到题面后又看到同一题
@@ -3596,8 +3878,8 @@ function SentencePlay() {
   ));
 
   const [question, setQuestion] = useState(function() {
-    if (!validLevel) return null;
-    return pickLevelQuestion(tier, usedUpperRef.current, poemCorpus);
+    if (!tier) return null;
+    return pickLevelQuestion(tier, usedUpperRef.current, poemCorpus, activeBand);
   });
 
   const [picked, setPicked] = useState(null);
@@ -3609,15 +3891,15 @@ function SentencePlay() {
   const questionRef = useRef(question); questionRef.current = question;
 
   useEffect(function() {
-    if (!validLevel) return;
+    if (!validLevel || !tier) return;
     if (stageRef.current && stageRef.current.keyword === levelKey) return;
-    var progress = loadSentenceProgress(corpus);
+    var progress = loadSentenceProgress(corpus, activeBand);
     var fresh = progress.current && progress.current.keyword === levelKey
       ? progress.current
-      : beginSentenceStage(levelKey, corpus).current;
+      : beginSentenceStage(levelKey, corpus, activeBand).current;
     setStage(fresh);
     usedUpperRef.current = new Set(fresh ? (fresh.correct || []) : []);
-    setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
+    setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus, activeBand));
     setPicked(null);
     setGrading(false);
     setSecondsLeft(SENTENCE_TURN_SECONDS);
@@ -3633,23 +3915,23 @@ function SentencePlay() {
   }, [navigate]);
 
   function handleCorrect() {
-    if (!validLevel || !questionRef.current || !stageRef.current) return;
+    if (!validLevel || !tier || !questionRef.current || !stageRef.current) return;
     var cur = stageRef.current;
     var line = questionRef.current.answer.line;
     var newCorrect = [].concat(cur.correct, [line]);
 
-    commitSentenceCorrect(levelKey, line, corpus);
-    setStage(loadSentenceProgress(corpus).current);
+    commitSentenceCorrect(levelKey, line, corpus, activeBand);
+    setStage(loadSentenceProgress(corpus, activeBand).current);
     usedUpperRef.current = new Set(newCorrect);
 
     if (newCorrect.length >= STAGE_GOAL) {
-      markSentenceCleared(levelKey, corpus);
+      markSentenceCleared(levelKey, corpus, activeBand);
       setResult({ kind: 'cleared', correct: newCorrect });
       return;
     }
     setGrading(true);
     setTimeout(function() {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus, activeBand));
       setPicked(null);
       setSecondsLeft(SENTENCE_TURN_SECONDS);
       setGrading(false);
@@ -3657,21 +3939,21 @@ function SentencePlay() {
   }
 
   function handleWrong() {
-    if (!validLevel || !stageRef.current) return;
+    if (!validLevel || !tier || !stageRef.current) return;
     var cur = stageRef.current;
     var newBlood = cur.blood - 1;
 
-    commitSentenceBlood(levelKey, newBlood, corpus);
-    setStage(loadSentenceProgress(corpus).current);
+    commitSentenceBlood(levelKey, newBlood, corpus, activeBand);
+    setStage(loadSentenceProgress(corpus, activeBand).current);
 
     if (newBlood <= 0) {
-      clearSentenceCurrent(corpus);
+      clearSentenceCurrent(corpus, activeBand);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
     setGrading(true);
     setTimeout(function() {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus, activeBand));
       setPicked(null);
       setSecondsLeft(SENTENCE_TURN_SECONDS);
       setGrading(false);
@@ -3681,7 +3963,7 @@ function SentencePlay() {
   // 查看原文：扣 1 血后跳转原文页；返回时把上句加进排除集换新题。
   // blood <= 1 时禁用 —— 不允许玩家为了看原文而自杀。
   function handleViewOriginal() {
-    if (!validLevel || !questionRef.current || !stageRef.current) return;
+    if (!validLevel || !tier || !questionRef.current || !stageRef.current) return;
     if (grading || result) return;
     if (stageRef.current.blood <= 1) return;
 
@@ -3690,9 +3972,9 @@ function SentencePlay() {
     var upperLine = questionRef.current.upper.line;
     var poemId = questionRef.current.upper.poemId;
 
-    commitSentenceBlood(levelKey, newBlood, corpus);
+    commitSentenceBlood(levelKey, newBlood, corpus, activeBand);
     sessionStorage.setItem('feihuaSentenceViewed:' + levelKey, upperLine);
-    setStage(loadSentenceProgress(corpus).current);
+    setStage(loadSentenceProgress(corpus, activeBand).current);
     navigate('/poem/' + poemId, { state: { from: '/play/sentence/' + level } });
   }
 
@@ -3715,10 +3997,15 @@ function SentencePlay() {
   }
 
   if (!validLevel || !stage) {
-    return <div style={{ padding: 40, color: colors.textPrimary }}>关卡序号无效</div>;
+    return (
+      <div style={{ padding: 40, color: colors.textPrimary }}>
+        <div style={{ marginBottom: 16 }}>关卡不存在</div>
+        <Link to="/play" aria-label="返回大厅" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>←</Link>
+      </div>
+    );
   }
 
-  var isLastLevel = level >= SENTENCE_TOTAL_LEVELS;
+  var isLastLevel = level >= totalLevels;
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
 
@@ -3785,7 +4072,7 @@ function SentencePlay() {
             <div style={{
               color: SENTENCE_PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
               fontSize: 14, letterSpacing: 6,
-            }}>{SENTENCE_TIER_LABEL[tier]} · 整 句 联 句</div>
+            }}>{tier ? SENTENCE_TIER_LABEL[tier] : ''} · 整 句 联 句</div>
           </div>
 
           {question ? (
@@ -3932,7 +4219,6 @@ var TITLE_PAPER_TEXT = '#000000';
 var TITLE_PAPER_TEXT_DIM = '#8b7355';
 var TITLE_PAPER_GREEN = '#4a7c4a';
 var TITLE_PAPER_RED = '#a8302a';
-var TITLE_TOTAL_LEVELS = 50;
 
 var TITLE_TIER_LABEL = {
   entry: '入 门',
@@ -3969,23 +4255,28 @@ function TitlePlay() {
   var levelParam = params.level;
   var navigate = useNavigate();
   var level = parseInt(levelParam || '', 10);
-  var validLevel = Number.isFinite(level) && level >= 1 && level <= TITLE_TOTAL_LEVELS;
-  var tier = validLevel ? tierOfLevel(level) : 'entry';
-  var levelKey = String(level);
 
   var corpus = useCorpus();
   var poemCorpus = corpus === 'all' ? 'both' : corpus;
+  // 仅 primary 库下生效的年级 band；tang 走 undefined 保持旧行为。
+  var activeBand = corpus === 'primary' ? loadGrade() : undefined;
+
+  // 关数按 (corpus, band) 动态计算：tang 50、primary band=1 较小，依语料库变动。
+  var totalLevels = countAvailableTitleLevels(poemCorpus, activeBand);
+  var validLevel = Number.isFinite(level) && level >= 1 && level <= totalLevels;
+  var tier = validLevel ? tierOfAvailableLevel(level, poemCorpus, activeBand) : null;
+  var levelKey = String(level);
 
   var _stage0 = function () {
     if (!validLevel) return null;
-    var progress = loadTitleProgress(corpus);
+    var progress = loadTitleProgress(corpus, activeBand);
     if (progress.current && progress.current.keyword === levelKey) return progress.current;
-    return beginTitleStage(levelKey, corpus).current;
+    return beginTitleStage(levelKey, corpus, activeBand).current;
   };
   var _used0 = new Set((_stage0() && _stage0().correct) || []);
   var _q0 = function () {
     if (!validLevel) return null;
-    return pickTitleQuestion(level, _used0, poemCorpus);
+    return pickTitleQuestion(level, _used0, poemCorpus, activeBand);
   };
 
   var stageState = useState(_stage0);
@@ -4015,13 +4306,13 @@ function TitlePlay() {
   useEffect(function () {
     if (!validLevel) return;
     if (stageRef.current && stageRef.current.keyword === levelKey) return;
-    var progress = loadTitleProgress(corpus);
+    var progress = loadTitleProgress(corpus, activeBand);
     var fresh = progress.current && progress.current.keyword === levelKey
       ? progress.current
-      : beginTitleStage(levelKey, corpus).current;
+      : beginTitleStage(levelKey, corpus, activeBand).current;
     setStage(fresh);
     usedPoemIdsRef.current = new Set(fresh ? (fresh.correct || []) : []);
-    setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus));
+    setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand));
     setPicked(null);
     setGrading(false);
     setSecondsLeft(STAGE_TIMEBOX);
@@ -4042,18 +4333,18 @@ function TitlePlay() {
     var poemId = questionRef.current.poemId;
     var newCorrect = [].concat(cur.correct, [poemId]);
 
-    commitTitleCorrect(levelKey, poemId, corpus);
-    setStage(loadTitleProgress(corpus).current);
+    commitTitleCorrect(levelKey, poemId, corpus, activeBand);
+    setStage(loadTitleProgress(corpus, activeBand).current);
     usedPoemIdsRef.current = new Set(newCorrect);
 
     if (newCorrect.length >= STAGE_GOAL) {
-      markTitleCleared(levelKey, corpus);
+      markTitleCleared(levelKey, corpus, activeBand);
       setResult({ kind: 'cleared', correct: newCorrect });
       return;
     }
     setGrading(true);
     setTimeout(function () {
-      setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus));
+      setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand));
       setPicked(null);
       setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
@@ -4065,17 +4356,17 @@ function TitlePlay() {
     var cur = stageRef.current;
     var newBlood = cur.blood - 1;
 
-    commitTitleBlood(levelKey, newBlood, corpus);
-    setStage(loadTitleProgress(corpus).current);
+    commitTitleBlood(levelKey, newBlood, corpus, activeBand);
+    setStage(loadTitleProgress(corpus, activeBand).current);
 
     if (newBlood <= 0) {
-      clearTitleCurrent(corpus);
+      clearTitleCurrent(corpus, activeBand);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
     setGrading(true);
     setTimeout(function () {
-      setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus));
+      setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand));
       setPicked(null);
       setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
@@ -4101,10 +4392,15 @@ function TitlePlay() {
   }
 
   if (!validLevel || !stage) {
-    return React.createElement('div', { style: { padding: 40, color: colors.textPrimary } }, '关卡序号无效');
+    return (
+      <div style={{ padding: 40, color: colors.textPrimary }}>
+        <div style={{ marginBottom: 16 }}>关卡不存在</div>
+        <Link to="/play" aria-label="返回大厅" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>←</Link>
+      </div>
+    );
   }
 
-  var isLastLevel = level >= TITLE_TOTAL_LEVELS;
+  var isLastLevel = level >= totalLevels;
   var lines = question ? splitIntoLines(question.content, 'short') : [];
 
   return React.createElement('div', { style: { width: '100%', height: '100%', display: 'flex', flexDirection: 'column' } },
@@ -4149,7 +4445,7 @@ function TitlePlay() {
               color: TITLE_PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
               fontSize: 14, letterSpacing: 6,
             },
-          }, TITLE_TIER_LABEL[tier] + ' · 整 篇 识 名')
+          }, (tier ? TITLE_TIER_LABEL[tier] : '') + ' · 整 篇 识 名')
         ),
         question ? React.createElement(React.Fragment, null,
           React.createElement('div', {
@@ -4300,14 +4596,16 @@ function StagePlay() {
   // 引擎/题库（engine.ts）接受 PoemCorpus，state 层 Corpus 含 'all'。
   // 'all' → 'both' 边界映射。进度函数接受 Corpus，仍传 raw corpus。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
+  // 仅 primary 库下生效的年级 band；tang 走 undefined 保持旧行为。
+  const activeBand = corpus === 'primary' ? loadGrade() : undefined;
 
   const [stage, setStage] = useState(() => {
     if (!kw) return null;
-    const progress = loadProgress(corpus);
+    const progress = loadProgress(corpus, activeBand);
     if (progress.current && progress.current.keyword === kw) {
       return progress.current;
     }
-    return beginStage(kw, corpus).current;
+    return beginStage(kw, corpus, activeBand).current;
   });
 
   // 从原文页返回时取出"已查看"的题面句，加进排除集，避免回到题面后又看到同一题
@@ -4326,7 +4624,7 @@ function StagePlay() {
 
   const [question, setQuestion] = useState(() => {
     if (!kw) return null;
-    return pickStageQuestion(kw, used, poemCorpus);
+    return pickStageQuestion(kw, used, poemCorpus, activeBand);
   });
 
   const [nineGrid, setNineGrid] = useState(() =>
@@ -4367,12 +4665,12 @@ function StagePlay() {
   useEffect(function() {
     if (!kw) return;
     if (stageRef.current && stageRef.current.keyword === kw) return;
-    var progress = loadProgress(corpus);
+    var progress = loadProgress(corpus, activeBand);
     var fresh = progress.current && progress.current.keyword === kw
       ? progress.current
-      : beginStage(kw, corpus).current;
+      : beginStage(kw, corpus, activeBand).current;
     setStage(fresh);
-    setQuestion(pickStageQuestion(kw, new Set(fresh ? (fresh.correct || []) : []), poemCorpus));
+    setQuestion(pickStageQuestion(kw, new Set(fresh ? (fresh.correct || []) : []), poemCorpus, activeBand));
     setResult(null);
     setGrading(false);
     setSecondsLeft(STAGE_TIMEBOX);
@@ -4384,18 +4682,18 @@ function StagePlay() {
     const line = questionRef.current.verse.line;
     const newCorrect = [].concat(cur.correct, [line]);
 
-    commitStageCorrect(kw, line, corpus);
-    setStage(loadProgress(corpus).current);
+    commitStageCorrect(kw, line, corpus, activeBand);
+    setStage(loadProgress(corpus, activeBand).current);
 
     if (newCorrect.length >= STAGE_GOAL) {
-      markCleared(kw, corpus);
+      markCleared(kw, corpus, activeBand);
       setResult({ kind: 'cleared', correct: newCorrect });
       return;
     }
     setGrading(true);
     setTimeout(() => {
       const nextUsed = new Set(newCorrect);
-      setQuestion(pickStageQuestion(kw, nextUsed, poemCorpus));
+      setQuestion(pickStageQuestion(kw, nextUsed, poemCorpus, activeBand));
       setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
     }, 800);
@@ -4406,11 +4704,11 @@ function StagePlay() {
     const cur = stageRef.current;
     const newBlood = cur.blood - 1;
 
-    commitStageBlood(kw, newBlood, corpus);
-    setStage(loadProgress(corpus).current);
+    commitStageBlood(kw, newBlood, corpus, activeBand);
+    setStage(loadProgress(corpus, activeBand).current);
 
     if (newBlood <= 0) {
-      clearCurrent(corpus);
+      clearCurrent(corpus, activeBand);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
@@ -4429,11 +4727,11 @@ function StagePlay() {
     const cur = stageRef.current;
     const newBlood = cur.blood - 1;
 
-    commitStageBlood(kw, newBlood, corpus);
-    setStage(loadProgress(corpus).current);
+    commitStageBlood(kw, newBlood, corpus, activeBand);
+    setStage(loadProgress(corpus, activeBand).current);
 
     if (newBlood <= 0) {
-      clearCurrent(corpus);
+      clearCurrent(corpus, activeBand);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
@@ -4458,9 +4756,9 @@ function StagePlay() {
     const line = questionRef.current.verse.line;
     const poemId = questionRef.current.verse.poemId;
 
-    commitStageBlood(kw, newBlood, corpus);
+    commitStageBlood(kw, newBlood, corpus, activeBand);
     sessionStorage.setItem('feihuaStageViewed:' + kw, line);
-    setStage(loadProgress(corpus).current);
+    setStage(loadProgress(corpus, activeBand).current);
     navigate('/poem/' + poemId, { state: { from: '/play/stage/' + kw } });
   };
 
@@ -4527,11 +4825,24 @@ function StagePlay() {
         .join('')
     : '';
 
-  const charKeywords = corpus === 'primary' ? PRIMARY_KEYWORDS : KEYWORDS;
+  const charKeywords = getCharKeywords(poemCorpus, activeBand);
   const kwIndex = charKeywords.indexOf(kw);
-  const isLastKeyword = kwIndex < 0 || kwIndex + 1 >= charKeywords.length;
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
+
+  // 当前关键字不在所选 band 的可用表中 —— 视为关卡不存在
+  if (kwIndex < 0) {
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <TopNav variant="main" />
+        <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: 40 }}>
+          <div style={{ color: colors.textPrimary, fontSize: 16, marginBottom: 16 }}>关卡不存在</div>
+          <Link to="/play" aria-label="返回大厅" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>←</Link>
+        </div>
+      </div>
+    );
+  }
+  const isLastKeyword = kwIndex + 1 >= charKeywords.length;
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -4810,6 +5121,8 @@ ${dynastiesCode}
 ${yearRangeCode}
 ${feihuaKeywordsCode}
 ${feihuaPrimaryKeywordsCode}
+${gradesCode}
+${primaryGradeCode}
 ${feihuaEngineCode}
 ${feihuaProgressCode}
 ${feihuaCoupletsCode}
@@ -4817,6 +5130,7 @@ ${feihuaTitlesCode}
 ${feihuaSentenceProgressCode}
 ${feihuaTitleProgressCode}
 ${keywordSealCode}
+${gradeSelectorCode}
 ${paperScrollCode}
 ${nineGridCode}
 ${playHallCode}
