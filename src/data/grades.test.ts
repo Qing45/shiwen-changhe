@@ -25,9 +25,10 @@ describe('primary grade bands', () => {
     expect(primary.length).toBe(108);
     expect(Object.keys(PRIMARY_GRADE_BAND_BY_POEM_ID).length).toBe(108);
 
+    const mapping: Record<string, number> = PRIMARY_GRADE_BAND_BY_POEM_ID;
     for (const poem of primary) {
-      expect(poem.id in PRIMARY_GRADE_BAND_BY_POEM_ID, `${poem.title} missing from mapping`).toBe(true);
-      expect(poem.gradeBand, `${poem.title} gradeBand`).toBe(PRIMARY_GRADE_BAND_BY_POEM_ID[poem.id]);
+      expect(poem.id in mapping, `${poem.title} missing from mapping`).toBe(true);
+      expect(poem.gradeBand, `${poem.title} gradeBand`).toBe(mapping[poem.id]);
       expect(poem.gradeBand).toBeGreaterThanOrEqual(1);
       expect(poem.gradeBand).toBeLessThanOrEqual(MAX_BAND);
     }
