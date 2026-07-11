@@ -40,11 +40,25 @@ for (const name of fs.readdirSync(assetsSrc)) {
   console.log(`copied assets/${name}`);
 }
 
-// 4) SPA 路由 fallback：把 index.html 复制成 404.html。
-// GitHub Pages 不像 Vercel/Netlify 会自动 fallback，未知路径（如 /play/title/1）
-// 默认返回 404。把 index.html 放到 404.html，GitHub Pages 会把它当成 fallback 页
-// 返回 200 + index.html 内容，React Router 接过来接管路由。
-fs.copyFileSync(path.join(root, 'index.html'), path.join(root, '404.html'));
-console.log('copied 404.html');
+// 4) SPA 路由 fallback：写一个 404.html 让浏览器从 root（200）重新加载并还原路径。
+// GitHub Pages 对未知路径返回 HTTP 404 + 404.html body，但浏览器对 404 响应可能
+// 不渲染 body。这里让 404.html 用 JS 把原路径存到 sessionStorage 后跳转到 root，
+// index.html 的 main.tsx 在挂载 React 前从 sessionStorage 还原 URL，
+// BrowserRouter 就能读到正确路由。整条链路全部走 200。
+const fourOhFourHtml = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>诗文长河</title>
+<script>
+  sessionStorage.setItem('gh-redirect', location.pathname + location.search + location.hash);
+  location.replace('/shiwen-changhe/');
+</script>
+</head>
+<body></body>
+</html>
+`;
+fs.writeFileSync(path.join(root, '404.html'), fourOhFourHtml);
+console.log('wrote 404.html (SPA redirect)');
 
 console.log('\nDeployed Vite build to repo root. Commit and push to publish to GitHub Pages.');
