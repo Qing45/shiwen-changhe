@@ -2,7 +2,7 @@ import { getPoet } from '../data/load';
 import { getPoemsForPlay } from '../data/grades';
 import { extractVariants, getPoemMode, splitIntoLines } from '../utils/poemText';
 import { KEYWORDS, KEYWORD_GROUPS } from './keywords';
-import { PRIMARY_KEYWORDS, PRIMARY_KEYWORD_GROUPS } from './primaryKeywords';
+import { PRIMARY_KEYWORD_GROUPS } from './primaryKeywords';
 import { STAGE_GOAL } from './types';
 import type { PoemCorpus } from '../types';
 import type { Verse } from './types';

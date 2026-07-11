@@ -175,16 +175,29 @@ describe('primary grade band filtering for char mode', () => {
     }
   });
 
-  it('filters primary keywords by the current cumulative pool while preserving order', () => {
-    const low = getCharKeywords('primary', 1);
-    const full = getCharKeywords('primary', MAX_BAND);
-    expect(full).toEqual(PRIMARY_KEYWORDS);
-    expect(low.length).toBeLessThan(full.length);
-    expect(low.every((kw) => PRIMARY_KEYWORDS.includes(kw))).toBe(true);
-    expect(low).toEqual(PRIMARY_KEYWORDS.filter((kw) => low.includes(kw)));
+  it('returns empty primary keywords/groups at band 1 when no keyword reaches STAGE_GOAL', () => {
+    // band=1 has too few poems: no PRIMARY_KEYWORD reaches STAGE_GOAL (5) verses,
+    // so both helpers must safely return empty arrays (not throw, not return all).
+    const keywords = getCharKeywords('primary', 1);
+    const groups = getCharKeywordGroups('primary', 1);
+    expect(keywords).toEqual([]);
+    expect(groups).toEqual([]);
   });
 
-  it('returns grouped primary keywords with empty groups removed for a low band', () => {
+  it('filters primary keywords by a mid band pool while preserving order', () => {
+    // Use band=3 — the lowest band where some keywords actually reach STAGE_GOAL.
+    // Asserting > 0 prevents the filter test from passing vacuously when no
+    // keywords survive; asserting < full proves filtering actually happened.
+    const mid = getCharKeywords('primary', 3);
+    const full = getCharKeywords('primary', MAX_BAND);
+    expect(full).toEqual(PRIMARY_KEYWORDS);
+    expect(mid.length).toBeGreaterThan(0);
+    expect(mid.length).toBeLessThan(full.length);
+    expect(mid.every((kw) => PRIMARY_KEYWORDS.includes(kw))).toBe(true);
+    expect(mid).toEqual(PRIMARY_KEYWORDS.filter((kw) => mid.includes(kw)));
+  });
+
+  it('returns grouped primary keywords with empty groups removed for a mid band', () => {
     const groups = getCharKeywordGroups('primary', 3);
     expect(groups.length).toBeGreaterThan(0);
     expect(groups.every((g) => g.words.length > 0)).toBe(true);
