@@ -2,21 +2,29 @@
 // 与 sentenceProgress.ts 结构相同，storageKey 不同，三套进度互不影响（char/sentence/title）。
 //
 // 语料库分桶：
-//   - tang 用旧 key（'shiwen-feihua-title-progress'），保留既有用户进度（首版创建，仍写 tang legacy）。
-//   - primary / all 用 '${STORAGE_KEY}:${corpus}' 后缀 key。
+//   - tang 用旧 key（'shiwen-feihua-title-progress'），保留既有用户进度。
+//   - primary / both / all 用 '${STORAGE_KEY}:${corpus}' 后缀 key。
+//
+// 小学年级分桶：
+//   - corpus === 'primary' && band !== MAX_BAND 时，key 追加 ':g{band}'，按年级端点隔离。
+//   - tang / all / primary band === MAX_BAND（或未传 band）都走原 key。
 
 import { INITIAL_PROGRESS, STAGE_BLOOD, type FeihuaProgress } from './types';
 import type { Corpus } from '../state/corpus';
+import { MAX_BAND } from '../data/grades';
 
 const STORAGE_KEY = 'shiwen-feihua-title-progress';
 
-function storageKey(corpus: Corpus): string {
-  return corpus === 'tang' ? STORAGE_KEY : `${STORAGE_KEY}:${corpus}`;
+function storageKey(corpus: Corpus, band?: number): string {
+  if (corpus === 'tang') return STORAGE_KEY;
+  const base = `${STORAGE_KEY}:${corpus}`;
+  if (corpus !== 'primary' || band == null || band === MAX_BAND) return base;
+  return `${base}:g${band}`;
 }
 
-export function loadTitleProgress(corpus: Corpus = 'tang'): FeihuaProgress {
+export function loadTitleProgress(corpus: Corpus = 'tang', band?: number): FeihuaProgress {
   try {
-    const raw = window.localStorage.getItem(storageKey(corpus));
+    const raw = window.localStorage.getItem(storageKey(corpus, band));
     if (!raw) return { ...INITIAL_PROGRESS, cleared: [] };
     const parsed = JSON.parse(raw);
     return {
@@ -38,19 +46,19 @@ export function loadTitleProgress(corpus: Corpus = 'tang'): FeihuaProgress {
   }
 }
 
-export function saveTitleProgress(p: FeihuaProgress, corpus: Corpus = 'tang'): void {
+export function saveTitleProgress(p: FeihuaProgress, corpus: Corpus = 'tang', band?: number): void {
   try {
-    window.localStorage.setItem(storageKey(corpus), JSON.stringify(p));
+    window.localStorage.setItem(storageKey(corpus, band), JSON.stringify(p));
   } catch {
     // 静默失败
   }
 }
 
-export function markTitleCleared(keyword: string, corpus: Corpus = 'tang'): FeihuaProgress {
-  const p = loadTitleProgress(corpus);
+export function markTitleCleared(keyword: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+  const p = loadTitleProgress(corpus, band);
   if (p.cleared.includes(keyword)) {
     p.current = null;
-    saveTitleProgress(p, corpus);
+    saveTitleProgress(p, corpus, band);
     return p;
   }
   p.cleared.push(keyword);
@@ -59,36 +67,36 @@ export function markTitleCleared(keyword: string, corpus: Corpus = 'tang'): Feih
     p.unlockedIndex = levelNum;
   }
   p.current = null;
-  saveTitleProgress(p, corpus);
+  saveTitleProgress(p, corpus, band);
   return p;
 }
 
-export function beginTitleStage(keyword: string, corpus: Corpus = 'tang'): FeihuaProgress {
-  const p = loadTitleProgress(corpus);
+export function beginTitleStage(keyword: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+  const p = loadTitleProgress(corpus, band);
   p.current = { keyword, correct: [], blood: STAGE_BLOOD };
-  saveTitleProgress(p, corpus);
+  saveTitleProgress(p, corpus, band);
   return p;
 }
 
-export function commitTitleCorrect(keyword: string, line: string, corpus: Corpus = 'tang'): FeihuaProgress {
-  const p = loadTitleProgress(corpus);
+export function commitTitleCorrect(keyword: string, line: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+  const p = loadTitleProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   if (!p.current.correct.includes(line)) p.current.correct.push(line);
-  saveTitleProgress(p, corpus);
+  saveTitleProgress(p, corpus, band);
   return p;
 }
 
-export function commitTitleBlood(keyword: string, blood: number, corpus: Corpus = 'tang'): FeihuaProgress {
-  const p = loadTitleProgress(corpus);
+export function commitTitleBlood(keyword: string, blood: number, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+  const p = loadTitleProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   p.current.blood = blood;
-  saveTitleProgress(p, corpus);
+  saveTitleProgress(p, corpus, band);
   return p;
 }
 
-export function clearTitleCurrent(corpus: Corpus = 'tang'): FeihuaProgress {
-  const p = loadTitleProgress(corpus);
+export function clearTitleCurrent(corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+  const p = loadTitleProgress(corpus, band);
   p.current = null;
-  saveTitleProgress(p, corpus);
+  saveTitleProgress(p, corpus, band);
   return p;
 }

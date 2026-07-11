@@ -73,4 +73,26 @@ describe('progress persistence', () => {
     expect(loadProgress()).toEqual(INITIAL_PROGRESS);
     window.localStorage.getItem = orig;
   });
+
+  it('isolates primary char progress by non-default grade band', () => {
+    saveProgress({ ...INITIAL_PROGRESS, unlockedIndex: 2, cleared: ['春'] }, 'primary', 5);
+    expect(loadProgress('primary', 5).cleared).toEqual(['春']);
+    expect(loadProgress('primary', 6)).toEqual(INITIAL_PROGRESS);
+  });
+
+  it('uses the legacy primary key for MAX_BAND char progress', () => {
+    const legacy = { ...INITIAL_PROGRESS, unlockedIndex: 9, cleared: ['春', '月'] };
+    window.localStorage.setItem('shiwen-feihua-progress:primary', JSON.stringify(legacy));
+    expect(loadProgress('primary', 12)).toEqual(legacy);
+    expect(loadProgress('primary')).toEqual(legacy);
+  });
+
+  it('does not add grade suffixes for tang or all char progress', () => {
+    saveProgress({ ...INITIAL_PROGRESS, unlockedIndex: 3, cleared: ['春'] }, 'tang', 5);
+    saveProgress({ ...INITIAL_PROGRESS, unlockedIndex: 4, cleared: ['月'] }, 'all', 5);
+    expect(window.localStorage.getItem('shiwen-feihua-progress')).not.toBeNull();
+    expect(window.localStorage.getItem('shiwen-feihua-progress:all')).not.toBeNull();
+    expect(window.localStorage.getItem('shiwen-feihua-progress:tang:g5')).toBeNull();
+    expect(window.localStorage.getItem('shiwen-feihua-progress:all:g5')).toBeNull();
+  });
 });
