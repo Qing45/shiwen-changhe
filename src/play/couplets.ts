@@ -29,7 +29,9 @@ function stripPunct(s: string): string {
   return s.replace(PUNCT_RE, '');
 }
 
-// 由关卡序号（1..50）推导所属档位（固定 50 关布局）
+// 由关卡序号（1..50）推导所属档位。
+// 注意：这是 tang 历史布局的固定映射（entry 1-10 / mid 11-30 / advanced 31-50）。
+// primary 等动态关数请用 tierOfAvailableLevel，它基于当前 (corpus, band) 实际池子。
 export function tierOfLevel(level: number): LevelTier {
   if (level <= 10) return 'entry';
   if (level <= 30) return 'mid';

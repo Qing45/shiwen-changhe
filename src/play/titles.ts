@@ -5,7 +5,6 @@
 //   - tang/both：不传 band 时返回全量
 //   - primary：可按年级 band 过滤（band=1 时仅 1 年级，band=MAX_BAND 时全部 primary）
 
-import { getPoet, getPoemsByPoet } from '../data/load';
 import { extractVariants } from '../utils/poemText';
 import { getPoemsForPlay } from '../data/grades';
 import type { PoemCorpus } from '../types';
@@ -47,6 +46,8 @@ const TITLE_LEVEL_CAP: Record<PoemCorpus, number> = {
 export function countAvailableTitleLevels(corpus: PoemCorpus, band?: number): number {
   const pool = buildPool(corpus, band);
   if (pool.length < 4) return 0;
+  // 池子大小即关数：pickTitleQuestion 仅需 4 首诗（1 正确 + 3 干扰），
+  // 干扰项在同作者不足时会回退到任意不同诗名，因此池中 4 首诗就够出 1 题。
   return Math.min(TITLE_LEVEL_CAP[corpus], pool.length);
 }
 
