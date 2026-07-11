@@ -7,6 +7,7 @@ import { PoemPage } from './pages/PoemPage';
 import { PlayHall } from './pages/PlayHall';
 import { StagePlay } from './pages/StagePlay';
 import { SentencePlay } from './pages/SentencePlay';
+import { TitlePlay } from './pages/TitlePlay';
 import { UpdateToast } from './components/UpdateToast';
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/play" element={<PlayHall />} />
           <Route path="/play/stage/:kw" element={<StagePlay />} />
           <Route path="/play/sentence/:level" element={<SentencePlay />} />
+          <Route path="/play/title/:level" element={<TitlePlay />} />
         </Routes>
         <UpdateToast />
       </BrowserRouter>

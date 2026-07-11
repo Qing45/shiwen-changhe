@@ -10,11 +10,12 @@ import { KEYWORDS, KEYWORD_GROUPS } from '../play/keywords';
 import { PRIMARY_KEYWORDS, PRIMARY_KEYWORD_GROUPS } from '../play/primaryKeywords';
 import { loadProgress } from '../play/progress';
 import { loadSentenceProgress } from '../play/sentenceProgress';
+import { loadTitleProgress } from '../play/titleProgress';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { useCorpus } from '../state/corpus';
 import { colors, fontFamilies } from '../theme';
 
-type Mode = 'char' | 'sentence';
+type Mode = 'char' | 'sentence' | 'title';
 
 const GROUP_LABEL: Record<'entry' | 'mid' | 'advanced', string> = {
   entry: '入 门',
@@ -50,6 +51,7 @@ export function PlayHall() {
 
   const charProgress = loadProgress(corpus);
   const sentenceProgress = loadSentenceProgress(corpus);
+  const titleProgress = loadTitleProgress(corpus);
 
   // corpus-aware: primary has no advanced tier (only entry + mid, 20 chars / 30 sentence levels).
   // 总库 ('all') shares tang's structure — 50 字三档 — drawing from the full corpus.
@@ -64,6 +66,7 @@ export function PlayHall() {
        { tier: 'advanced' as const, words: KEYWORD_GROUPS.advanced }];
   const totalCharStages = charKeywords.length; // 20 or 50
   const totalSentenceStages = isPrimary ? 30 : 50;
+  const totalTitleStages = isPrimary ? 30 : 50;
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -85,7 +88,9 @@ export function PlayHall() {
             }}>
               {mode === 'char'
                 ? `单 字 · 拾 字 模 式 · 已通 ${charProgress.cleared.length} / ${totalCharStages} 关`
-                : `整 句 · 联 句 模 式 · 已通 ${sentenceProgress.cleared.length} / ${totalSentenceStages} 关`}
+                : mode === 'sentence'
+                ? `整 句 · 联 句 模 式 · 已通 ${sentenceProgress.cleared.length} / ${totalSentenceStages} 关`
+                : `整 篇 · 识 名 模 式 · 已通 ${titleProgress.cleared.length} / ${totalTitleStages} 关`}
             </div>
             <div style={{
               marginTop: 6, color: '#8b7355', fontFamily: fontFamilies.chinese,
@@ -103,12 +108,15 @@ export function PlayHall() {
           }}>
             <ModeTabButton label="单字 · 拾字" active={mode === 'char'} onClick={() => setMode('char')} compact={isMobile} />
             <ModeTabButton label="整句 · 联句" active={mode === 'sentence'} onClick={() => setMode('sentence')} compact={isMobile} />
+            <ModeTabButton label="整篇 · 识名" active={mode === 'title'} onClick={() => setMode('title')} compact={isMobile} />
           </div>
 
           {mode === 'char' ? (
             <CharModeBody progress={charProgress} compact={isMobile} groups={charGroups} charKeywords={charKeywords} />
-          ) : (
+          ) : mode === 'sentence' ? (
             <SentenceModeBody progress={sentenceProgress} compact={isMobile} isPrimary={isPrimary} />
+          ) : (
+            <TitleModeBody progress={titleProgress} compact={isMobile} isPrimary={isPrimary} />
           )}
         </div>
       </div>
@@ -205,6 +213,61 @@ function SentenceModeBody({ progress, compact, isPrimary }: {
                 const state = stateOf(lv);
                 return (
                   <Link key={lv} to={state === 'locked' ? '#' : `/play/sentence/${lv}`}
+                    style={{ textDecoration: 'none' }}>
+                    <KeywordSeal keyword={toChineseNum(lv)} state={state} compact={compact} />
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function TitleModeBody({ progress, compact, isPrimary }: {
+  progress: ReturnType<typeof loadTitleProgress>;
+  compact: boolean;
+  isPrimary: boolean;
+}) {
+  const stateOf = (level: number): 'cleared' | 'current' | 'locked' => {
+    const key = String(level);
+    if (progress.cleared.includes(key)) return 'cleared';
+    if (level - 1 === progress.unlockedIndex) return 'current';
+    return 'locked';
+  };
+
+  // corpus-aware: primary has no advanced tier
+  const levelGroups = isPrimary
+    ? LEVEL_GROUPS.filter(g => g.tier !== 'advanced')
+    : LEVEL_GROUPS;
+
+  return (
+    <>
+      {levelGroups.map(({ tier, range }) => {
+        const levels: number[] = [];
+        for (let i = range[0]; i <= range[1]; i++) levels.push(i);
+        return (
+          <div key={tier} style={{ marginBottom: compact ? 24 : 36 }}>
+            <div style={{
+              color: colors.textTertiary, fontFamily: fontFamilies.chinese,
+              fontSize: 14, letterSpacing: 6, marginBottom: 14, textAlign: 'center',
+            }}>
+              {GROUP_LABEL[tier]}
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: compact
+                ? 'repeat(auto-fill, minmax(52px, 1fr))'
+                : 'repeat(10, 64px)',
+              gap: compact ? 8 : 12, justifyContent: 'center',
+              maxWidth: compact ? 360 : undefined, margin: compact ? '0 auto' : undefined,
+            }}>
+              {levels.map((lv) => {
+                const state = stateOf(lv);
+                return (
+                  <Link key={lv} to={state === 'locked' ? '#' : `/play/title/${lv}`}
                     style={{ textDecoration: 'none' }}>
                     <KeywordSeal keyword={toChineseNum(lv)} state={state} compact={compact} />
                   </Link>

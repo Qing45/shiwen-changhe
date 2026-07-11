@@ -3387,6 +3387,60 @@ function SentenceModeBody(props) {
   );
 }
 
+function TitleModeBody(props) {
+  var progress = props.progress;
+  var compact = props.compact;
+  var isPrimary = props.isPrimary;
+  var stateOf = function(level) {
+    var key = String(level);
+    if (progress.cleared.includes(key)) return 'cleared';
+    if (level - 1 === progress.unlockedIndex) return 'current';
+    return 'locked';
+  };
+  // corpus-aware: primary has no advanced tier
+  var levelGroups = isPrimary
+    ? LEVEL_GROUPS.filter(function(g) { return g.tier !== 'advanced'; })
+    : LEVEL_GROUPS;
+  return (
+    <React.Fragment>
+      {levelGroups.map(function(group) {
+        var tier = group.tier;
+        var range = group.range;
+        var levels = [];
+        for (var i = range[0]; i <= range[1]; i++) levels.push(i);
+        return (
+          <div key={tier} style={{ marginBottom: compact ? 24 : 36 }}>
+            <div style={{
+              color: colors.textTertiary, fontFamily: fontFamilies.chinese,
+              fontSize: 14, letterSpacing: 6, marginBottom: 14, textAlign: 'center',
+            }}>
+              {GROUP_LABEL[tier]}
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: compact
+                ? 'repeat(auto-fill, minmax(52px, 1fr))'
+                : 'repeat(10, 64px)',
+              gap: compact ? 8 : 12, justifyContent: 'center',
+              maxWidth: compact ? 360 : undefined, margin: compact ? '0 auto' : undefined,
+            }}>
+              {levels.map(function(lv) {
+                var state = stateOf(lv);
+                return (
+                  <Link key={lv} to={state === 'locked' ? '#' : '/play/title/' + lv}
+                    style={{ textDecoration: 'none' }}>
+                    <KeywordSeal keyword={playHallToChineseNum(lv)} state={state} compact={compact} />
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </React.Fragment>
+  );
+}
+
 function PlayHall() {
   const [mode, setMode] = useState('char');
   const bp = useBreakpoint();
@@ -3395,6 +3449,7 @@ function PlayHall() {
 
   var charProgress = loadProgress(corpus);
   var sentenceProgress = loadSentenceProgress(corpus);
+  var titleProgress = loadTitleProgress(corpus);
 
   // corpus-aware: primary 三档（entry 10 + mid 12 + advanced 8 = 30 字 / 30 sentence levels）。
   // 总库 ('all') shares tang's structure — 50 字三档 — drawing from the full corpus.
@@ -3409,6 +3464,7 @@ function PlayHall() {
        { tier: 'advanced', words: KEYWORD_GROUPS.advanced }];
   var totalCharStages = charKeywords.length;
   var totalSentenceStages = isPrimary ? 30 : 50;
+  var totalTitleStages = isPrimary ? 30 : 50;
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -3429,7 +3485,9 @@ function PlayHall() {
             }}>
               {mode === 'char'
                 ? '单 字 · 拾 字 模 式 · 已通 ' + charProgress.cleared.length + ' / ' + totalCharStages + ' 关'
-                : '整 句 · 联 句 模 式 · 已通 ' + sentenceProgress.cleared.length + ' / ' + totalSentenceStages + ' 关'}
+                : mode === 'sentence'
+                ? '整 句 · 联 句 模 式 · 已通 ' + sentenceProgress.cleared.length + ' / ' + totalSentenceStages + ' 关'
+                : '整 篇 · 识 名 模 式 · 已通 ' + titleProgress.cleared.length + ' / ' + totalTitleStages + ' 关'}
             </div>
             <div style={{
               marginTop: 6, color: '#8b7355', fontFamily: fontFamilies.chinese,
@@ -3446,11 +3504,14 @@ function PlayHall() {
           }}>
             <PlayHallModeTab label="单字 · 拾字" active={mode === 'char'} onClick={function() { setMode('char'); }} compact={isMobile} />
             <PlayHallModeTab label="整句 · 联句" active={mode === 'sentence'} onClick={function() { setMode('sentence'); }} compact={isMobile} />
+            <PlayHallModeTab label="整篇 · 识名" active={mode === 'title'} onClick={function() { setMode('title'); }} compact={isMobile} />
           </div>
 
           {mode === 'char'
             ? <CharModeBody progress={charProgress} compact={isMobile} groups={charGroups} charKeywords={charKeywords} />
-            : <SentenceModeBody progress={sentenceProgress} compact={isMobile} isPrimary={isPrimary} />}
+            : mode === 'sentence'
+            ? <SentenceModeBody progress={sentenceProgress} compact={isMobile} isPrimary={isPrimary} />
+            : <TitleModeBody progress={titleProgress} compact={isMobile} isPrimary={isPrimary} />}
         </div>
       </div>
     </div>
@@ -4704,6 +4765,7 @@ function App() {
           <Route path="/play" element={<PlayHall />} />
           <Route path="/play/stage/:kw" element={<StagePlay />} />
           <Route path="/play/sentence/:level" element={<SentencePlay />} />
+          <Route path="/play/title/:level" element={<TitlePlay />} />
         </Routes>
         <UpdateToast />
       </HashRouter>
