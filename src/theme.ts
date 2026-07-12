@@ -52,6 +52,8 @@ export const fontFamilies = {
 
 // 纸面配色：StagePlay / SentencePlay / TitlePlay / PoemPage 局部使用同一组
 // 暖色调（古卷感）。原来每页各自定义一份，改动易漂移；这里集中导出。
+// 不加 as const：保持 string 类型，让 TitlePlay/SentencePlay 里 `let color = PAPER_TEXT`
+// 后能再赋 'f5ebd2' 等其它字面量。
 export const paperTheme = {
   bg: 'rgba(245, 235, 210, 0.85)',   // 纸面底色（仅 PoemPage 用）
   text: '#000000',                    // 正文 / 标题
@@ -59,4 +61,4 @@ export const paperTheme = {
   textDim: '#8b7355',                 // 段落标题 / 次要文字
   green: '#4a7c4a',                   // 正确反馈
   red: '#a8302a',                     // 错误反馈 / 通关印章
-} as const;
+};
