@@ -34,10 +34,16 @@ function PageFallback() {
   );
 }
 
+// vite 静态部署 base='/shiwen-changhe/' → basename='/shiwen-changhe'，正确；
+// vite capacitor base='./' → basename='.'，传给 react-router 会把 route 全部解析错。
+// 只有以 / 开头的 base 才作为路径前缀；其余（'./'、'.'、''）用 undefined 走默认 '/'。
+const baseUrl = import.meta.env.BASE_URL;
+const basename = baseUrl.startsWith('/') ? baseUrl.replace(/\/$/, '') : undefined;
+
 export default function App() {
   return (
     <CorpusProvider>
-      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+      <BrowserRouter basename={basename}>
         <Suspense fallback={<PageFallback />}>
           <Routes>
             <Route path="/" element={<RiverPage />} />

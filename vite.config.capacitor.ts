@@ -25,30 +25,8 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    // Capacitor 包装 WebView，原生层是 PWA host 缺失的场景；
-    // 保留 SW 能力便于后续接 capawesome live-updates
-    VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: 'auto',
-      strategies: 'generateSW',
-      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
-      manifest: {
-        name: '诗文长河',
-        short_name: '诗文长河',
-        description: '中国古典诗词可视化与飞花令游戏',
-        lang: 'zh-CN',
-        theme_color: '#1a2855',
-        background_color: '#050818',
-        display: 'standalone',
-        orientation: 'any',
-        scope: './',
-        start_url: './',
-        icons: [
-          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-    }),
+    // Capacitor 包装 WebView，资源从 APK 读 —— PWA 的 SW 离线缓存是冗余的，
+    // 且 WebView 里 register SW 可能干扰首屏路由解析。直接禁用。
+    VitePWA({ disable: true }),
   ],
 });
