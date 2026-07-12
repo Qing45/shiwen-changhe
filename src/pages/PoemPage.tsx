@@ -5,7 +5,7 @@ import { getPoem, getPoet, getNeighbors, getGlobalPoemNeighbors } from '../data/
 import { TopNav } from '../components/TopNav';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { useCorpus, useSetCorpus } from '../state/corpus';
-import { colors, fontFamilies, fontSizes } from '../theme';
+import { colors, fontFamilies, fontSizes, paperTheme } from '../theme';
 import { extractVariants, getPoemMode, splitIntoLines } from '../utils/poemText';
 
 const SIZE_MODE_KEY = 'shiwen-size-mode';
@@ -19,11 +19,7 @@ function readSizeMode(): SizeMode {
   return 'medium';
 }
 
-// 纸张面板配色 — 暖米黄底，纯黑字。仅用于诗文阅读区，TopNav 与月夜氛围带保持夜空主题。
-const PAPER_BG = 'rgba(245, 235, 210, 0.85)';
-const PAPER_TEXT = '#000000';        // 正文 / 标题 / 注释释义：纯黑
-const PAPER_TEXT_SOFT = '#000000';   // 元信息：纯黑（与正文统一）
-const PAPER_TEXT_DIM = '#8b7355';    // 段落标题：暖灰褐（保留层次）
+const { bg: PAPER_BG, text: PAPER_TEXT, textSoft: PAPER_TEXT_SOFT, textDim: PAPER_TEXT_DIM } = paperTheme;
 
 export function PoemPage() {
   const [sizeMode, setSizeMode] = useState<SizeMode>(readSizeMode);

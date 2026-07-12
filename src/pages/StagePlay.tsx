@@ -4,7 +4,7 @@ import { TopNav } from '../components/TopNav';
 import { PaperScroll } from '../components/PaperScroll';
 import { NineGrid } from '../components/NineGrid';
 import { useBreakpoint } from '../hooks/useBreakpoint';
-import { colors, fontFamilies } from '../theme';
+import { colors, fontFamilies, paperTheme } from '../theme';
 import { pickStageQuestion, buildNineGrid, getCharKeywords } from '../play/engine';
 import {
   beginStage,
@@ -20,10 +20,7 @@ import { loadGrade } from '../state/primaryGrade';
 
 type CharStatus = 'correct' | 'wrong' | null;
 
-// 纸面配色（与 PoemPage 同源，仅本文件局部声明）
-const PAPER_TEXT = '#000000';
-const PAPER_TEXT_DIM = '#8b7355';
-const PAPER_RED = '#a8302a';
+const { text: PAPER_TEXT, textDim: PAPER_TEXT_DIM, red: PAPER_RED } = paperTheme;
 
 const btnStyle: React.CSSProperties = {
   padding: '8px 20px',

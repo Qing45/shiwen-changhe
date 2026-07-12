@@ -61,6 +61,15 @@ function contentLengthToSize(len) {
 const fontFamilies = {
   chinese: "'KaiTi', 'STKaiti', 'STZhongsong', 'SimSun', serif",
 };
+
+const paperTheme = {
+  bg: 'rgba(245, 235, 210, 0.85)',
+  text: '#000000',
+  textSoft: '#000000',
+  textDim: '#8b7355',
+  green: '#4a7c4a',
+  red: '#a8302a',
+};
 `;
 
 // state/corpus.tsx (Context + Provider + hooks; localStorage persistence)
@@ -2010,11 +2019,8 @@ function PoetPage() {
 // no collision with other files since they're unique names)
 const poemPageCode = `
 // ===== pages/PoemPage.tsx =====
-// 纸张面板配色 — 暖米黄底，纯黑字。仅用于诗文阅读区
-var PAPER_BG = 'rgba(245, 235, 210, 0.85)';
-var PAPER_TEXT = '#000000';        // 正文 / 标题 / 注释释义：纯黑
-var PAPER_TEXT_SOFT = '#000000';   // 元信息：纯黑（与正文统一）
-var PAPER_TEXT_DIM = '#8b7355';    // 段落标题：暖灰褐（保留层次）
+// 纸张面板配色：paperTheme（与 src/theme.ts 同源）
+var { bg: PAPER_BG, text: PAPER_TEXT, textSoft: PAPER_TEXT_SOFT, textDim: PAPER_TEXT_DIM } = paperTheme;
 
 var SIZE_MODE_KEY = 'shiwen-size-mode';
 
@@ -3811,10 +3817,7 @@ function PlayHall() {
 const sentencePlayCode = `
 // ===== pages/SentencePlay.tsx =====
 var SENTENCE_TURN_SECONDS = 30;
-var SENTENCE_PAPER_TEXT = '#000000';
-var SENTENCE_PAPER_TEXT_DIM = '#8b7355';
-var SENTENCE_PAPER_GREEN = '#4a7c4a';
-var SENTENCE_PAPER_RED = '#a8302a';
+var { text: SENTENCE_PAPER_TEXT, textDim: SENTENCE_PAPER_TEXT_DIM, green: SENTENCE_PAPER_GREEN, red: SENTENCE_PAPER_RED } = paperTheme;
 
 var SENTENCE_TIER_LABEL = {
   entry: '入 门',
@@ -4222,10 +4225,7 @@ function SentencePlay() {
 // pages/TitlePlay.tsx
 const titlePlayCode = `
 // ===== pages/TitlePlay.tsx =====
-var TITLE_PAPER_TEXT = '#000000';
-var TITLE_PAPER_TEXT_DIM = '#8b7355';
-var TITLE_PAPER_GREEN = '#4a7c4a';
-var TITLE_PAPER_RED = '#a8302a';
+var { text: TITLE_PAPER_TEXT, textDim: TITLE_PAPER_TEXT_DIM, green: TITLE_PAPER_GREEN, red: TITLE_PAPER_RED } = paperTheme;
 
 var TITLE_TIER_LABEL = {
   entry: '入 门',
@@ -4580,9 +4580,7 @@ function TitlePlay() {
 // pages/StagePlay.tsx
 const stagePlayCode = `
 // ===== pages/StagePlay.tsx =====
-var FEIHUA_PAPER_TEXT = '#000000';
-var FEIHUA_PAPER_TEXT_DIM = '#8b7355';
-var FEIHUA_PAPER_RED = '#a8302a';
+var { text: FEIHUA_PAPER_TEXT, textDim: FEIHUA_PAPER_TEXT_DIM, red: FEIHUA_PAPER_RED } = paperTheme;
 
 var feihuaBtnStyle = {
   padding: '8px 20px',

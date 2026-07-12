@@ -49,3 +49,14 @@ export function contentLengthToSize(len: number): number {
 export const fontFamilies = {
   chinese: "'KaiTi', 'STKaiti', 'STZhongsong', 'SimSun', serif",
 } as const;
+
+// 纸面配色：StagePlay / SentencePlay / TitlePlay / PoemPage 局部使用同一组
+// 暖色调（古卷感）。原来每页各自定义一份，改动易漂移；这里集中导出。
+export const paperTheme = {
+  bg: 'rgba(245, 235, 210, 0.85)',   // 纸面底色（仅 PoemPage 用）
+  text: '#000000',                    // 正文 / 标题
+  textSoft: '#000000',                // 元信息（与正文统一；PoemPage 区分声明）
+  textDim: '#8b7355',                 // 段落标题 / 次要文字
+  green: '#4a7c4a',                   // 正确反馈
+  red: '#a8302a',                     // 错误反馈 / 通关印章
+} as const;

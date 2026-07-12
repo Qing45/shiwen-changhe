@@ -16,16 +16,13 @@ import {
   clearSentenceCurrent,
 } from '../play/sentenceProgress';
 import { STAGE_GOAL, STAGE_BLOOD } from '../play/types';
-import { colors, fontFamilies } from '../theme';
+import { colors, fontFamilies, paperTheme } from '../theme';
 import { useCorpus } from '../state/corpus';
 import { loadGrade } from '../state/primaryGrade';
 
 const TURN_SECONDS = 30;
 
-const PAPER_TEXT = '#000000';
-const PAPER_TEXT_DIM = '#8b7355';
-const PAPER_GREEN = '#4a7c4a';
-const PAPER_RED = '#a8302a';
+const { text: PAPER_TEXT, textDim: PAPER_TEXT_DIM, green: PAPER_GREEN, red: PAPER_RED } = paperTheme;
 
 const TIER_LABEL: Record<'entry' | 'mid' | 'advanced', string> = {
   entry: '入 门',
