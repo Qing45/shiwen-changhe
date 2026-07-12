@@ -1633,8 +1633,11 @@ function PoemsRiverPage() {
   const visiblePoetIds = new Set(poems.map(function (p) { return p.poetId; }));
   const visiblePoets = poets.filter(function (p) { return visiblePoetIds.has(p.id); });
   const range = computeCorpusYearRange(visiblePoets, corpus);
-  const isAll = corpus === 'all';
-  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, isAll ? 0.4 : undefined);
+  // 唐诗 309 首在 year=700 单列 115 首这种密集场景下，默认 minDx=1.5% 仍会
+  // 留下 50+ 残留碰撞对。唐诗与总库都收紧到 0.4%，画布同比放大到 2250%
+  // 保持与小学库视图相同的标签像素间距。
+  const isDenseCorpus = corpus === 'all' || corpus === 'tang';
+  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, isDenseCorpus ? 0.4 : undefined);
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState(null);
@@ -1657,7 +1660,7 @@ function PoemsRiverPage() {
         <div
           key={corpus}
           style={{
-            position: 'relative', width: isAll ? '2250%' : '600%', height: '100%',
+            position: 'relative', width: isDenseCorpus ? '2250%' : '600%', height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}

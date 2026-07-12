@@ -169,4 +169,29 @@ describe('layoutAllPoems', () => {
       expect(p.x).toBeLessThanOrEqual(100);
     });
   });
+
+  it('keeps a 115-poem Tang cluster collision-free under tight minDx (0.4%)', () => {
+    // Regression for 唐诗 300 首长河星星/文字碰撞：year=700 在真实数据有 115 首诗。
+    // 默认 minDx=1.5% 时最佳候选采样兜底仍有 50+ 残留碰撞对；
+    // minDx=0.4% + 75% xRange 上限应能归零（115 项目分布在 150%×80%≈12000 平方%）
+    const clusterPoets: Poet[] = [
+      { id: 'p', name: 'P', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const },
+    ];
+    const clusterPoems: Poem[] = Array.from({ length: 115 }, (_, i) => ({
+      id: String(i), title: String(i), poetId: 'p', content: '', annotations: [], familiarity: 1, creationYear: 700, corpus: 'tang' as const,
+    }));
+    const result = layoutAllPoems(clusterPoems, clusterPoets, range, 0.4);
+    expect(result.length).toBe(115);
+    const minDx = 0.4;
+    const minDy = 10;
+    let collisions = 0;
+    for (let i = 0; i < result.length; i++) {
+      for (let j = i + 1; j < result.length; j++) {
+        if (Math.abs(result[i].x - result[j].x) < minDx && Math.abs(result[i].y - result[j].y) < minDy) {
+          collisions++;
+        }
+      }
+    }
+    expect(collisions).toBe(0);
+  });
 });

@@ -22,10 +22,11 @@ export function PoemsRiverPage() {
   const visiblePoetIds = new Set(poems.map((p) => p.poetId));
   const visiblePoets = poets.filter((p) => visiblePoetIds.has(p.id));
   const range = computeCorpusYearRange(visiblePoets, corpus);
-  // 总库诗文 403 首密集，收紧碰撞阈值到 0.4% 保证不重合；画布同比放大到
-  // 2250%（=600%×1.5/0.4）以保持与唐诗视图相同的标签像素间距。
-  const isAll = corpus === 'all';
-  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, isAll ? 0.4 : undefined);
+  // 唐诗 309 首在 year=700 单列 115 首这种密集场景下，默认 minDx=1.5% 仍会
+  // 留下 50+ 残留碰撞对（best-candidate 兜底无法塞下）。唐诗与总库都收紧到
+  // 0.4%，画布同比放大到 2250% 保持与小学库视图相同的标签像素间距。
+  const isDenseCorpus = corpus === 'all' || corpus === 'tang';
+  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, isDenseCorpus ? 0.4 : undefined);
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -48,8 +49,8 @@ export function PoemsRiverPage() {
         <div
           key={corpus}
           style={{
-            // 总库画布放大到 2250%（配合 minDx=0.4% 保持标签像素间距，见上）
-            position: 'relative', width: isAll ? '2250%' : '600%', height: '100%',
+            // 总库/唐诗画布放大到 2250%（配合 minDx=0.4% 保持标签像素间距，见上）
+            position: 'relative', width: isDenseCorpus ? '2250%' : '600%', height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}
