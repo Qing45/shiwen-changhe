@@ -22,10 +22,15 @@ export function PoemsRiverPage() {
   const visiblePoetIds = new Set(poems.map((p) => p.poetId));
   const visiblePoets = poets.filter((p) => visiblePoetIds.has(p.id));
   const range = computeCorpusYearRange(visiblePoets, corpus);
-  // 总库诗文 403 首密集，收紧碰撞阈值到 0.4% 保证不重合；画布同比放大到
-  // 2250%（=600%×1.5/0.4）以保持与唐诗视图相同的标签像素间距。
+  // 唐诗 309 首在 year=700 单列 115 首这种密集场景下，最小 X 间距 0.4% 算
+  // 法上无碰撞，但在 2250% 画布下移动端像素间距仅 ~31px（亮斑+文字会视觉
+  // 重叠）。唐诗画布放大到 4500%（=2250%×2），最小像素间距翻倍到 ~63px
+  // 移动端 / ~180px 桌面端，彻底消除视觉粘连。minDx 保持 0.4%（碰撞判
+  // 定阈值不变，仅画布宽度变化）。总库 403 首分布更均匀仍用 2250%。
+  const isTang = corpus === 'tang';
   const isAll = corpus === 'all';
-  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, isAll ? 0.4 : undefined);
+  const layoutMinDx = isTang || isAll ? 0.4 : undefined;
+  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, layoutMinDx);
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -48,8 +53,10 @@ export function PoemsRiverPage() {
         <div
           key={corpus}
           style={{
-            // 总库画布放大到 2250%（配合 minDx=0.4% 保持标签像素间距，见上）
-            position: 'relative', width: isAll ? '2250%' : '600%', height: '100%',
+            // 唐诗画布 4500%（=2250%×2）让最小像素间距翻倍；总库 2250%。
+            // 移动端尤其需要：350px 视口下 0.4% minDx 在 2250% 仅 ~31px，
+            // 4500% 给到 ~63px，亮斑+标签不再视觉粘连。
+            position: 'relative', width: isTang ? '4500%' : isAll ? '2250%' : '600%', height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}

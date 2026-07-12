@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { pickTitleQuestion, _setRng } from './titles';
+import { pickTitleQuestion, countAvailableTitleLevels, _setRng } from './titles';
 import { getPoem } from '../data/load';
+import { MAX_BAND } from '../data/grades';
 
 describe('pickTitleQuestion', () => {
   beforeEach(() => {
@@ -82,5 +83,20 @@ describe('pickTitleQuestion', () => {
     const q = pickTitleQuestion(1, new Set(), 'primary');
     expect(q).not.toBeNull();
     expect(q!.options.length).toBe(4);
+  });
+});
+
+describe('primary grade band filtering for title mode', () => {
+  it('counts title levels from the current cumulative primary pool', () => {
+    expect(countAvailableTitleLevels('primary', 1)).toBe(6);
+    expect(countAvailableTitleLevels('primary', MAX_BAND)).toBe(30);
+    expect(countAvailableTitleLevels('tang')).toBe(50);
+  });
+
+  it('pickTitleQuestion uses only poems from the selected primary band', () => {
+    _setRng(() => 0.5);
+    const q = pickTitleQuestion(1, new Set(), 'primary', 1);
+    expect(q).not.toBeNull();
+    expect(['eeb3869b6242', 'b6bd9a33dfd7', 'ea761be0f016', '04c68a9b161e', '62087a6f', '0fd5b47e']).toContain(q!.poemId);
   });
 });

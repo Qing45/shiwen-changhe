@@ -63,4 +63,17 @@ describe('title progress persistence', () => {
     expect(loadTitleProgress('tang')).toEqual(INITIAL_PROGRESS);
     window.localStorage.getItem = orig;
   });
+
+  it('isolates primary title progress by non-default grade band', () => {
+    saveTitleProgress({ ...INITIAL_PROGRESS, unlockedIndex: 2, cleared: ['1'] }, 'primary', 5);
+    expect(loadTitleProgress('primary', 5).cleared).toEqual(['1']);
+    expect(loadTitleProgress('primary', 6)).toEqual(INITIAL_PROGRESS);
+  });
+
+  it('uses the legacy primary key for MAX_BAND title progress', () => {
+    const legacy = { ...INITIAL_PROGRESS, unlockedIndex: 8, cleared: ['1', '2'] };
+    window.localStorage.setItem('shiwen-feihua-title-progress:primary', JSON.stringify(legacy));
+    expect(loadTitleProgress('primary', 12)).toEqual(legacy);
+    expect(loadTitleProgress('primary')).toEqual(legacy);
+  });
 });

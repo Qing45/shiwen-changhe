@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { PRIMARY_KEYWORDS, PRIMARY_KEYWORD_GROUPS } from '../src/play/primaryKeywords';
 import { buildKeywordIndex, getVersesFor } from '../src/play/engine';
+import { MAX_BAND } from '../src/data/grades';
 
 describe('PRIMARY_KEYWORDS', () => {
   it('has 30 keywords across three tiers', () => {
@@ -14,7 +15,7 @@ describe('PRIMARY_KEYWORDS', () => {
     // Force build so any error surfaces here, not lazily later.
     buildKeywordIndex('primary');
     for (const kw of PRIMARY_KEYWORDS) {
-      const verses = getVersesFor(kw, 'primary');
+      const verses = getVersesFor(kw, 'primary', MAX_BAND);
       expect(verses.length, `keyword ${kw} has only ${verses.length} primary verses`).toBeGreaterThanOrEqual(5);
     }
   });

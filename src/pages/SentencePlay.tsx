@@ -6,7 +6,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { TopNav } from '../components/TopNav';
 import { PaperScroll } from '../components/PaperScroll';
 import { useBreakpoint } from '../hooks/useBreakpoint';
-import { pickLevelQuestion, tierOfLevel, type SentenceQuestion } from '../play/couplets';
+import { getTotalAvailableLevels, pickLevelQuestion, tierOfAvailableLevel, type SentenceQuestion } from '../play/couplets';
 import {
   beginSentenceStage,
   loadSentenceProgress,
@@ -18,8 +18,8 @@ import {
 import { STAGE_GOAL, STAGE_BLOOD } from '../play/types';
 import { colors, fontFamilies } from '../theme';
 import { useCorpus } from '../state/corpus';
+import { loadGrade } from '../state/primaryGrade';
 
-const TOTAL_LEVELS = 50;
 const TURN_SECONDS = 30;
 
 const PAPER_TEXT = '#000000';
@@ -62,23 +62,27 @@ export function SentencePlay() {
   const { level: levelParam } = useParams<{ level: string }>();
   const navigate = useNavigate();
   const level = parseInt(levelParam ?? '', 10);
-  const validLevel = Number.isFinite(level) && level >= 1 && level <= TOTAL_LEVELS;
-
-  const tier = validLevel ? tierOfLevel(level) : 'entry';
-
-  const levelKey = String(level);   // 进度存储用字符串 key
 
   const corpus = useCorpus();
   // 引擎/题库（couplets.ts）接受 PoemCorpus（'tang' | 'primary' | 'both'），
   // 而 state 层 Corpus 含 'all'。此处做一次边界映射：'all' → 'both'。
   // 进度函数（loadSentenceProgress 等）接受 Corpus，仍传 raw corpus —— 进度 key 自然后缀 :all。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
+  // 仅 primary 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
+  const activeBand = corpus === 'primary' ? loadGrade() : undefined;
+
+  // 关数按 (corpus, band) 动态计算：tang 50、primary band=1 至多 30（入门 10+进阶 20），依语料库变动。
+  const totalLevels = getTotalAvailableLevels(poemCorpus, activeBand);
+  const validLevel = Number.isFinite(level) && level >= 1 && level <= totalLevels;
+  const tier = validLevel ? tierOfAvailableLevel(level, poemCorpus, activeBand) : null;
+
+  const levelKey = String(level);   // 进度存储用字符串 key
 
   const [stage, setStage] = useState(() => {
     if (!validLevel) return null;
-    const progress = loadSentenceProgress(corpus);
+    const progress = loadSentenceProgress(corpus, activeBand);
     if (progress.current && progress.current.keyword === levelKey) return progress.current;
-    return beginSentenceStage(levelKey, corpus).current;
+    return beginSentenceStage(levelKey, corpus, activeBand).current;
   });
 
   // 从原文页返回时取出"已查看"的上句，加进排除集，避免回到题面后又看到同一题
@@ -97,8 +101,8 @@ export function SentencePlay() {
   );
 
   const [question, setQuestion] = useState<SentenceQuestion | null>(() => {
-    if (!validLevel) return null;
-    return pickLevelQuestion(tier, usedUpperRef.current, poemCorpus);
+    if (!tier) return null;
+    return pickLevelQuestion(tier, usedUpperRef.current, poemCorpus, activeBand);
   });
 
   const [picked, setPicked] = useState<number | null>(null);
@@ -118,16 +122,16 @@ export function SentencePlay() {
   // 这里手动按 levelKey 重置全部 state。
   // guard 避免挂载时重复 pickLevelQuestion 引入随机闪烁。
   useEffect(() => {
-    if (!validLevel) return;
+    if (!validLevel || !tier) return;
     if (stageRef.current?.keyword === levelKey) return;
-    const progress = loadSentenceProgress(corpus);
+    const progress = loadSentenceProgress(corpus, activeBand);
     const fresh =
       progress.current && progress.current.keyword === levelKey
         ? progress.current
-        : beginSentenceStage(levelKey, corpus).current;
+        : beginSentenceStage(levelKey, corpus, activeBand).current;
     setStage(fresh);
     usedUpperRef.current = new Set(fresh?.correct ?? []);
-    setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
+    setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus, activeBand));
     setPicked(null);
     setGrading(false);
     setSecondsLeft(TURN_SECONDS);
@@ -147,23 +151,23 @@ export function SentencePlay() {
   }, [navigate]);
 
   const handleCorrect = () => {
-    if (!validLevel || !questionRef.current || !stageRef.current) return;
+    if (!validLevel || !tier || !questionRef.current || !stageRef.current) return;
     const cur = stageRef.current;
     const line = questionRef.current.answer.line;
     const newCorrect = [...cur.correct, line];
 
-    commitSentenceCorrect(levelKey, line, corpus);
-    setStage(loadSentenceProgress(corpus).current);
+    commitSentenceCorrect(levelKey, line, corpus, activeBand);
+    setStage(loadSentenceProgress(corpus, activeBand).current);
     usedUpperRef.current = new Set(newCorrect);
 
     if (newCorrect.length >= STAGE_GOAL) {
-      markSentenceCleared(levelKey, corpus);
+      markSentenceCleared(levelKey, corpus, activeBand);
       setResult({ kind: 'cleared', correct: newCorrect });
       return;
     }
     setGrading(true);
     setTimeout(() => {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus, activeBand));
       setPicked(null);
       setSecondsLeft(TURN_SECONDS);
       setGrading(false);
@@ -171,21 +175,21 @@ export function SentencePlay() {
   };
 
   const handleWrong = () => {
-    if (!validLevel || !stageRef.current) return;
+    if (!validLevel || !tier || !stageRef.current) return;
     const cur = stageRef.current;
     const newBlood = cur.blood - 1;
 
-    commitSentenceBlood(levelKey, newBlood, corpus);
-    setStage(loadSentenceProgress(corpus).current);
+    commitSentenceBlood(levelKey, newBlood, corpus, activeBand);
+    setStage(loadSentenceProgress(corpus, activeBand).current);
 
     if (newBlood <= 0) {
-      clearSentenceCurrent(corpus);
+      clearSentenceCurrent(corpus, activeBand);
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
     setGrading(true);
     setTimeout(() => {
-      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus));
+      setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus, activeBand));
       setPicked(null);
       setSecondsLeft(TURN_SECONDS);
       setGrading(false);
@@ -195,7 +199,7 @@ export function SentencePlay() {
   // 查看原文：扣 1 血后跳转原文页；返回时把上句加进排除集换新题。
   // blood <= 1 时禁用 —— 不允许玩家为了看原文而自杀。
   const handleViewOriginal = () => {
-    if (!validLevel || !questionRef.current || !stageRef.current) return;
+    if (!validLevel || !tier || !questionRef.current || !stageRef.current) return;
     if (grading || result) return;
     if (stageRef.current.blood <= 1) return;
 
@@ -204,9 +208,9 @@ export function SentencePlay() {
     const upperLine = questionRef.current.upper.line;
     const poemId = questionRef.current.upper.poemId;
 
-    commitSentenceBlood(levelKey, newBlood, corpus);
+    commitSentenceBlood(levelKey, newBlood, corpus, activeBand);
     sessionStorage.setItem(`feihuaSentenceViewed:${levelKey}`, upperLine);
-    setStage(loadSentenceProgress(corpus).current);
+    setStage(loadSentenceProgress(corpus, activeBand).current);
     navigate(`/poem/${poemId}`, { state: { from: `/play/sentence/${level}` } });
   };
 
@@ -233,10 +237,15 @@ export function SentencePlay() {
   };
 
   if (!validLevel || !stage) {
-    return <div style={{ padding: 40, color: colors.textPrimary }}>关卡序号无效</div>;
+    return (
+      <div style={{ padding: 40, color: colors.textPrimary }}>
+        <div style={{ marginBottom: 16 }}>关卡不存在</div>
+        <Link to="/play" aria-label="返回大厅" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>←</Link>
+      </div>
+    );
   }
 
-  const isLastLevel = level >= TOTAL_LEVELS;
+  const isLastLevel = level >= totalLevels;
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
 
@@ -307,7 +316,7 @@ export function SentencePlay() {
             <div style={{
               color: PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
               fontSize: 14, letterSpacing: 6,
-            }}>{TIER_LABEL[tier]} · 整 句 联 句</div>
+            }}>{TIER_LABEL[tier!]} · 整 句 联 句</div>
           </div>
 
           {/* 上句题面 */}
@@ -426,7 +435,7 @@ export function SentencePlay() {
                 }}>
                   <button
                     onClick={() => {
-                      if (result.kind === 'failed') clearSentenceCurrent(corpus);
+                      if (result.kind === 'failed') clearSentenceCurrent(corpus, activeBand);
                       navigate('/play');
                     }}
                     style={btnStyle}

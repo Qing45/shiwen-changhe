@@ -1,18 +1,22 @@
-// 飞花令大厅：[单字] [整句] 两种玩法 tab。
-// 单字：50 个关键字印章，三档递进解锁。
-// 整句：50 关按句长分三档（入门 5 言 / 进阶 7 言 / 高阶混合），入口显示「第 N 关」。
+// 飞花令大厅：[单字] [整句] [整篇] 三种玩法 tab。
+// 单字：关键字印章按三档递进解锁；总数随诗库自适应（小学库按年级端点累加）。
+// 整句 / 整篇：按句长 / 池大小分档，关数随诗库自适应。
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TopNav } from '../components/TopNav';
+import { GradeSelector } from '../components/GradeSelector';
 import { KeywordSeal } from '../components/KeywordSeal';
-import { KEYWORDS, KEYWORD_GROUPS } from '../play/keywords';
-import { PRIMARY_KEYWORDS, PRIMARY_KEYWORD_GROUPS } from '../play/primaryKeywords';
+import { getCharKeywordGroups, getCharKeywords } from '../play/engine';
+import { getAvailableLevelGroups, getTotalAvailableLevels } from '../play/couplets';
+import { countAvailableTitleLevels } from '../play/titles';
 import { loadProgress } from '../play/progress';
 import { loadSentenceProgress } from '../play/sentenceProgress';
 import { loadTitleProgress } from '../play/titleProgress';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { useCorpus } from '../state/corpus';
+import { loadGrade, saveGrade } from '../state/primaryGrade';
+import { getAvailableBands } from '../data/grades';
 import { colors, fontFamilies } from '../theme';
 
 type Mode = 'char' | 'sentence' | 'title';
@@ -22,12 +26,6 @@ const GROUP_LABEL: Record<'entry' | 'mid' | 'advanced', string> = {
   mid: '进 阶',
   advanced: '高 阶',
 };
-
-const LEVEL_GROUPS: { tier: 'entry' | 'mid' | 'advanced'; range: [number, number] }[] = [
-  { tier: 'entry', range: [1, 10] },
-  { tier: 'mid', range: [11, 30] },
-  { tier: 'advanced', range: [31, 50] },
-];
 
 const CN_DIGITS = ['零','一','二','三','四','五','六','七','八','九','十'];
 
@@ -43,30 +41,46 @@ function toChineseNum(n: number): string {
   return String(n);
 }
 
+function EmptyState({ compact }: { compact: boolean }) {
+  return (
+    <div style={{
+      textAlign: 'center',
+      color: colors.textSecondary,
+      fontFamily: fontFamilies.chinese,
+      padding: compact ? '24px 0' : '36px 0',
+    }}>
+      本年级暂无关卡，请选更高年级
+    </div>
+  );
+}
+
 export function PlayHall() {
   const [mode, setMode] = useState<Mode>('char');
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
   const corpus = useCorpus();
 
-  const charProgress = loadProgress(corpus);
-  const sentenceProgress = loadSentenceProgress(corpus);
-  const titleProgress = loadTitleProgress(corpus);
-
-  // corpus-aware: primary has no advanced tier (only entry + mid, 20 chars / 30 sentence levels).
-  // 总库 ('all') shares tang's structure — 50 字三档 — drawing from the full corpus.
   const isPrimary = corpus === 'primary';
-  const charKeywords = isPrimary ? PRIMARY_KEYWORDS : KEYWORDS;
-  const charGroups = isPrimary
-    ? [{ tier: 'entry' as const, words: PRIMARY_KEYWORD_GROUPS.entry },
-       { tier: 'mid' as const, words: PRIMARY_KEYWORD_GROUPS.mid },
-       { tier: 'advanced' as const, words: PRIMARY_KEYWORD_GROUPS.advanced }]
-    : [{ tier: 'entry' as const, words: KEYWORD_GROUPS.entry },
-       { tier: 'mid' as const, words: KEYWORD_GROUPS.mid },
-       { tier: 'advanced' as const, words: KEYWORD_GROUPS.advanced }];
-  const totalCharStages = charKeywords.length; // 20 or 50
-  const totalSentenceStages = isPrimary ? 30 : 50;
-  const totalTitleStages = isPrimary ? 30 : 50;
+  const [band, setBand] = useState(() => loadGrade());
+  const activeBand = isPrimary ? band : undefined;
+  // 总库（'all'）映射到底层 'both'，与引擎/数据层语料枚举一致。
+  const poemCorpus = corpus === 'all' ? 'both' : corpus;
+
+  const onBandChange = (next: number) => {
+    setBand(next);
+    saveGrade(next);
+  };
+
+  const charProgress = loadProgress(corpus, activeBand);
+  const sentenceProgress = loadSentenceProgress(corpus, activeBand);
+  const titleProgress = loadTitleProgress(corpus, activeBand);
+
+  const charGroups = getCharKeywordGroups(poemCorpus, activeBand);
+  const charKeywords = getCharKeywords(poemCorpus, activeBand);
+  const totalCharStages = charKeywords.length;
+  const sentenceGroups = getAvailableLevelGroups(poemCorpus, activeBand);
+  const totalSentenceStages = getTotalAvailableLevels(poemCorpus, activeBand);
+  const totalTitleStages = countAvailableTitleLevels(poemCorpus, activeBand);
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -100,6 +114,14 @@ export function PlayHall() {
             </div>
           </div>
 
+          {isPrimary && (
+            <GradeSelector
+              bands={getAvailableBands()}
+              value={band}
+              onChange={onBandChange}
+            />
+          )}
+
           {/* 模式切换 */}
           <div style={{
             display: 'flex', justifyContent: 'center', gap: isMobile ? 12 : 24,
@@ -112,16 +134,29 @@ export function PlayHall() {
           </div>
 
           {mode === 'char' ? (
+            totalCharStages === 0 ? <EmptyState compact={isMobile} /> :
             <CharModeBody progress={charProgress} compact={isMobile} groups={charGroups} charKeywords={charKeywords} />
           ) : mode === 'sentence' ? (
-            <SentenceModeBody progress={sentenceProgress} compact={isMobile} isPrimary={isPrimary} />
+            totalSentenceStages === 0 ? <EmptyState compact={isMobile} /> :
+            <SentenceModeBody progress={sentenceProgress} compact={isMobile} sentenceGroups={sentenceGroups} />
           ) : (
-            <TitleModeBody progress={titleProgress} compact={isMobile} isPrimary={isPrimary} />
+            totalTitleStages === 0 ? <EmptyState compact={isMobile} /> :
+            <TitleModeBody progress={titleProgress} compact={isMobile} titleGroups={deriveTitleGroups(totalTitleStages, isPrimary)} />
           )}
         </div>
       </div>
     </div>
   );
+}
+
+// 根据 totalTitleStages 派生 entry/mid/advanced 三档分组。
+// primary 库没有 advanced 档（与历史布局对齐）。
+function deriveTitleGroups(totalTitleStages: number, isPrimary: boolean): { tier: 'entry' | 'mid' | 'advanced'; start: number; end: number; count: number }[] {
+  return [
+    { tier: 'entry' as const, start: 1, end: Math.min(10, totalTitleStages), count: Math.min(10, totalTitleStages) },
+    { tier: 'mid' as const, start: 11, end: Math.min(30, totalTitleStages), count: Math.max(0, Math.min(20, totalTitleStages - 10)) },
+    { tier: 'advanced' as const, start: 31, end: totalTitleStages, count: Math.max(0, totalTitleStages - 30) },
+  ].filter((g) => g.count > 0 && (!isPrimary || g.tier !== 'advanced'));
 }
 
 function CharModeBody({ progress, compact, groups, charKeywords }: {
@@ -171,10 +206,10 @@ function CharModeBody({ progress, compact, groups, charKeywords }: {
   );
 }
 
-function SentenceModeBody({ progress, compact, isPrimary }: {
+function SentenceModeBody({ progress, compact, sentenceGroups }: {
   progress: ReturnType<typeof loadSentenceProgress>;
   compact: boolean;
-  isPrimary: boolean;
+  sentenceGroups: { tier: 'entry' | 'mid' | 'advanced'; start: number; end: number; count: number }[];
 }) {
   const stateOf = (level: number): 'cleared' | 'current' | 'locked' => {
     const key = String(level);
@@ -183,16 +218,10 @@ function SentenceModeBody({ progress, compact, isPrimary }: {
     return 'locked';
   };
 
-  // corpus-aware: primary has no advanced tier
-  const levelGroups = isPrimary
-    ? LEVEL_GROUPS.filter(g => g.tier !== 'advanced')
-    : LEVEL_GROUPS;
-
   return (
     <>
-      {levelGroups.map(({ tier, range }) => {
-        const levels: number[] = [];
-        for (let i = range[0]; i <= range[1]; i++) levels.push(i);
+      {sentenceGroups.map(({ tier, start, count }) => {
+        const levels = Array.from({ length: count }, (_, i) => start + i);
         return (
           <div key={tier} style={{ marginBottom: compact ? 24 : 36 }}>
             <div style={{
@@ -226,10 +255,10 @@ function SentenceModeBody({ progress, compact, isPrimary }: {
   );
 }
 
-function TitleModeBody({ progress, compact, isPrimary }: {
+function TitleModeBody({ progress, compact, titleGroups }: {
   progress: ReturnType<typeof loadTitleProgress>;
   compact: boolean;
-  isPrimary: boolean;
+  titleGroups: { tier: 'entry' | 'mid' | 'advanced'; start: number; end: number; count: number }[];
 }) {
   const stateOf = (level: number): 'cleared' | 'current' | 'locked' => {
     const key = String(level);
@@ -238,16 +267,10 @@ function TitleModeBody({ progress, compact, isPrimary }: {
     return 'locked';
   };
 
-  // corpus-aware: primary has no advanced tier
-  const levelGroups = isPrimary
-    ? LEVEL_GROUPS.filter(g => g.tier !== 'advanced')
-    : LEVEL_GROUPS;
-
   return (
     <>
-      {levelGroups.map(({ tier, range }) => {
-        const levels: number[] = [];
-        for (let i = range[0]; i <= range[1]; i++) levels.push(i);
+      {titleGroups.map(({ tier, start, count }) => {
+        const levels = Array.from({ length: count }, (_, i) => start + i);
         return (
           <div key={tier} style={{ marginBottom: compact ? 24 : 36 }}>
             <div style={{
