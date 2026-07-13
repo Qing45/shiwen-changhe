@@ -8,6 +8,11 @@ scripts/scraper/.cache
 android/app/build
 android/build
 android/.gradle
+android/.gradle-tmp
 android/local.properties
 android/app/release
 android/captures
+# Vite dev server artifact (only used for live testing)
+dev/dev-dist
+# 发布用产物（APK / zip / QR）放在 dist-publish/，不打入仓库
+dist-publish

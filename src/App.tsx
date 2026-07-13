@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { CorpusProvider } from './state/corpus';
 import { RiverPage } from './pages/RiverPage';
 import { UpdateToast } from './components/UpdateToast';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // RiverPage 是首屏：保留静态导入。其余路由按页切 chunk，首屏 JS 从 ~657K 压到 ~250K。
 // React.lazy 接收 default export；项目页面用 named export，这里用 .then 重映射。
@@ -13,6 +14,7 @@ const PlayHall = lazy(() => import('./pages/PlayHall').then((m) => ({ default: m
 const StagePlay = lazy(() => import('./pages/StagePlay').then((m) => ({ default: m.StagePlay })));
 const SentencePlay = lazy(() => import('./pages/SentencePlay').then((m) => ({ default: m.SentencePlay })));
 const TitlePlay = lazy(() => import('./pages/TitlePlay').then((m) => ({ default: m.TitlePlay })));
+const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })));
 
 function PageFallback() {
   return (
@@ -45,6 +47,7 @@ export default function App() {
     <CorpusProvider>
       <BrowserRouter basename={basename}>
         <Suspense fallback={<PageFallback />}>
+          <ErrorBoundary>
           <Routes>
             <Route path="/" element={<RiverPage />} />
             <Route path="/poems" element={<PoemsRiverPage />} />
@@ -54,7 +57,9 @@ export default function App() {
             <Route path="/play/stage/:kw" element={<StagePlay />} />
             <Route path="/play/sentence/:level" element={<SentencePlay />} />
             <Route path="/play/title/:level" element={<TitlePlay />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
+          </ErrorBoundary>
         </Suspense>
         <UpdateToast />
       </BrowserRouter>
