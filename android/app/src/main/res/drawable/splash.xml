@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动屏：单层纯色 #050818（与 src/theme.ts colors.bgGradient 起始色一致）。
+     Theme.SplashScreen 在冷启动 ~1s 内只显示 windowBackground，避免白色闪屏。
+     上一版 splash.png 是 Capacitor 默认 logo，与 WebView 暗夜墨色冲突。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/colorPrimary" />
+</layer-list>

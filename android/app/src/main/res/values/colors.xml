@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 与 src/theme.ts colors.bgGradient 起始色 (#050818) 一致，让 Android 系统状态栏 / 启动屏
+         与 WebView 内的暗夜主题无缝衔接。修复之前蓝底白字紫状态栏的视觉断层。 -->
+    <color name="colorPrimary">#050818</color>
+    <color name="colorPrimaryDark">#050818</color>
+    <color name="colorAccent">#a8b8d8</color>
+</resources>
