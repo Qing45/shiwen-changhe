@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { getPoet, getPoemsByPoet } from '../data/load';
 import { layoutPoems } from '../utils/layout';
 import { useRiverViewport } from '../hooks/useRiverViewport';
 import { useVisited } from '../hooks/useVisited';
 import { useCorpus } from '../state/corpus';
 import { RiverBackground } from '../components/RiverBackground';
+import { RiverNode } from '../components/RiverNode';
 import { TimeAxis } from '../components/TimeAxis';
 import { TopNav } from '../components/TopNav';
-import { colors, fontFamilies, fontSizes, contentLengthToSize } from '../theme';
+import { colors, fontFamilies, contentLengthToSize, fontSizes } from '../theme';
 import type { Poem } from '../types';
 
 function buildPoetTicks(birth: number, death: number): { year: number; label?: string; pos: number }[] {
@@ -35,7 +36,6 @@ export function PoetPage() {
   const [showAll, setShowAll] = useState(false);
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
-  const [hoverId, setHoverId] = useState<string | null>(null);
 
   // 切换诗人时复位 window 滚动到顶部
   useEffect(() => {
@@ -115,105 +115,28 @@ export function PoetPage() {
         }}>
           <RiverBackground dragging={vp.dragging} />
           {positioned.map(({ poem, x, y }, i) => {
-            const size = contentLengthToSize(poem.content.length);
             const isFocal = poem.familiarity >= 5;
-            const isVisited = visited.has(poem.id);
-            const floatDuration = 4 + (i % 3);
-            const floatDelay = -((i % 7) * 0.5);
-            const highlightCore = isVisited ? '#d8e0f0' : '#fff';
             return (
-              <Link
+              <RiverNode
                 key={poem.id}
+                id={poem.id}
                 to={`/poem/${poem.id}`}
                 state={{ from: `/poet/${poet.id}` }}
-                onClickCapture={(e) => {
-                  if (vp.dragMovedRef.current) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }
-                }}
-                onClick={() => markVisited(poem.id)}
-                style={{
-                  position: 'absolute',
-                  top: `calc(50% + ${y}%)`,
-                  left: `${x}%`,
-                  transform: 'translate(-50%, -50%)',
-                  textDecoration: 'none',
-                }}
-              >
-                <div
-                  onMouseEnter={() => setHoverId(poem.id)}
-                  onMouseLeave={() => setHoverId((id) => (id === poem.id ? null : id))}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    animation: `node-float ${floatDuration}s ease-in-out ${floatDelay}s infinite`,
-                    position: 'relative',
-                  }}
-                >
-                  <div style={{ position: 'relative' }}>
-                    <div style={{
-                      color: isFocal ? '#fff' : colors.textPrimary,
-                      fontFamily: fontFamilies.chinese,
-                      fontSize: isFocal ? fontSizes.nodeLarge : fontSizes.body,
-                      textShadow: isFocal ? '0 0 12px rgba(216,224,240,0.8)' : 'none',
-                      marginBottom: 6,
-                      fontWeight: isFocal ? 600 : undefined,
-                      letterSpacing: isFocal ? 2 : undefined,
-                      maxWidth: 120,
-                      lineHeight: 1.3,
-                      textAlign: 'center',
-                      whiteSpace: 'normal',
-                    }}>{poem.title}</div>
-                    {isFocal && (
-                      <div style={{
-                        position: 'absolute', top: '100%', left: '15%', right: '15%',
-                        height: 1, marginTop: 2,
-                        background: 'linear-gradient(90deg, transparent, rgba(216,224,240,0.7), transparent)',
-                      }} />
-                    )}
-                  </div>
-                  <div style={{
-                    position: 'relative',
-                    width: size, height: size, borderRadius: '50%',
-                    background: `radial-gradient(circle, ${highlightCore} 0%, #d8e0f0 60%, transparent 100%)`,
-                    border: '1px solid rgba(216,224,240,0.45)',
-                    boxShadow: isFocal
-                      ? `0 0 ${size}px rgba(216,224,240,0.9), 0 0 4px #fff`
-                      : `0 0 ${size}px rgba(216,224,240,0.6)`,
-                    animation: isFocal ? 'focal-pulse 3.2s ease-in-out infinite' : 'none',
-                  }}>
-                    <div style={{
-                      position: 'absolute', inset: '25%',
-                      borderRadius: '50%',
-                      background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.9) 0%, transparent 60%)',
-                    }} />
-                  </div>
-                  {hoverId === poem.id && (
-                    <div style={{
-                      position: 'absolute', bottom: '100%', left: '50%',
-                      transform: 'translate(-50%, -12px)',
-                      background: 'rgba(8,12,28,0.92)',
-                      border: '1px solid rgba(216,224,240,0.25)',
-                      borderRadius: 4, padding: 8,
-                      whiteSpace: 'nowrap',
-                      color: colors.textPrimary, fontSize: 12,
-                      fontFamily: fontFamilies.chinese,
-                      pointerEvents: 'none', zIndex: 10,
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                    }}>
-                      <div>{truncate(poem.content, 12)}</div>
-                      <div style={{
-                        position: 'absolute', bottom: -5, left: '50%',
-                        transform: 'translateX(-50%) rotate(45deg)',
-                        width: 8, height: 8,
-                        background: 'rgba(8,12,28,0.92)',
-                        borderRight: '1px solid rgba(216,224,240,0.25)',
-                        borderBottom: '1px solid rgba(216,224,240,0.25)',
-                      }} />
-                    </div>
-                  )}
-                </div>
-              </Link>
+                label={poem.title}
+                size={contentLengthToSize(poem.content.length)}
+                textFontSize={isFocal ? fontSizes.nodeLarge : fontSizes.body}
+                isFocal={isFocal}
+                isVisited={visited.has(poem.id)}
+                tooltip={<div>{truncate(poem.content, 12)}</div>}
+                x={x}
+                y={y}
+                variant="poem"
+                enablePress={false}
+                floatDuration={4 + (i % 3)}
+                floatDelay={-((i % 7) * 0.5)}
+                dragMovedRef={vp.dragMovedRef}
+                onVisited={() => markVisited(poem.id)}
+              />
             );
           })}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
