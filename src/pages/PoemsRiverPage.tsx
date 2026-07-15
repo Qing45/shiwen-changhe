@@ -1,3 +1,4 @@
+import { useState, useMemo, useLayoutEffect } from 'react';
 import { getPoems, getPoets } from '../data/load';
 import { layoutAllPoems } from '../utils/layout';
 import { useRiverViewport } from '../hooks/useRiverViewport';
@@ -14,6 +15,10 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + '…' : s;
 }
 
+// 视口裁剪的边距缓冲：节点最大半径 + 阴影 + tooltip 余量。
+// 节点提前在视口外 PAD 像素内就开始完整渲染，避免 pan/zoom 时看见「闪入」。
+const VIEWPORT_PAD = 80;
+
 export function PoemsRiverPage() {
   const corpus = useCorpus();
   const poems = getPoems(corpus === 'all' ? 'both' : corpus);
@@ -29,9 +34,50 @@ export function PoemsRiverPage() {
   const isTang = corpus === 'tang';
   const isAll = corpus === 'all';
   const layoutMinDx = isTang || isAll ? 0.4 : undefined;
+  // canvas 宽度比例（1 = container 宽度）。用于视口裁剪时把节点 % 坐标换算到像素。
+  const canvasWidthRatio = isTang ? 45 : isAll ? 22.5 : 6;
   const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, layoutMinDx);
   const vp = useRiverViewport();
   const { visited, markVisited } = useVisited();
+
+  // 视口裁剪：测量 container 实际尺寸 + pan/zoom，算出可见节点 id 集。
+  // 未测量（首帧 / 无 ResizeObserver 环境，如 jsdom）返回 null = 全显。
+  const containerRef = vp.containerProps.ref;
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+  useLayoutEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setContainerSize({ w: el.clientWidth, h: el.clientHeight });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // containerRef 由 hook 持有，identity 稳定，可不进 deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const visibleIds = useMemo<Set<string> | null>(() => {
+    if (containerSize.w === 0 || containerSize.h === 0) return null;
+    const set = new Set<string>();
+    const cw = containerSize.w;
+    const ch = containerSize.h;
+    for (const { poem, x, y } of positioned) {
+      // 节点在 canvas 内的像素坐标（canvas transform 前）
+      const nodeX = (x / 100) * canvasWidthRatio * cw;
+      const nodeY = (0.5 + y / 100) * ch;
+      // 应用 canvas transform（translate + scale，origin 0,0）
+      const sx = nodeX * vp.zoom + vp.pan.x;
+      const sy = nodeY * vp.zoom + vp.pan.y;
+      if (
+        sx > -VIEWPORT_PAD && sx < cw + VIEWPORT_PAD &&
+        sy > -VIEWPORT_PAD && sy < ch + VIEWPORT_PAD
+      ) {
+        set.add(poem.id);
+      }
+    }
+    return set;
+  }, [positioned, vp.pan, vp.zoom, containerSize, canvasWidthRatio]);
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -80,6 +126,7 @@ export function PoemsRiverPage() {
                 floatDelay={-((i % 7) * 0.5)}
                 dragMovedRef={vp.dragMovedRef}
                 onVisited={() => markVisited(poem.id)}
+                visible={visibleIds === null ? true : visibleIds.has(poem.id)}
               />
             );
           })}
