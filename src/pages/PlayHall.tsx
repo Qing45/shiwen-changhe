@@ -18,6 +18,7 @@ import { useCorpus } from '../state/corpus';
 import { loadGrade, saveGrade } from '../state/primaryGrade';
 import { getAvailableBands } from '../data/grades';
 import { colors, fontFamilies } from '../theme';
+import { toChineseNum } from '../utils/number';
 
 type Mode = 'char' | 'sentence' | 'title';
 
@@ -26,20 +27,6 @@ const GROUP_LABEL: Record<'entry' | 'mid' | 'advanced', string> = {
   mid: '进 阶',
   advanced: '高 阶',
 };
-
-const CN_DIGITS = ['零','一','二','三','四','五','六','七','八','九','十'];
-
-function toChineseNum(n: number): string {
-  if (n <= 10) return CN_DIGITS[n];
-  if (n < 20) return '十' + CN_DIGITS[n - 10];
-  if (n === 20) return '二十';
-  if (n < 30) return '二十' + CN_DIGITS[n - 20];
-  if (n === 30) return '三十';
-  if (n < 40) return '三十' + CN_DIGITS[n - 30];
-  if (n === 40) return '四十';
-  if (n <= 50) return '四十' + CN_DIGITS[n - 40];
-  return String(n);
-}
 
 function EmptyState({ compact }: { compact: boolean }) {
   return (

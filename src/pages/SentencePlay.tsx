@@ -19,6 +19,7 @@ import { STAGE_GOAL, STAGE_BLOOD } from '../play/types';
 import { colors, fontFamilies, paperTheme } from '../theme';
 import { useCorpus } from '../state/corpus';
 import { loadGrade } from '../state/primaryGrade';
+import { toChineseNum } from '../utils/number';
 
 const TURN_SECONDS = 30;
 
@@ -40,20 +41,6 @@ const btnStyle: React.CSSProperties = {
   fontSize: 14,
   cursor: 'pointer',
 };
-
-function toChineseNum(n: number): string {
-  // 仅支持 1..50，转中文数字（一二三……五十）
-  const digits = ['零','一','二','三','四','五','六','七','八','九','十'];
-  if (n <= 10) return digits[n];
-  if (n < 20) return '十' + digits[n - 10];
-  if (n === 20) return '二十';
-  if (n < 30) return '二十' + digits[n - 20];
-  if (n === 30) return '三十';
-  if (n < 40) return '三十' + digits[n - 30];
-  if (n === 40) return '四十';
-  if (n <= 50) return '四十' + digits[n - 40];
-  return String(n);
-}
 
 export function SentencePlay() {
   const { level: levelParam } = useParams<{ level: string }>();
