@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import type { GradeBand } from '../../src/types';
 
 export interface RawAnnotation {
   term: string;
@@ -12,6 +13,9 @@ export interface RawPoem {
   content: string;
   annotations: RawAnnotation[];
   background?: string;
+  // 仅 junior 抓取时使用：标明这首诗所属的初中段（七上/七下/...）。
+  // tang / primary 源始终 undefined。
+  gradeBand?: GradeBand;
 }
 
 /**

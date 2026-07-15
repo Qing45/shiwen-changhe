@@ -1,4 +1,4 @@
-import type { Poet, Poem } from '../../src/types';
+import type { Poet, Poem, GradeBand, PoemCorpus } from '../../src/types';
 
 // Hand-curated metadata for famous poets. Birth/death years are historical.
 // Poets not in this map default to birthYear=700, deathYear=750, familiarity=2.
@@ -74,6 +74,36 @@ const POET_META: Record<
   '乐府诗集': { birthYear: 500, deathYear: 600, familiarity: 2, dynastyId: 'other' },
   '高鼎': { birthYear: 1820, deathYear: 1880, familiarity: 2, dynastyId: 'qing' },
   '贺知章': { courtesyName: '季真', pseudonym: '四明狂客', birthYear: 659, deathYear: 744, familiarity: 3, dynastyId: 'tang' },
+  // 初中必背诗新增诗人（汉魏晋南北朝元明）
+  '曹操': { courtesyName: '孟德', pseudonym: '魏武帝', birthYear: 155, deathYear: 220, familiarity: 3, dynastyId: 'other' },
+  '曹植': { courtesyName: '子建', birthYear: 192, deathYear: 232, familiarity: 3, dynastyId: 'other' },
+  '刘桢': { birthYear: 186, deathYear: 224, familiarity: 2, dynastyId: 'other' },
+  '陶渊明': { courtesyName: '元亮', pseudonym: '五柳先生', birthYear: 365, deathYear: 427, familiarity: 4, dynastyId: 'other' },
+  '王湾': { birthYear: 693, deathYear: 751, familiarity: 2, dynastyId: 'tang' },
+  '李益': { courtesyName: '君虞', birthYear: 748, deathYear: 827, familiarity: 2, dynastyId: 'tang' },
+  '陈子昂': { courtesyName: '伯玉', birthYear: 659, deathYear: 700, familiarity: 3, dynastyId: 'tang' },
+  '王勃': { courtesyName: '子安', birthYear: 650, deathYear: 676, familiarity: 3, dynastyId: 'tang' },
+  '崔颢': { birthYear: 704, deathYear: 754, familiarity: 2, dynastyId: 'tang' },
+  '王绩': { courtesyName: '无功', pseudonym: '东皋子', birthYear: 585, deathYear: 644, familiarity: 2, dynastyId: 'tang' },
+  '李贺': { courtesyName: '长吉', birthYear: 791, deathYear: 817, familiarity: 3, dynastyId: 'tang' },
+  '常建': { courtesyName: '少孤', birthYear: 708, deathYear: 765, familiarity: 2, dynastyId: 'tang' },
+  '刘长卿': { courtesyName: '文房', birthYear: 726, deathYear: 786, familiarity: 2, dynastyId: 'tang' },
+  '温庭筠': { courtesyName: '飞卿', birthYear: 812, deathYear: 866, familiarity: 3, dynastyId: 'tang' },
+  '许浑': { courtesyName: '用晦', birthYear: 788, deathYear: 858, familiarity: 2, dynastyId: 'tang' },
+  '马致远': { courtesyName: '千里', pseudonym: '东篱', birthYear: 1250, deathYear: 1321, familiarity: 3, dynastyId: 'other' }, // 元
+  '张养浩': { courtesyName: '希孟', pseudonym: '云庄', birthYear: 1270, deathYear: 1329, familiarity: 3, dynastyId: 'other' }, // 元
+  '王磐': { courtesyName: '鸿渐', pseudonym: '西楼', birthYear: 1470, deathYear: 1530, familiarity: 2, dynastyId: 'ming' },
+  '谭嗣同': { courtesyName: '复生', birthYear: 1865, deathYear: 1898, familiarity: 2, dynastyId: 'qing' },
+  '秋瑾': { courtesyName: '璿卿', pseudonym: '鉴湖女侠', birthYear: 1875, deathYear: 1907, familiarity: 3, dynastyId: 'qing' },
+  '夏完淳': { courtesyName: '存古', birthYear: 1631, deathYear: 1647, familiarity: 2, dynastyId: 'qing' },
+  '欧阳修': { courtesyName: '永叔', pseudonym: '醉翁', birthYear: 1007, deathYear: 1072, familiarity: 4, dynastyId: 'song' },
+  '晏殊': { courtesyName: '同叔', pseudonym: '珠玉词人', birthYear: 991, deathYear: 1055, familiarity: 3, dynastyId: 'song' },
+  '秦观': { courtesyName: '少游', pseudonym: '淮海居士', birthYear: 1049, deathYear: 1100, familiarity: 3, dynastyId: 'song' },
+  '朱敦儒': { courtesyName: '希真', pseudonym: '岩壑老人', birthYear: 1081, deathYear: 1159, familiarity: 2, dynastyId: 'song' },
+  '陈与义': { courtesyName: '去非', pseudonym: '简斋', birthYear: 1090, deathYear: 1138, familiarity: 3, dynastyId: 'song' },
+  '赵师秀': { courtesyName: '紫芝', pseudonym: '灵秀', birthYear: 1170, deathYear: 1219, familiarity: 2, dynastyId: 'song' },
+  '李之仪': { courtesyName: '端叔', birthYear: 1048, deathYear: 1117, familiarity: 2, dynastyId: 'song' },
+  '诗经': { birthYear: -1046, deathYear: -256, familiarity: 2, dynastyId: 'other' },
 };
 
 // 民歌/乐府类诗人别名归一化：gushiwen 用「乐府诗集」「佚名」时映射回 spec 期望名。
@@ -95,16 +125,20 @@ export interface NormalizedData {
   poems: Poem[];
 }
 
+// RawPoem 在 parse-poem.ts 里定义；这里允许 caller 额外带 gradeBand 用于 junior。
+export type NormalizablePoem = {
+  url: string;
+  title: string;
+  poetName: string;
+  content: string;
+  annotations: { term: string; explanation: string }[];
+  background?: string;
+  gradeBand?: GradeBand;
+};
+
 export function normalize(
-  raw: {
-    url: string;
-    title: string;
-    poetName: string;
-    content: string;
-    annotations: { term: string; explanation: string }[];
-    background?: string;
-  }[],
-  corpusHint: 'tang' | 'primary' = 'tang',
+  raw: NormalizablePoem[],
+  corpusHint: PoemCorpus = 'tang',
 ): NormalizedData {
   const poets = new Map<string, Poet>();
   const poems: Poem[] = [];
@@ -123,10 +157,10 @@ export function normalize(
         birthYear: meta.birthYear,
         deathYear: meta.deathYear,
         // 未列入 POET_META 的诗人兜底为 'tang'（仅适用于唐诗三百首源）；
-        // primary 语料的所有新增诗人都已在 POET_META 中标注 dynastyId。
+        // primary / junior 语料的所有新增诗人都已在 POET_META 中标注 dynastyId。
         dynastyId: meta.dynastyId ?? 'tang',
         familiarity: meta.familiarity,
-        corpus: corpusHint,
+        corpus: corpusHint === 'both' ? 'tang' : corpusHint, // 'both' 不应用于诗人 corpus
       };
       poets.set(poetName, poet);
     }
@@ -141,6 +175,7 @@ export function normalize(
       creationYear: undefined, // gushiwen.cn doesn't expose this cleanly; default to undefined
       familiarity: FAMOUS_POEMS.has(r.title) ? 5 : 2,
       corpus: corpusHint,
+      gradeBand: r.gradeBand,
     };
     poems.push(poem);
   }

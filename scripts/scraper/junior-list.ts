@@ -165,7 +165,7 @@ export const JUNIOR_LIST: JuniorListSection[] = [
       { title: '南安军', dynasty: 'song', poetName: '文天祥' },
       { title: '别云间', dynasty: 'qing', poetName: '夏完淳' },
       { title: '山坡羊·骊山怀古', dynasty: 'other', poetName: '张养浩' }, // 元
-      { title: '朝天子·咏喇叭', dynasty: 'ming', poetName: '王磬' },
+      { title: '朝天子·咏喇叭', dynasty: 'ming', poetName: '王磐' },
     ],
   },
 ];
