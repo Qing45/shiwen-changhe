@@ -5,8 +5,12 @@ export interface Dynasty {
   endYear: number;
 }
 
-export type PoetCorpus = 'tang' | 'primary';
-export type PoemCorpus = 'tang' | 'primary' | 'both';
+// 年级段：小学 1-12（数字，按学年学期编号），初中 '7a'-'9b'（字符串，7-9 年级上下学期）。
+// 用 number | string 联合类型让 TS 在比较时强制区分，避免小学段数字与初中段字符串误判等值。
+export type GradeBand = number | string;
+
+export type PoetCorpus = 'tang' | 'primary' | 'junior';
+export type PoemCorpus = 'tang' | 'primary' | 'junior' | 'both';
 
 export interface Poet {
   id: string;
@@ -30,7 +34,12 @@ export interface Poem {
   creationYear?: number;
   familiarity: number; // 1-5
   corpus: PoemCorpus;
-  gradeBand?: number;
+  gradeBand?: GradeBand;
+  // 跨段 / 跨库：同一首诗出现在多个年级段或多个库时，把所有 gradeBand 集中放这里。
+  // gradeBand 字段保留「主段」（通常是首发库的段位），gradeBands 列出其它段。
+  // 例：'both' 类诗在 tang + primary grade 5 + junior '7a'，
+  //     gradeBand=5，gradeBands=['7a']。
+  gradeBands?: GradeBand[];
 }
 
 export interface VerseHit {

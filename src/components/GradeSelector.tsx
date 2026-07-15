@@ -1,8 +1,8 @@
-import type { GradeBand } from '../data/grades';
 import { fontFamilies } from '../theme';
 
+// 仅用于小学段（value 永远是 number）。初中段需要单独的选择器组件。
 interface Props {
-  bands: readonly GradeBand[];
+  bands: readonly { value: number; label: string }[];
   value: number;
   onChange: (band: number) => void;
 }

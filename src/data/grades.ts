@@ -1,11 +1,13 @@
-import type { Poem, PoemCorpus } from '../types';
+import type { Poem, PoemCorpus, GradeBand as GradeBandValue } from '../types';
 import { getPoems } from './load';
 
+// UI 选择器用的 band 元数据。value 类型与 types.GradeBand 对齐（number|string）。
 export interface GradeBand {
-  value: number;
+  value: GradeBandValue;
   label: string;
 }
 
+// 小学段：1-12（数字，按 1-6 年级 × 上下学期编号）。
 export const GRADE_BANDS: readonly GradeBand[] = [
   { value: 1, label: '一上' },
   { value: 2, label: '一下' },
@@ -22,6 +24,20 @@ export const GRADE_BANDS: readonly GradeBand[] = [
 ];
 
 export const MAX_BAND = 12;
+
+// 初中段：'7a'-'9b'（7-9 年级 × 上下学期）。与小学段用不同 value 类型区分，
+// 避免小学段的 7（=四上）与初中段 '7a'（=七年级上）混淆。
+export const JUNIOR_BANDS: readonly GradeBand[] = [
+  { value: '7a', label: '七上' },
+  { value: '7b', label: '七下' },
+  { value: '8a', label: '八上' },
+  { value: '8b', label: '八下' },
+  { value: '9a', label: '九上' },
+  { value: '9b', label: '九下' },
+];
+
+// 所有有效的初中段字符串值，用于校验。
+export const JUNIOR_BAND_VALUES: readonly string[] = JUNIOR_BANDS.map((b) => b.value as string);
 
 export const PRIMARY_GRADE_BAND_BY_POEM_ID = {
   c90ff9ea5a71: 3,
@@ -138,23 +154,70 @@ export function normalizeBand(value: number): number {
   return Number.isInteger(value) && value >= 1 && value <= MAX_BAND ? value : MAX_BAND;
 }
 
+// 校验初中段字符串。合法值见 JUNIOR_BAND_VALUES。
+export function isJuniorBand(value: unknown): value is string {
+  return typeof value === 'string' && JUNIOR_BAND_VALUES.includes(value);
+}
+
+// 把诗的所有 gradeBand 收集到一个数组（合并 gradeBand + gradeBands）。
+function collectBands(poem: Poem): GradeBandValue[] {
+  const out: GradeBandValue[] = [];
+  if (poem.gradeBand !== undefined) out.push(poem.gradeBand);
+  if (poem.gradeBands) out.push(...poem.gradeBands);
+  return out;
+}
+
 export function getPrimaryPoemsUpTo(band: number): Poem[] {
   const normalized = normalizeBand(band);
-  return getPoems('primary').filter(
-    (p) => typeof p.gradeBand === 'number' && p.gradeBand <= normalized,
-  );
+  return getPoems('primary').filter((p) => {
+    const bands = collectBands(p);
+    return bands.some((b) => typeof b === 'number' && b <= normalized);
+  });
 }
 
-export function getAvailableBands(): GradeBand[] {
-  const present = new Set(
+// 初中段：返回该段及更早段的全部诗。段顺序按 7a < 7b < 8a < 8b < 9a < 9b。
+export function getJuniorPoemsUpTo(band: string): Poem[] {
+  const idx = JUNIOR_BAND_VALUES.indexOf(band);
+  if (idx < 0) return getPoems('junior');
+  const upTo = JUNIOR_BAND_VALUES.slice(0, idx + 1);
+  return getPoems('junior').filter((p) => {
+    const bands = collectBands(p).filter((b): b is string => typeof b === 'string');
+    return bands.some((b) => upTo.includes(b));
+  });
+}
+
+// 小学段（value 永为 number）的窄类型，便于 GradeSelector 直接消费。
+export interface PrimaryBand {
+  value: number;
+  label: string;
+}
+
+export function getAvailableBands(): PrimaryBand[] {
+  const present = new Set<number>(
     getPoems('primary')
-      .map((p) => p.gradeBand)
+      .flatMap((p) => collectBands(p))
       .filter((b): b is number => typeof b === 'number'),
   );
-  return GRADE_BANDS.filter((b) => present.has(b.value));
+  return GRADE_BANDS.filter((b) => present.has(b.value as number)) as unknown as PrimaryBand[];
 }
 
-export function getPoemsForPlay(corpus: PoemCorpus, band?: number): Poem[] {
-  if (corpus !== 'tang' && band != null) return getPrimaryPoemsUpTo(band);
+// 初中段端点筛选：仅返回该年级有 ≥1 首诗的段。
+export function getAvailableJuniorBands(): GradeBand[] {
+  const present = new Set<string>(
+    getPoems('junior')
+      .flatMap((p) => collectBands(p))
+      .filter((b): b is string => typeof b === 'string'),
+  );
+  return JUNIOR_BANDS.filter((b) => present.has(b.value as string));
+}
+
+// band 参数类型扩为支持初中段字符串。primary 走 cumulative、junior 走 cumulative、tang 忽略。
+export function getPoemsForPlay(corpus: PoemCorpus, band?: number | string): Poem[] {
+  if (corpus === 'junior' && band != null && typeof band === 'string') {
+    return getJuniorPoemsUpTo(band);
+  }
+  if (corpus !== 'tang' && corpus !== 'junior' && band != null && typeof band === 'number') {
+    return getPrimaryPoemsUpTo(band);
+  }
   return corpus === 'both' ? getPoems() : getPoems(corpus);
 }

@@ -1,4 +1,4 @@
-import type { Poet, Poem, PoetCorpus, PoemCorpus } from '../types';
+import type { Poet, Poem, PoetCorpus, PoemCorpus, GradeBand } from '../types';
 import poetsData from './poets.json';
 import poemsData from './poems.json';
 
@@ -9,6 +9,35 @@ export function withCorpus<T extends object>(x: T, fallback: string): T {
 
 const poets: Poet[] = (poetsData as Poet[]).map((p) => withCorpus(p, 'tang')) as Poet[];
 const poems: Poem[] = (poemsData as Poem[]).map((p) => withCorpus(p, 'tang')) as Poem[];
+
+// 收集一首诗的全部 gradeBand（合并 gradeBand + gradeBands）。用于跨库段判定。
+function collectBands(poem: Poem): GradeBand[] {
+  const out: GradeBand[] = [];
+  if (poem.gradeBand !== undefined) out.push(poem.gradeBand);
+  if (poem.gradeBands) out.push(...poem.gradeBands);
+  return out;
+}
+
+// 跨库判定：一首诗是否属于某个特定 corpus。
+// - 直接匹配：poem.corpus === target
+// - 'both' 兼容：现有 both 数据默认是 tang+primary，tang/primary 都应返回 true；
+//   新增 junior 维度后，'both' 也可能涵盖 junior，需通过 gradeBands 中是否含字符串段判定。
+// - 跨段扩展：corpus='tang'/'primary' + gradeBands 含其它类型段 → 也属于另一库。
+export function poemInCorpus(poem: Poem, target: 'tang' | 'primary' | 'junior'): boolean {
+  if (poem.corpus === target) return true;
+  if (poem.corpus === 'both') {
+    // 兼容历史 both = tang+primary；新增 junior 维度下若 gradeBands 含字符串段也算 junior。
+    if (target === 'junior') {
+      return collectBands(poem).some((b) => typeof b === 'string');
+    }
+    return true; // tang / primary
+  }
+  // 非 both：通过 gradeBands 是否含对应类型段判定跨库归属
+  const bands = collectBands(poem);
+  if (target === 'primary') return bands.some((b) => typeof b === 'number');
+  if (target === 'junior') return bands.some((b) => typeof b === 'string');
+  return false; // tang 没有段位标记，跨库仅通过 'both' 走
+}
 
 export function getPoets(): Poet[];
 export function getPoets(corpus: PoetCorpus | 'all'): Poet[];
@@ -48,9 +77,10 @@ export function getPoems(): Poem[];
 export function getPoems(corpus: PoemCorpus): Poem[];
 export function getPoems(corpus?: PoemCorpus): Poem[] {
   if (!corpus || corpus === 'both') return poems;
-  if (corpus === 'tang') return poems.filter((p) => p.corpus !== 'primary');
-  // 'primary'
-  return poems.filter((p) => p.corpus !== 'tang');
+  if (corpus === 'tang') return poems.filter((p) => poemInCorpus(p, 'tang'));
+  if (corpus === 'primary') return poems.filter((p) => poemInCorpus(p, 'primary'));
+  // 'junior'
+  return poems.filter((p) => poemInCorpus(p, 'junior'));
 }
 
 export function getNeighbors(poemId: string): { prev?: Poem; next?: Poem } {
