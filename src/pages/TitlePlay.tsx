@@ -4,15 +4,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { TopNav } from '../components/TopNav';
-import { PaperScroll } from '../components/PaperScroll';
+import { PlayShell } from '../components/PlayShell';
 import { countAvailableTitleLevels, pickTitleQuestion, type TitleQuestion } from '../play/titles';
 import {
   loadTitleProgress, markTitleCleared, beginTitleStage,
   commitTitleCorrect, commitTitleBlood, clearTitleCurrent,
 } from '../play/titleProgress';
 import { tierOfAvailableLevel } from '../play/couplets';
-import { STAGE_BLOOD, STAGE_GOAL, STAGE_TIMEBOX } from '../play/types';
+import { STAGE_GOAL } from '../play/types';
 import { splitIntoLines } from '../utils/poemText';
 import { toChineseNum } from '../utils/number';
 import { useBreakpoint } from '../hooks/useBreakpoint';
@@ -26,17 +25,6 @@ const TIER_LABEL: Record<'entry' | 'mid' | 'advanced', string> = {
   entry: '入 门',
   mid: '进 阶',
   advanced: '高 阶',
-};
-
-const btnStyle: React.CSSProperties = {
-  padding: '8px 20px',
-  background: 'transparent',
-  color: PAPER_TEXT,
-  border: `1px solid ${PAPER_TEXT}`,
-  borderRadius: 3,
-  fontFamily: fontFamilies.chinese,
-  fontSize: 14,
-  cursor: 'pointer',
 };
 
 export function TitlePlay() {
@@ -76,7 +64,6 @@ export function TitlePlay() {
 
   const [picked, setPicked] = useState<number | null>(null);
   const [grading, setGrading] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(STAGE_TIMEBOX);
   const [result, setResult] = useState<{ kind: 'cleared' | 'failed'; correct?: string[] } | null>(null);
 
   const stageRef = useRef(stage);
@@ -102,7 +89,6 @@ export function TitlePlay() {
     setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand));
     setPicked(null);
     setGrading(false);
-    setSecondsLeft(STAGE_TIMEBOX);
     setResult(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelKey]);
@@ -138,7 +124,6 @@ export function TitlePlay() {
     setTimeout(() => {
       setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand));
       setPicked(null);
-      setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
     }, 800);
   }
@@ -160,19 +145,9 @@ export function TitlePlay() {
     setTimeout(() => {
       setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand));
       setPicked(null);
-      setSecondsLeft(STAGE_TIMEBOX);
       setGrading(false);
     }, 1500);
   }
-
-  // 倒计时
-  useEffect(() => {
-    if (result || grading) return;
-    if (secondsLeft <= 0) { handleWrong(); return; }
-    const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft, result, grading]);
 
   function onPick(idx: number) {
     if (grading || picked !== null || !question) return;
@@ -198,181 +173,88 @@ export function TitlePlay() {
 
   const lines = question ? splitIntoLines(question.content, 'short') : [];
 
+  // resetKey 在关卡切换 / 答对推进 / 答错扣血 时都变化 → Countdown 复位
+  const resetKey = `${levelKey}-${stage.correct.length}-${stage.blood}`;
+
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <TopNav variant="main" />
-      <div style={{ flex: 1, overflowY: 'auto', background: colors.bgGradient, padding: isMobile ? '16px 12px' : '24px 28px' }}>
-        <div style={{ marginBottom: 16 }}>
-          <Link to="/play" style={{ color: colors.textTertiary, fontSize: 14, textDecoration: 'none' }}>← 返回大厅</Link>
-        </div>
-
-        <PaperScroll>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-            <div style={{ color: PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 2 }}>
-              {'❤'.repeat(stage.blood)}{'♡'.repeat(STAGE_BLOOD - stage.blood)}
-            </div>
-            <div style={{ color: PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 2 }}>
-              ⏱ {secondsLeft}s
-            </div>
-            <div style={{ color: PAPER_TEXT, fontFamily: fontFamilies.chinese, fontSize: 16, letterSpacing: 4 }}>
-              {stage.correct.length} / {STAGE_GOAL}
-            </div>
-            <button
-              onClick={() => navigate('/play')}
-              style={{
-                color: PAPER_TEXT,
-                fontFamily: fontFamilies.chinese,
-                fontSize: 14,
-                fontWeight: 700,
-                letterSpacing: 4,
-                padding: 0,
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >退 出</button>
-          </div>
-
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <div style={{
-              fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
-              fontSize: 24, letterSpacing: 8, marginBottom: 8,
-            }}>第 {toChineseNum(level)} 关</div>
-            <div style={{
-              color: PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
-              fontSize: 14, letterSpacing: 6,
-            }}>{tier ? TIER_LABEL[tier] : ''} · 整 篇 识 名</div>
-          </div>
-
-          {question ? (
-            <>
-              <div style={{
-                padding: '24px 0 16px',
-                fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
-                fontSize: isMobile ? 20 : 26, letterSpacing: isMobile ? 3 : 6, lineHeight: 2.2,
-                textAlign: 'center',
-              }}>
-                {lines.map((line, i) => (
-                  <div key={i}>{line}</div>
-                ))}
-              </div>
-
-              <div style={{
-                display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-                gap: 12, maxWidth: 560, margin: '0 auto',
-              }}>
-                {question.options.map((opt, idx) => {
-                  const isPicked = picked === idx;
-                  const isAnswer = opt.title === question.poemTitle;
-                  let bg = '#f5ebd2';
-                  let border = `1px solid ${PAPER_TEXT_DIM}`;
-                  let color = PAPER_TEXT;
-                  if (grading && isAnswer) {
-                    bg = PAPER_GREEN; border = `2px solid ${PAPER_GREEN}`; color = '#f5ebd2';
-                  } else if (grading && isPicked && !isAnswer) {
-                    bg = PAPER_RED; border = `2px solid ${PAPER_RED}`; color = '#f5ebd2';
-                  }
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => onPick(idx)}
-                      disabled={grading}
-                      style={{
-                        padding: '16px 12px',
-                        background: bg,
-                        border,
-                        borderRadius: 4,
-                        color,
-                        fontFamily: fontFamilies.chinese,
-                        fontSize: 18, letterSpacing: 3,
-                        cursor: grading ? 'default' : 'pointer',
-                        opacity: grading && !isPicked && !isAnswer ? 0.5 : 1,
-                        transition: 'all 0.15s',
-                      }}
-                    >{opt.title}</button>
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <div style={{
-              textAlign: 'center', padding: 40,
-              fontFamily: fontFamilies.chinese, color: PAPER_TEXT_DIM, fontSize: 16,
-            }}>题库已空</div>
-          )}
-
-          {result && (
-            <>
-              <style>{`
-                @keyframes feihuaOverlayIn { from { opacity: 0 } to { opacity: 1 } }
-                @keyframes feihuaStampDrop {
-                  0%   { opacity: 0; transform: scale(0.4) rotate(-14deg); filter: blur(3px); }
-                  55%  { opacity: 1; transform: scale(1.2) rotate(5deg); filter: blur(0); }
-                  75%  { transform: scale(0.95) rotate(-2deg); }
-                  100% { transform: scale(1) rotate(0); }
-                }
-                @keyframes feihuaFadeUp {
-                  from { opacity: 0; transform: translateY(10px); }
-                  to   { opacity: 1; transform: translateY(0); }
-                }
-              `}</style>
-              <div style={{
-                position: 'absolute', inset: 0,
-                background: 'rgba(245,235,210,0.97)',
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center',
-                textAlign: 'center', padding: 40,
-                animation: 'feihuaOverlayIn 260ms ease-out both',
-              }}>
-                <div style={{
-                  fontFamily: fontFamilies.chinese,
-                  color: result.kind === 'cleared' ? PAPER_RED : PAPER_TEXT,
-                  fontSize: 64, letterSpacing: 16, marginBottom: 24,
-                  textShadow: result.kind === 'cleared'
-                    ? '0 0 32px rgba(168,48,42,0.35), 0 4px 12px rgba(0,0,0,0.08)'
-                    : 'none',
-                  animation: result.kind === 'cleared'
-                    ? 'feihuaStampDrop 650ms cubic-bezier(.34,1.56,.64,1) both'
-                    : 'feihuaFadeUp 500ms ease-out both',
-                }}>{result.kind === 'cleared' ? '通 关' : '失 败'}</div>
-                {result.kind === 'cleared' && question && (
-                  <div style={{
-                    color: PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
-                    fontSize: 16, marginBottom: 32,
-                    animation: 'feihuaFadeUp 400ms ease-out 240ms both',
-                  }}>
-                    《{question.poemTitle}》
-                  </div>
-                )}
-                <div style={{
-                  display: 'flex', gap: 16,
-                  animation: 'feihuaFadeUp 400ms ease-out 420ms both',
-                }}>
-                  <button
-                    onClick={() => {
-                      if (result.kind === 'failed') clearTitleCurrent(corpus, activeBand);
-                      navigate('/play');
-                    }}
-                    style={btnStyle}
-                  >返回大厅</button>
-                  {result.kind === 'cleared' && !isLastLevel && (
-                    <button
-                      onClick={() => navigate('/play/title/' + (level + 1))}
-                      style={btnStyle}
-                    >下一关</button>
-                  )}
-                  {result.kind === 'cleared' && isLastLevel && (
-                    <div style={{
-                      color: PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
-                      fontSize: 14, alignSelf: 'center', letterSpacing: 4,
-                    }}>全 部 通 关</div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </PaperScroll>
+    <PlayShell
+      blood={stage.blood}
+      correctCount={stage.correct.length}
+      paused={grading || result !== null}
+      onZero={handleWrong}
+      resetKey={resetKey}
+      result={result}
+      resultSubtitle={result?.kind === 'cleared' && question ? `《${question.poemTitle}》` : null}
+      onResultDismiss={() => clearTitleCurrent(corpus, activeBand)}
+      nextLevelUrl={isLastLevel ? undefined : `/play/title/${level + 1}`}
+    >
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
+        <div style={{
+          fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
+          fontSize: 24, letterSpacing: 8, marginBottom: 8,
+        }}>第 {toChineseNum(level)} 关</div>
+        <div style={{
+          color: PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
+          fontSize: 14, letterSpacing: 6,
+        }}>{tier ? TIER_LABEL[tier] : ''} · 整 篇 识 名</div>
       </div>
-    </div>
+
+      {question ? (
+        <>
+          <div style={{
+            padding: '24px 0 16px',
+            fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
+            fontSize: isMobile ? 20 : 26, letterSpacing: isMobile ? 3 : 6, lineHeight: 2.2,
+            textAlign: 'center',
+          }}>
+            {lines.map((line, i) => (
+              <div key={i}>{line}</div>
+            ))}
+          </div>
+
+          <div style={{
+            display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+            gap: 12, maxWidth: 560, margin: '0 auto',
+          }}>
+            {question.options.map((opt, idx) => {
+              const isPicked = picked === idx;
+              const isAnswer = opt.title === question.poemTitle;
+              let bg = '#f5ebd2';
+              let border = `1px solid ${PAPER_TEXT_DIM}`;
+              let color = PAPER_TEXT;
+              if (grading && isAnswer) {
+                bg = PAPER_GREEN; border = `2px solid ${PAPER_GREEN}`; color = '#f5ebd2';
+              } else if (grading && isPicked && !isAnswer) {
+                bg = PAPER_RED; border = `2px solid ${PAPER_RED}`; color = '#f5ebd2';
+              }
+              return (
+                <button
+                  key={idx}
+                  onClick={() => onPick(idx)}
+                  disabled={grading}
+                  style={{
+                    padding: '16px 12px',
+                    background: bg,
+                    border,
+                    borderRadius: 4,
+                    color,
+                    fontFamily: fontFamilies.chinese,
+                    fontSize: 18, letterSpacing: 3,
+                    cursor: grading ? 'default' : 'pointer',
+                    opacity: grading && !isPicked && !isAnswer ? 0.5 : 1,
+                    transition: 'all 0.15s',
+                  }}
+                >{opt.title}</button>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        <div style={{
+          textAlign: 'center', padding: 40,
+          fontFamily: fontFamilies.chinese, color: PAPER_TEXT_DIM, fontSize: 16,
+        }}>题库已空</div>
+      )}
+    </PlayShell>
   );
 }

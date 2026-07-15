@@ -137,7 +137,7 @@ export function PlayShell({
                     ? 'feihuaStampDrop 650ms cubic-bezier(.34,1.56,.64,1) both'
                     : 'feihuaFadeUp 500ms ease-out both',
                 }}>{result.kind === 'cleared' ? '通 关' : '失 败'}</div>
-                {result.kind === 'cleared' && resultSubtitle && (
+                {resultSubtitle && (
                   <div style={{
                     color: PAPER_TEXT_DIM, fontFamily: fontFamilies.chinese,
                     fontSize: 16, marginBottom: 32,
