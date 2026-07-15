@@ -1,5 +1,5 @@
 // 把 vite build 的 dist/ 内容拷到仓库根，替换根 index.html。
-// 保留 standalone.html / docs/ / src/ / scripts/ 等其它源文件。
+// 保留 docs/ / src/ / scripts/ 等其它源文件。
 // 跑法：`node scripts/deploy-gh-pages.cjs`（或 `npm run build:gh`）。
 const fs = require('fs');
 const path = require('path');
