@@ -79,6 +79,7 @@ function scatterPositions(
   nominalX: number,
   existing: { x: number; y: number }[] = [],
   minDx: number = SCATTER_MIN_DX,
+  xRangeCap: number = Infinity,
 ): { x: number; y: number }[] {
   // Adaptive X jitter: dense columns spread wider so 60+ poems in one decade
   // don't pile on top of each other. sqrt scaling with multiplier 12 — a
@@ -97,7 +98,13 @@ function scatterPositions(
     X_JITTER_RANGE,
     Math.min(nominalX, 100 - nominalX) - SCATTER_BOUND_PAD,
   );
-  const xRange = Math.min(baseRange, edgeLimit);
+  // Singleton 邻接 cap：dense 列的 X jitter 不能侵入相邻 singleton 的领地。
+  // 否则 singleton（固定 X）会被 dense 列项目"埋"掉——例如「沁园春·雪」(1936)
+  // 是 singleton 在 x=89.25%，相邻的 Dense(8) 宋词列 nominalX=64.83% baseRange
+  // ~34% 能漂到 98%，把毛泽东这首挤到视觉中段。xRangeCap 由 assignPositions
+  // 按「下一个 singleton - nominalX - minDx」算得，让 dense 列项目最远只到
+  // singleton 边缘。
+  const xRange = Math.min(baseRange, edgeLimit, xRangeCap);
   const rand = mulberry32(Math.floor(nominalX * 1000) + count * 37);
   const placed = [...existing];
   const added: { x: number; y: number }[] = [];
@@ -154,6 +161,13 @@ function assignPositions<T>(items: { item: T; x: number }[], minDx: number = SCA
     }
   }
 
+  // 预先收集所有 singleton 列的 nominalX（升序）。dense 列 scatter 时用它算
+  // X 上限，避免侵入相邻 singleton 领地。
+  const singletonXs = columns
+    .filter((c) => c.items.length === 1)
+    .map((c) => c.x)
+    .sort((a, b) => a - b);
+
   const out: { item: T; x: number; y: number }[] = [];
   // Global collision registry across ALL columns. A singleton at y=0 next to
   // a big scattered cluster can be swallowed by a scatter point that happens
@@ -194,7 +208,19 @@ function assignPositions<T>(items: { item: T; x: number }[], minDx: number = SCA
       out.push({ item: it.item, x: it.x, y });
       placed.push({ x: it.x, y });
     } else {
-      const positions = scatterPositions(n, col.x, placed, minDx);
+      // 算 dense 列 X 上限：到下一个 singleton 的距离 - minDx 缓冲。两侧都无
+      // singleton 时退化为 Infinity（保留原 scatter 行为）。不加 X_JITTER_RANGE
+      // 下限——dense 列紧贴 singleton 时本就该散布受限（否则会侵入 singleton）。
+      // 注：曾尝试 dense-dense 边界（dense 列不侵入相邻 dense 列 nominalX），但
+      // tang 库 27 个 dense 列挤在 50% 范围内、列间距 1.5%，dense-dense cap 把
+      // 项目压死在 nominalX 上导致 collisions 12x 飙升（78→972），违反「密集区
+      // 可读性优先」的设计前提。dense 列互相侵入的代价靠用户 pinch zoom 解决。
+      const nextSingleton = singletonXs.find((x) => x > col.x);
+      const prevSingleton = [...singletonXs].reverse().find((x) => x < col.x);
+      const upper = nextSingleton !== undefined ? nextSingleton - col.x - minDx : Infinity;
+      const lower = prevSingleton !== undefined ? col.x - prevSingleton - minDx : Infinity;
+      const xRangeCap = Math.min(upper, lower);
+      const positions = scatterPositions(n, col.x, placed, minDx, xRangeCap);
       positions.forEach((pos, i) => {
         const it = col.items[i];
         out.push({ item: it.item, x: pos.x, y: pos.y });
