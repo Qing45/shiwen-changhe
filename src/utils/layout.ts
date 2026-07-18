@@ -82,12 +82,6 @@ const SCATTER_MIN_DX = 1.5;
 const SCATTER_MIN_DY = 10;
 const SCATTER_ATTEMPTS = 1000;
 
-// Cap on adaptive X jitter for very dense columns. ±75% canvas lets the
-// 62-poem cluster (year 700+703 merged) spread widely enough that
-// best-candidate sampling can find collision-free positions for nearly all
-// items. Above this the timeline becomes unreadable.
-const SCATTER_X_RANGE_CAP = 75;
-
 // Margin from canvas edges so scatter doesn't place items at exactly 0 or
 // 100 (where they'd be half-clipped by the canvas boundary).
 const SCATTER_BOUND_PAD = 1;
@@ -112,48 +106,52 @@ function mulberry32(seed: number): () => number {
 }
 
 /**
- * Pick count positions inside the rectangle [nominalX ± X_JITTER_RANGE] ×
- * [-Y_RANGE, +Y_RANGE] using seeded random sampling with collision avoidance.
+ * Pick positions for `count` items, each one around its OWN nominal X (passed
+ * as `nominalXs[i]`), inside [-Y_RANGE, +Y_RANGE]. Used for dense columns
+ * where items have distinct birth years and must preserve their chronological
+ * order — e.g. 王勃 (650) and 李白 (701) in 初中 corpus are 51 years apart,
+ * so their nominal Xs differ by 1.4%. Per-item jitter lets each one scatter
+ * near itself instead of all collapsing onto the column's leftmost X.
+ *
  * `existing` carries positions already placed by neighbouring columns so a
  * big cluster's scatter doesn't swallow singletons nearby (and vice versa).
- * Returns the new positions only; deterministic for a given (count,
- * nominalX, existing).
+ * `xRangeCap` (per-item) comes from singleton adjacency in `assignPositions`.
+ * Returns the new positions only; deterministic for a given
+ * (nominalXs, existing, xRangeCap).
  */
 function scatterPositions(
-  count: number,
-  nominalX: number,
+  nominalXs: number[],
   existing: { x: number; y: number }[] = [],
   minDx: number = SCATTER_MIN_DX,
   xRangeCap: number = Infinity,
 ): { x: number; y: number }[] {
-  // Adaptive X jitter: dense columns spread wider so 60+ poems in one decade
-  // don't pile on top of each other. sqrt scaling with multiplier 12 — a
-  // 62-item cluster gets ~94% canvas X range (capped at 75%). The wide spread
-  // is the user's explicit preference: dense areas may drift from their
-  // nominal X as long as the overall chronological trend is preserved.
-  const baseRange = Math.min(SCATTER_X_RANGE_CAP, Math.max(X_JITTER_RANGE, Math.sqrt(count) * 12));
-  // Bound-aware shrink: near canvas edges, reduce xRange so scatter stays
-  // inside [pad, 100-pad]. Without this, a cluster at nominalX 31% with
-  // xRange ±75% lands items at canvas-X [-43, 106] — off-canvas on both
-  // sides. Traded cost: less territory means more collisions in dense
-  // edge clusters (the 62-poem cluster picks up ~24 collisions vs 1
-  // unbounded). Acceptable: overlapping labels are still readable, while
-  // items clipped by the canvas edge are not visible at all.
-  const edgeLimit = Math.max(
+  // Per-item X jitter: each item searches around its own nominal X. The shared
+  // xRangeCap (singleton adjacency) minus the natural spread of nominal Xs
+  // is split between left and right jitter so dense columns stay inside the
+  // adjacent singleton's territory and chronological order is preserved.
+  // Floored at SCATTER_MIN_DX so even tiny xRangeCap gives a chance of
+  // non-overlapping positions; capped at X_JITTER_RANGE so wide caps don't
+  // make items in sparse columns (e.g. 115 identical-year poems) wander
+  // unnecessarily.
+  const xSpread = nominalXs.length > 0 ? Math.max(...nominalXs) - Math.min(...nominalXs) : 0;
+  const perItemJitter = Math.min(
     X_JITTER_RANGE,
-    Math.min(nominalX, 100 - nominalX) - SCATTER_BOUND_PAD,
+    Math.max(SCATTER_MIN_DX, (xRangeCap - xSpread) / 2),
   );
-  // Singleton 邻接 cap：dense 列的 X jitter 不能侵入相邻 singleton 的领地。
-  // 否则 singleton（固定 X）会被 dense 列项目"埋"掉——例如「沁园春·雪」(1936)
-  // 是 singleton 在 x=89.25%，相邻的 Dense(8) 宋词列 nominalX=64.83% baseRange
-  // ~34% 能漂到 98%，把毛泽东这首挤到视觉中段。xRangeCap 由 assignPositions
-  // 按「下一个 singleton - nominalX - minDx」算得，让 dense 列项目最远只到
-  // singleton 边缘。
-  const xRange = Math.min(baseRange, edgeLimit, xRangeCap);
-  const rand = mulberry32(Math.floor(nominalX * 1000) + count * 37);
   const placed = [...existing];
   const added: { x: number; y: number }[] = [];
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < nominalXs.length; i++) {
+    const nominalX = nominalXs[i];
+    // Bound-aware shrink: keep this item inside [pad, 100-pad].
+    const edgeLimit = Math.max(
+      0,
+      Math.min(nominalX, 100 - nominalX) - SCATTER_BOUND_PAD,
+    );
+    const xRange = Math.min(perItemJitter, edgeLimit, xRangeCap);
+    // Seed includes the item's index so siblings in the same column get
+    // independent random sequences, but two items with same nominalX get the
+    // same seed (deterministic across renders).
+    const rand = mulberry32(Math.floor(nominalX * 1000) + i * 37);
     // Best-candidate sampling: try N random spots, prefer collision-free, but
     // if none found, fall back to the spot with fewest collisions. Random
     // scatter in dense clusters can't always find a free spot — using the
@@ -166,6 +164,12 @@ function scatterPositions(
       const y = -SCATTER_Y_RANGE + rand() * 2 * SCATTER_Y_RANGE;
       let collisions = 0;
       for (const p of placed) {
+        if (Math.abs(p.x - x) < minDx && Math.abs(p.y - y) < SCATTER_MIN_DY) {
+          collisions++;
+        }
+      }
+      // Also avoid colliding with already-placed siblings in this column.
+      for (const p of added) {
         if (Math.abs(p.x - x) < minDx && Math.abs(p.y - y) < SCATTER_MIN_DY) {
           collisions++;
         }
@@ -265,7 +269,10 @@ function assignPositions<T>(items: { item: T; x: number }[], minDx: number = SCA
       const upper = nextSingleton !== undefined ? nextSingleton - col.x - minDx : Infinity;
       const lower = prevSingleton !== undefined ? col.x - prevSingleton - minDx : Infinity;
       const xRangeCap = Math.min(upper, lower);
-      const positions = scatterPositions(n, col.x, placed, minDx, xRangeCap);
+      // Pass each item's individual nominal X so dense columns preserve their
+      // chronological order instead of collapsing onto the column's leftmost X.
+      const nominalXs = col.items.map((it) => it.x);
+      const positions = scatterPositions(nominalXs, placed, minDx, xRangeCap);
       positions.forEach((pos, i) => {
         const it = col.items[i];
         out.push({ item: it.item, x: pos.x, y: pos.y });

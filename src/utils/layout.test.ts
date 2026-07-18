@@ -92,6 +92,23 @@ describe('layoutPoets', () => {
       expect(Math.abs(p.y)).toBeLessThanOrEqual(40);
     });
   });
+
+  it('preserves chronological order within a dense column (王勃 / 李白 junior case)', () => {
+    // Regression: 初中 corpus has a dense Tang cluster where 王勃 (650) and
+    // 李白 (701) — 51 years apart — were getting placed at nearly identical
+    // x, y under the column-center scatter. Switching to per-item jitter
+    // around each item's OWN nominal X lets the earlier poet stay left of
+    // the later one.
+    const wangBo: Poet = { id: 'wb', name: '王勃', birthYear: 650, deathYear: 676, dynastyId: 'tang', familiarity: 4, corpus: 'tang' as const };
+    const liBai: Poet = { id: 'lb', name: '李白', birthYear: 701, deathYear: 762, dynastyId: 'tang', familiarity: 5, corpus: 'tang' as const };
+    const result = layoutPoets([wangBo, liBai], { minYear: 618, maxYear: 907, leftPadding: 8, rightPadding: 8 });
+    const wbPos = result.find((p) => p.poet.id === 'wb')!;
+    const lbPos = result.find((p) => p.poet.id === 'lb')!;
+    // Chronologically earlier poet must NOT end up to the right of the later one.
+    expect(wbPos.x).toBeLessThan(lbPos.x);
+    // The 51-year gap (≈1.8% of corpus range) should leave visible separation.
+    expect(lbPos.x - wbPos.x).toBeGreaterThan(0.5);
+  });
 });
 
 describe('layoutPoems', () => {
