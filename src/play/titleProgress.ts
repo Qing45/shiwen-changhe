@@ -11,6 +11,9 @@
 // 初中段分桶：
 //   - corpus === 'junior' && band !== '9b' 时，key 追加 ':g{band}'，按学期端点隔离。
 //   - junior band === '9b' 或未传 band 都走 base key。
+// 高中段分桶：
+//   - corpus === 'senior' && band !== 'gz3l' 时，key 追加 ':g{band}'，按学期端点隔离。
+//   - senior band === 'gz3l' 或未传 band 都走 base key。
 
 import { INITIAL_PROGRESS, STAGE_BLOOD, type FeihuaProgress } from './types';
 import type { Corpus } from '../state/corpus';
@@ -18,12 +21,17 @@ import { MAX_BAND } from '../data/grades';
 
 const STORAGE_KEY = 'shiwen-feihua-title-progress';
 const JUNIOR_MAX_BAND = '9b';
+const SENIOR_MAX_BAND = 'gz3l';
 
 function storageKey(corpus: Corpus, band?: number | string | string): string {
   if (corpus === 'tang') return STORAGE_KEY;
   const base = `${STORAGE_KEY}:${corpus}`;
   if (corpus === 'junior') {
     if (band == null || band === JUNIOR_MAX_BAND) return base;
+    return `${base}:g${band}`;
+  }
+  if (corpus === 'senior') {
+    if (band == null || band === SENIOR_MAX_BAND) return base;
     return `${base}:g${band}`;
   }
   if (corpus !== 'primary' || band == null || band === MAX_BAND) return base;
@@ -33,7 +41,7 @@ function storageKey(corpus: Corpus, band?: number | string | string): string {
 export function loadTitleProgress(corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   try {
     const raw = window.localStorage.getItem(storageKey(corpus, band));
-    if (!raw) return { ...INITIAL_PROGRESS, cleared: [] };
+    if (!raw) return { ...INITIAL_PROGRESS, cleared: [], usedItems: [] };
     const parsed = JSON.parse(raw);
     return {
       unlockedIndex: typeof parsed.unlockedIndex === 'number' ? parsed.unlockedIndex : 0,
@@ -48,9 +56,12 @@ export function loadTitleProgress(corpus: Corpus = 'tang', band?: number | strin
               blood: typeof parsed.current.blood === 'number' ? parsed.current.blood : STAGE_BLOOD,
             }
           : null,
+      usedItems: Array.isArray(parsed.usedItems)
+        ? parsed.usedItems.filter((s: unknown) => typeof s === 'string')
+        : [],
     };
   } catch {
-    return { ...INITIAL_PROGRESS, cleared: [] };
+    return { ...INITIAL_PROGRESS, cleared: [], usedItems: [] };
   }
 }
 
@@ -106,5 +117,16 @@ export function clearTitleCurrent(corpus: Corpus = 'tang', band?: number | strin
   const p = loadTitleProgress(corpus, band);
   p.current = null;
   saveTitleProgress(p, corpus, band);
+  return p;
+}
+
+// 追加"已出过的诗 id"到跨关卡共享去重集。50 关共享同一诗池，
+// 调用方在 answer 题/答错换题时调，避免不同关卡随机到同一首诗。
+export function addTitleUsedItem(poemId: string, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
+  const p = loadTitleProgress(corpus, band);
+  if (!p.usedItems.includes(poemId)) {
+    p.usedItems.push(poemId);
+    saveTitleProgress(p, corpus, band);
+  }
   return p;
 }

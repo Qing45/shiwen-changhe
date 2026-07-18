@@ -17,7 +17,8 @@ import { useBreakpoint } from '../hooks/useBreakpoint';
 import { useCorpus } from '../state/corpus';
 import { loadGrade, saveGrade } from '../state/primaryGrade';
 import { loadJuniorGrade, saveJuniorGrade } from '../state/juniorGrade';
-import { getAvailableBands, getAvailableJuniorBands } from '../data/grades';
+import { loadSeniorGrade, saveSeniorGrade } from '../state/seniorGrade';
+import { getAvailableBands, getAvailableJuniorBands, getAvailableSeniorBands } from '../data/grades';
 import { colors, fontFamilies } from '../theme';
 import { toChineseNum } from '../utils/number';
 
@@ -50,9 +51,11 @@ export function PlayHall() {
 
   const isPrimary = corpus === 'primary';
   const isJunior = corpus === 'junior';
+  const isSenior = corpus === 'senior';
   const [band, setBand] = useState(() => loadGrade());
   const [juniorBand, setJuniorBand] = useState(() => loadJuniorGrade());
-  const activeBand = isPrimary ? band : isJunior ? juniorBand : undefined;
+  const [seniorBand, setSeniorBand] = useState(() => loadSeniorGrade());
+  const activeBand = isPrimary ? band : isJunior ? juniorBand : isSenior ? seniorBand : undefined;
   // 总库（'all'）映射到底层 'both'，与引擎/数据层语料枚举一致。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
 
@@ -64,6 +67,11 @@ export function PlayHall() {
   const onJuniorBandChange = (next: string) => {
     setJuniorBand(next);
     saveJuniorGrade(next);
+  };
+
+  const onSeniorBandChange = (next: string) => {
+    setSeniorBand(next);
+    saveSeniorGrade(next);
   };
 
   const charProgress = loadProgress(corpus, activeBand);
@@ -122,6 +130,14 @@ export function PlayHall() {
               bands={getAvailableJuniorBands()}
               value={juniorBand}
               onChange={onJuniorBandChange}
+            />
+          )}
+
+          {isSenior && (
+            <GradeSelector
+              bands={getAvailableSeniorBands()}
+              value={seniorBand}
+              onChange={onSeniorBandChange}
             />
           )}
 

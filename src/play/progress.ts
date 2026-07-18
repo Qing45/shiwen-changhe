@@ -12,6 +12,9 @@
 // 初中段分桶：
 //   - corpus === 'junior' && band !== '9b' 时，key 追加 ':g{band}'，按学期端点隔离。
 //   - junior band === '9b'（=全部 86 首累积）或未传 band 都走 base key。
+// 高中段分桶：
+//   - corpus === 'senior' && band !== 'gz3l' 时，key 追加 ':g{band}'，按学期端点隔离。
+//   - senior band === 'gz3l'（=全部 41 首累积）或未传 band 都走 base key。
 
 import { INITIAL_PROGRESS, STAGE_BLOOD, type FeihuaProgress } from './types';
 import { getCharKeywords } from './engine';
@@ -21,12 +24,17 @@ import { MAX_BAND } from '../data/grades';
 const STORAGE_KEY = 'shiwen-feihua-progress';
 const LEGACY_KEY = 'shiwen-feihua-progress'; // tang 的旧 key（无后缀）
 const JUNIOR_MAX_BAND = '9b';
+const SENIOR_MAX_BAND = 'gz3l';
 
 function storageKey(corpus: Corpus, band?: number | string): string {
   if (corpus === 'tang') return STORAGE_KEY;
   const base = `${STORAGE_KEY}:${corpus}`;
   if (corpus === 'junior') {
     if (band == null || band === JUNIOR_MAX_BAND) return base;
+    return `${base}:g${band}`;
+  }
+  if (corpus === 'senior') {
+    if (band == null || band === SENIOR_MAX_BAND) return base;
     return `${base}:g${band}`;
   }
   if (corpus !== 'primary' || band == null || band === MAX_BAND) return base;
@@ -44,7 +52,7 @@ export function loadProgress(corpus: Corpus = 'tang', band?: number | string): F
     }
     // cleared 必须返回全新数组 —— 否则 caller (markCleared/beginStage) 的 push
     // 会污染共享的 INITIAL_PROGRESS.cleared，导致跨 corpus 串数据。
-    if (!raw) return { ...INITIAL_PROGRESS, cleared: [] };
+    if (!raw) return { ...INITIAL_PROGRESS, cleared: [], usedItems: [] };
     const parsed = JSON.parse(raw);
     return {
       unlockedIndex: typeof parsed.unlockedIndex === 'number' ? parsed.unlockedIndex : 0,
@@ -62,9 +70,12 @@ export function loadProgress(corpus: Corpus = 'tang', band?: number | string): F
                   : STAGE_BLOOD,
             }
           : null,
+      usedItems: Array.isArray(parsed.usedItems)
+        ? parsed.usedItems.filter((s: unknown) => typeof s === 'string')
+        : [],
     };
   } catch {
-    return { ...INITIAL_PROGRESS, cleared: [] };
+    return { ...INITIAL_PROGRESS, cleared: [], usedItems: [] };
   }
 }
 
@@ -123,5 +134,16 @@ export function clearCurrent(corpus: Corpus = 'tang', band?: number | string): F
   const p = loadProgress(corpus, band);
   p.current = null;
   saveProgress(p, corpus, band);
+  return p;
+}
+
+// 追加一个"已问过"标识到跨关卡共享的去重集（sentence 存上句、title 存 poemId）。
+// 已存在则 no-op，保证 usedItems 元素唯一。供 caller 在 answer 题或答错换题时调用。
+export function addUsedItem(item: string, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
+  const p = loadProgress(corpus, band);
+  if (!p.usedItems.includes(item)) {
+    p.usedItems.push(item);
+    saveProgress(p, corpus, band);
+  }
   return p;
 }

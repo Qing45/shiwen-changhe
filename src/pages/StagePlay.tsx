@@ -18,6 +18,7 @@ import { STAGE_GOAL, type Verse } from '../play/types';
 import { useCorpus } from '../state/corpus';
 import { loadGrade } from '../state/primaryGrade';
 import { loadJuniorGrade } from '../state/juniorGrade';
+import { loadSeniorGrade } from '../state/seniorGrade';
 
 type CharStatus = 'correct' | 'wrong' | null;
 
@@ -31,8 +32,8 @@ export function StagePlay() {
   // 而 state 层 Corpus 含 'all'。此处做一次边界映射：'all' → 'both'。
   // 进度函数（loadProgress 等）接受 Corpus，仍传 raw corpus —— 进度 key 自然后缀 :all。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
-  // 仅 primary / junior 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
-  const activeBand = corpus === 'primary' ? loadGrade() : corpus === 'junior' ? loadJuniorGrade() : undefined;
+  // 仅 primary / junior / senior 库下生效的年级 band；tang / all 走 undefined 保持旧行为（byte-identical）。
+  const activeBand = corpus === 'primary' ? loadGrade() : corpus === 'junior' ? loadJuniorGrade() : corpus === 'senior' ? loadSeniorGrade() : undefined;
 
   // breakpoint 必须在所有 early return 之前调用（Rules of Hooks）
   const bp = useBreakpoint();
