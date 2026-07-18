@@ -17,6 +17,7 @@ import {
 import { STAGE_GOAL, type Verse } from '../play/types';
 import { useCorpus } from '../state/corpus';
 import { loadGrade } from '../state/primaryGrade';
+import { loadJuniorGrade } from '../state/juniorGrade';
 
 type CharStatus = 'correct' | 'wrong' | null;
 
@@ -30,25 +31,36 @@ export function StagePlay() {
   // 而 state 层 Corpus 含 'all'。此处做一次边界映射：'all' → 'both'。
   // 进度函数（loadProgress 等）接受 Corpus，仍传 raw corpus —— 进度 key 自然后缀 :all。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
-  // 仅 primary 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
-  const activeBand = corpus === 'primary' ? loadGrade() : undefined;
+  // 仅 primary / junior 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
+  const activeBand = corpus === 'primary' ? loadGrade() : corpus === 'junior' ? loadJuniorGrade() : undefined;
 
-  // 进入页面时初始化局：current 已是本关键字则续传，否则开新局
+  // breakpoint 必须在所有 early return 之前调用（Rules of Hooks）
+  const bp = useBreakpoint();
+  const isMobile = bp === 'mobile';
+
+  // 从原文页返回时取出"已查看"的题面句，加进排除集，避免回到题面后又看到同一题。
+  // key 带 corpus+band 前缀，避免不同库下同关键字互相污染。
+  // viewedKey 同时作为"刚从查看原文返回"的唯一信号 —— 仅此时续传 mid-level 进度，
+  // 用户主动退出再进入一律开新局（progress.current 被 beginStage 覆盖）。
+  const viewedKey = `feihuaStageViewed:${corpus}:${activeBand ?? ''}:${kw ?? ''}`;
+
+  // 进入页面时初始化局：仅"从查看原文返回"时续传，其它情况一律开新局。
+  // 用户语义：退出（Esc / 返回大厅）= 放弃 mid-level 进度。
   const [stage, setStage] = useState(() => {
     if (!kw) return null;
     const progress = loadProgress(corpus, activeBand);
-    if (progress.current && progress.current.keyword === kw) {
+    const isReturningFromView = sessionStorage.getItem(viewedKey) !== null;
+    if (isReturningFromView && progress.current && progress.current.keyword === kw) {
       return progress.current;
     }
     return beginStage(kw, corpus, activeBand).current;
   });
 
-  // 从原文页返回时取出"已查看"的题面句，加进排除集，避免回到题面后又看到同一题
   const [viewedLine] = useState<string | null>(() => {
     if (!kw) return null;
-    const v = sessionStorage.getItem(`feihuaStageViewed:${kw}`);
+    const v = sessionStorage.getItem(viewedKey);
     if (v) {
-      sessionStorage.removeItem(`feihuaStageViewed:${kw}`);
+      sessionStorage.removeItem(viewedKey);
       return v;
     }
     return null;
@@ -117,8 +129,10 @@ export function StagePlay() {
     if (!kw) return;
     if (stageRef.current?.keyword === kw) return;
     const progress = loadProgress(corpus, activeBand);
+    // 同 useState 初始化：仅"从查看原文返回"时续传，其它一律开新局。
+    const isReturningFromView = sessionStorage.getItem(viewedKey) !== null;
     const fresh =
-      progress.current && progress.current.keyword === kw
+      isReturningFromView && progress.current && progress.current.keyword === kw
         ? progress.current
         : beginStage(kw, corpus, activeBand).current;
     setStage(fresh);
@@ -209,7 +223,7 @@ export function StagePlay() {
     const poemId = questionRef.current.verse.poemId;
 
     commitStageBlood(kw, newBlood, corpus, activeBand);
-    sessionStorage.setItem(`feihuaStageViewed:${kw}`, line);
+    sessionStorage.setItem(viewedKey, line);
     setStage(loadProgress(corpus, activeBand).current);
     navigate(`/poem/${poemId}`, { state: { from: `/play/stage/${kw}` } });
   };
@@ -269,8 +283,6 @@ export function StagePlay() {
   // 按 band 过滤后的关键字表（仅 primary 生效；tang 走默认 KEYWORDS）
   const charKeywords = getCharKeywords(poemCorpus, activeBand);
   const kwIndex = charKeywords.indexOf(kw);
-  const bp = useBreakpoint();
-  const isMobile = bp === 'mobile';
 
   // 当前关键字不在所选 band 的可用表中 —— 视为关卡不存在
   if (kwIndex < 0) {
@@ -312,7 +324,7 @@ export function StagePlay() {
   return (
     <PlayShell
       blood={stage.blood}
-      correctCount={stage.correct.length}
+      correctCount={Math.min(stage.correct.length + 1, STAGE_GOAL)}
       paused={grading || result !== null}
       onZero={handleWrong}
       resetKey={resetKey}

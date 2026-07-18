@@ -14,7 +14,7 @@ export interface CharKeywordGroup {
   words: readonly string[];
 }
 
-function cacheKey(corpus: PoemCorpus, band?: number): string {
+function cacheKey(corpus: PoemCorpus, band?: number | string | string): string {
   return band == null ? corpus : `${corpus}:${band}`;
 }
 
@@ -23,7 +23,7 @@ function cacheKey(corpus: PoemCorpus, band?: number): string {
 // 注：仅扫描 KEYWORDS 中关键字的桶，索引只包含 KEYWORDS 字。其他字符（如
 // PRIMARY_KEYWORDS 中的字）的扫描交给 caller 自行实现，或扩展 KEYWORDS。
 // 此处保留 50 字 KEYWORDS 桶用于默认 tang/单人闯关玩法。
-export function buildKeywordIndex(corpus: PoemCorpus = 'tang', band?: number): Map<string, Verse[]> {
+export function buildKeywordIndex(corpus: PoemCorpus = 'tang', band?: number | string): Map<string, Verse[]> {
   const poems = getPoemsForPlay(corpus, band);
   const index = new Map<string, Verse[]>();
   for (const k of KEYWORDS) index.set(k, []);
@@ -58,7 +58,7 @@ export function buildKeywordIndex(corpus: PoemCorpus = 'tang', band?: number): M
 // 为 PRIMARY_KEYWORDS 扫描：构建「任意字 -> 含该字的所有诗句」索引（不限 KEYWORDS 桶）。
 // primaryKeywords 测试需要查任意字（如 寒/酒/舟 等非 KEYWORDS 字），故不能用上面的
 // 仅 KEYWORDS 桶索引。此函数扫描每行所有出现过的字。
-export function buildKeywordIndexFullScan(corpus: PoemCorpus = 'tang', band?: number): Map<string, Verse[]> {
+export function buildKeywordIndexFullScan(corpus: PoemCorpus = 'tang', band?: number | string): Map<string, Verse[]> {
   const poems = getPoemsForPlay(corpus, band);
   const index = new Map<string, Verse[]>();
 
@@ -96,7 +96,7 @@ const _fullScanCache = new Map<string, Map<string, Verse[]>>();
 // getKeywordIndex 默认走 KEYWORDS 桶（兼容旧 tang 单人闯关玩法）。
 const _keywordCache = new Map<string, Map<string, Verse[]>>();
 
-export function getKeywordIndex(corpus: PoemCorpus = 'tang', band?: number): Map<string, Verse[]> {
+export function getKeywordIndex(corpus: PoemCorpus = 'tang', band?: number | string): Map<string, Verse[]> {
   const key = cacheKey(corpus, band);
   if (!_keywordCache.has(key)) _keywordCache.set(key, buildKeywordIndex(corpus, band));
   return _keywordCache.get(key)!;
@@ -104,13 +104,13 @@ export function getKeywordIndex(corpus: PoemCorpus = 'tang', band?: number): Map
 
 // 全字符索引（PRIMARY_KEYWORDS 查询用）。同时供 getVersesFor(keyword, corpus) 使用，
 // 使 primary 语料库的非 KEYWORDS 字（如 寒/酒/舟）也能查到。
-export function getKeywordIndexFullScan(corpus: PoemCorpus = 'tang', band?: number): Map<string, Verse[]> {
+export function getKeywordIndexFullScan(corpus: PoemCorpus = 'tang', band?: number | string): Map<string, Verse[]> {
   const key = cacheKey(corpus, band);
   if (!_fullScanCache.has(key)) _fullScanCache.set(key, buildKeywordIndexFullScan(corpus, band));
   return _fullScanCache.get(key)!;
 }
 
-export function getVersesFor(keyword: string, corpus: PoemCorpus = 'tang', band?: number): Verse[] {
+export function getVersesFor(keyword: string, corpus: PoemCorpus = 'tang', band?: number | string): Verse[] {
   // 若该字属于 KEYWORDS，走桶索引（与历史行为一致）；
   // 否则走全字符索引（覆盖 PRIMARY_KEYWORDS 中的非 KEYWORDS 字）。
   if (KEYWORDS.includes(keyword)) {
@@ -133,22 +133,25 @@ const PRIMARY_CHAR_GROUPS: readonly CharKeywordGroup[] = [
   { tier: 'advanced', words: PRIMARY_KEYWORD_GROUPS.advanced },
 ];
 
-export function getCharKeywordGroups(corpus: PoemCorpus = 'tang', band?: number): CharKeywordGroup[] {
-  if (corpus !== 'primary') return [...TANG_CHAR_GROUPS];
-  return PRIMARY_CHAR_GROUPS
+export function getCharKeywordGroups(corpus: PoemCorpus = 'tang', band?: number | string): CharKeywordGroup[] {
+  // 三档分组按 (corpus, band) 过滤：每字需 ≥ STAGE_GOAL 句可挖空才能成关。
+  // 对 tang / both 无 band 时扫描验证每字 ≥5，过滤退化为 no-op；
+  // 对 junior 各学期 band、primary 低年级 band 会真实剔除诗句不足 5 句的字，
+  // 避免 PlayHall 解锁后点进去看到「题库已空」。
+  const groups = corpus === 'primary' ? PRIMARY_CHAR_GROUPS : TANG_CHAR_GROUPS;
+  return groups
     .map((group) => ({
       tier: group.tier,
-      words: group.words.filter((kw) => getVersesFor(kw, 'primary', band).length >= STAGE_GOAL),
+      words: group.words.filter((kw) => getVersesFor(kw, corpus, band).length >= STAGE_GOAL),
     }))
     .filter((group) => group.words.length > 0);
 }
 
-export function getCharKeywords(corpus: PoemCorpus = 'tang', band?: number): readonly string[] {
-  if (corpus !== 'primary') return KEYWORDS;
-  return getCharKeywordGroups('primary', band).flatMap((group) => [...group.words]);
+export function getCharKeywords(corpus: PoemCorpus = 'tang', band?: number | string): readonly string[] {
+  return getCharKeywordGroups(corpus, band).flatMap((group) => [...group.words]);
 }
 
-export function countAvailableCharStages(corpus: PoemCorpus = 'tang', band?: number): number {
+export function countAvailableCharStages(corpus: PoemCorpus = 'tang', band?: number | string): number {
   return getCharKeywords(corpus, band).length;
 }
 
@@ -174,7 +177,7 @@ export function pickStageQuestion(
   keyword: string,
   used: Set<string>,
   corpus: PoemCorpus = 'tang',
-  band?: number,
+  band?: number | string,
 ): { verse: Verse; blanks: number[] } | null {
   const pool = getVersesFor(keyword, corpus, band).filter(v => !used.has(v.line));
   if (pool.length === 0) return null;

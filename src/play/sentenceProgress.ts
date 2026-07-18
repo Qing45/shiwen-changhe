@@ -8,21 +8,29 @@
 // 小学年级分桶：
 //   - corpus === 'primary' && band !== MAX_BAND 时，key 追加 ':g{band}'，按年级端点隔离。
 //   - tang / all / primary band === MAX_BAND（或未传 band）都走原 key。
+// 初中段分桶：
+//   - corpus === 'junior' && band !== '9b' 时，key 追加 ':g{band}'，按学期端点隔离。
+//   - junior band === '9b' 或未传 band 都走 base key。
 
 import { INITIAL_PROGRESS, STAGE_BLOOD, type FeihuaProgress } from './types';
 import type { Corpus } from '../state/corpus';
 import { MAX_BAND } from '../data/grades';
 
 const STORAGE_KEY = 'shiwen-feihua-sentence-progress';
+const JUNIOR_MAX_BAND = '9b';
 
-function storageKey(corpus: Corpus, band?: number): string {
+function storageKey(corpus: Corpus, band?: number | string | string): string {
   if (corpus === 'tang') return STORAGE_KEY;
   const base = `${STORAGE_KEY}:${corpus}`;
+  if (corpus === 'junior') {
+    if (band == null || band === JUNIOR_MAX_BAND) return base;
+    return `${base}:g${band}`;
+  }
   if (corpus !== 'primary' || band == null || band === MAX_BAND) return base;
   return `${base}:g${band}`;
 }
 
-export function loadSentenceProgress(corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function loadSentenceProgress(corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   try {
     const raw = window.localStorage.getItem(storageKey(corpus, band));
     // cleared 必须返回全新数组 —— 否则 caller 的 push 会污染共享的 INITIAL_PROGRESS.cleared。
@@ -47,7 +55,7 @@ export function loadSentenceProgress(corpus: Corpus = 'tang', band?: number): Fe
   }
 }
 
-export function saveSentenceProgress(p: FeihuaProgress, corpus: Corpus = 'tang', band?: number): void {
+export function saveSentenceProgress(p: FeihuaProgress, corpus: Corpus = 'tang', band?: number | string): void {
   try {
     window.localStorage.setItem(storageKey(corpus, band), JSON.stringify(p));
   } catch {
@@ -55,7 +63,7 @@ export function saveSentenceProgress(p: FeihuaProgress, corpus: Corpus = 'tang',
   }
 }
 
-export function markSentenceCleared(keyword: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function markSentenceCleared(keyword: string, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadSentenceProgress(corpus, band);
   if (p.cleared.includes(keyword)) {
     p.current = null;
@@ -72,14 +80,14 @@ export function markSentenceCleared(keyword: string, corpus: Corpus = 'tang', ba
   return p;
 }
 
-export function beginSentenceStage(keyword: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function beginSentenceStage(keyword: string, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadSentenceProgress(corpus, band);
   p.current = { keyword, correct: [], blood: STAGE_BLOOD };
   saveSentenceProgress(p, corpus, band);
   return p;
 }
 
-export function commitSentenceCorrect(keyword: string, line: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function commitSentenceCorrect(keyword: string, line: string, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadSentenceProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   if (!p.current.correct.includes(line)) p.current.correct.push(line);
@@ -87,7 +95,7 @@ export function commitSentenceCorrect(keyword: string, line: string, corpus: Cor
   return p;
 }
 
-export function commitSentenceBlood(keyword: string, blood: number, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function commitSentenceBlood(keyword: string, blood: number, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadSentenceProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   p.current.blood = blood;
@@ -95,7 +103,7 @@ export function commitSentenceBlood(keyword: string, blood: number, corpus: Corp
   return p;
 }
 
-export function clearSentenceCurrent(corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function clearSentenceCurrent(corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadSentenceProgress(corpus, band);
   p.current = null;
   saveSentenceProgress(p, corpus, band);

@@ -18,6 +18,7 @@ import { useBreakpoint } from '../hooks/useBreakpoint';
 import { useCorpus } from '../state/corpus';
 import { colors, fontFamilies, paperTheme } from '../theme';
 import { loadGrade } from '../state/primaryGrade';
+import { loadJuniorGrade } from '../state/juniorGrade';
 
 const { text: PAPER_TEXT, textDim: PAPER_TEXT_DIM, green: PAPER_GREEN, red: PAPER_RED } = paperTheme;
 
@@ -36,8 +37,8 @@ export function TitlePlay() {
   // 引擎/题库（titles.ts）接受 PoemCorpus，state 层 Corpus 含 'all'。
   // 'all' → 'both' 边界映射。进度函数接受 Corpus，仍传 raw corpus。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
-  // 仅 primary 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
-  const activeBand = corpus === 'primary' ? loadGrade() : undefined;
+  // 仅 primary / junior 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
+  const activeBand = corpus === 'primary' ? loadGrade() : corpus === 'junior' ? loadJuniorGrade() : undefined;
 
   // 关数按 (corpus, band) 动态计算：tang 50、primary band=1 较小；依语料库变动。
   const totalLevels = countAvailableTitleLevels(poemCorpus, activeBand);
@@ -46,10 +47,10 @@ export function TitlePlay() {
 
   const levelKey = String(level);
 
+  // 进入页面时永远开新局 —— 整篇识名模式没有"查看原文"跳转，无需 mid-level 续传。
+  // 用户主动退出再进入也应从第 1 题开始：beginTitleStage 会覆盖 progress.current。
   const [stage, setStage] = useState(() => {
     if (!validLevel) return null;
-    const progress = loadTitleProgress(corpus, activeBand);
-    if (progress.current && progress.current.keyword === levelKey) return progress.current;
     return beginTitleStage(levelKey, corpus, activeBand).current;
   });
 
@@ -75,15 +76,11 @@ export function TitlePlay() {
   const bp = useBreakpoint();
   const isMobile = bp === 'mobile';
 
-  // 关卡切换时复位状态（同一 element 内导航不会重挂载）
+  // 关卡切换时复位状态（同一 element 内导航不会重挂载）；永远开新局
   useEffect(() => {
     if (!validLevel) return;
     if (stageRef.current && stageRef.current.keyword === levelKey) return;
-    const progress = loadTitleProgress(corpus, activeBand);
-    const fresh =
-      progress.current && progress.current.keyword === levelKey
-        ? progress.current
-        : beginTitleStage(levelKey, corpus, activeBand).current;
+    const fresh = beginTitleStage(levelKey, corpus, activeBand).current;
     setStage(fresh);
     usedPoemIdsRef.current = new Set(fresh ? (fresh.correct ?? []) : []);
     setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand));
@@ -179,7 +176,7 @@ export function TitlePlay() {
   return (
     <PlayShell
       blood={stage.blood}
-      correctCount={stage.correct.length}
+      correctCount={Math.min(stage.correct.length + 1, STAGE_GOAL)}
       paused={grading || result !== null}
       onZero={handleWrong}
       resetKey={resetKey}

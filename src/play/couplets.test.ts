@@ -134,6 +134,41 @@ describe('pickLevelQuestion', () => {
   });
 });
 
+describe('pickLevelQuestion pool filtering (regression: junior 7a 关卡打开就题库已空)', () => {
+  // 旧实现 pickLevelQuestion 从整个 tier 池随机抽 pair，没过滤 canMakeQuestion。
+  // countAvailableLevels 用 canMakeQuestion 算关数（=可出题 pair 数），两端不一致：
+  // 池里若混着凑不齐 3 个不同诗干扰的 pair，pickLevelQuestion 有概率抽到 → 返回 null
+  // → 用户打开页面看到「题库已空」。修复后两端一致：pool 必先 canMakeQuestion 过滤。
+  it('never returns null on any RNG seed when countAvailableLevels > 0', () => {
+    _setRng(Math.random);
+    const cases: Array<{ corpus: 'tang' | 'primary' | 'junior' | 'both'; band?: number | string }> = [
+      { corpus: 'tang' },
+      { corpus: 'primary', band: MAX_BAND },
+      { corpus: 'primary', band: 6 },
+      { corpus: 'junior', band: '7a' },
+      { corpus: 'junior', band: '8a' },
+      { corpus: 'junior', band: '9b' },
+      { corpus: 'both' },
+    ];
+    for (const { corpus, band } of cases) {
+      for (const tier of ['entry', 'mid', 'advanced'] as const) {
+        const count = countAvailableLevels(tier, corpus, band);
+        if (count === 0) continue;
+        for (let i = 0; i < 30; i++) {
+          const q = pickLevelQuestion(tier, new Set(), corpus, band);
+          if (q === null) {
+            throw new Error(
+              `pickLevelQuestion returned null for ${corpus}/${band ?? '-'} ${tier}` +
+              ` (count=${count}) on iteration ${i}`,
+            );
+          }
+          expect(q.options.length).toBe(4);
+        }
+      }
+    }
+  });
+});
+
 describe('primary grade band filtering for sentence mode', () => {
   it('filters couplet pools by grade band monotonically', () => {
     const full = getAllCouplets('primary', MAX_BAND).map((p) => `${p.upper.poemId}:${p.upper.line}`);
@@ -161,6 +196,43 @@ describe('primary grade band filtering for sentence mode', () => {
     expect(tierOfAvailableLevel(11, 'primary', MAX_BAND)).toBe('mid');
     expect(tierOfAvailableLevel(30, 'primary', MAX_BAND)).toBe('mid');
     expect(tierOfAvailableLevel(31, 'primary', MAX_BAND)).toBeNull();
+  });
+
+  it('countAvailableLevels never leaves a tier with fewer than STAGE_GOAL pairs (regression: 7a level 2 答完 3 题就题库已空)', () => {
+    // 每关需 STAGE_GOAL=5 句不重复的上句才能通关。可出题 pair 不足 5 时整档必须归零，
+    // 否则用户打开的关卡注定无法通关 —— 答完几题后 pool 干涸，看到「题库已空」。
+    const STAGE_GOAL = 5;
+    const cases: Array<{ corpus: 'tang' | 'primary' | 'junior' | 'both'; band?: number | string }> = [
+      { corpus: 'tang' },
+      { corpus: 'primary', band: 1 },
+      { corpus: 'primary', band: 3 },
+      { corpus: 'primary', band: MAX_BAND },
+      { corpus: 'junior', band: '7a' },
+      { corpus: 'junior', band: '8a' },
+      { corpus: 'junior', band: '9b' },
+      { corpus: 'both' },
+    ];
+    for (const { corpus, band } of cases) {
+      for (const tier of ['entry', 'mid', 'advanced'] as const) {
+        const count = countAvailableLevels(tier, corpus, band);
+        if (count > 0) {
+          // 关数 > 0 时必须保证可通关：池子足够大，pickLevelQuestion 跑 STAGE_GOAL 次
+          // 不应撞空。注意每关 usedUpperLines 独立累积，模拟一关内连答 5 次。
+          const used = new Set<string>();
+          for (let i = 0; i < STAGE_GOAL; i++) {
+            _setRng(Math.random);
+            const q = pickLevelQuestion(tier, used, corpus, band);
+            if (q === null) {
+              throw new Error(
+                `pickLevelQuestion returned null at step ${i} for ${corpus}/${band ?? '-'} ${tier}`,
+              );
+            }
+            expect(q.options.length).toBe(4);
+            used.add(q.upper.line);
+          }
+        }
+      }
+    }
   });
 
   it('keeps tang sentence mode at 50 levels', () => {

@@ -17,6 +17,7 @@ import { STAGE_GOAL } from '../play/types';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { useCorpus } from '../state/corpus';
 import { loadGrade } from '../state/primaryGrade';
+import { loadJuniorGrade } from '../state/juniorGrade';
 import { toChineseNum } from '../utils/number';
 import { fontFamilies, paperTheme } from '../theme';
 import { colors } from '../theme';
@@ -33,14 +34,16 @@ export function SentencePlay() {
   const { level: levelParam } = useParams<{ level: string }>();
   const navigate = useNavigate();
   const level = parseInt(levelParam ?? '', 10);
+  const bp = useBreakpoint();
+  const isMobile = bp === 'mobile';
 
   const corpus = useCorpus();
   // 引擎/题库（couplets.ts）接受 PoemCorpus（'tang' | 'primary' | 'both'），
   // 而 state 层 Corpus 含 'all'。此处做一次边界映射：'all' → 'both'。
   // 进度函数（loadSentenceProgress 等）接受 Corpus，仍传 raw corpus —— 进度 key 自然后缀 :all。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
-  // 仅 primary 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
-  const activeBand = corpus === 'primary' ? loadGrade() : undefined;
+  // 仅 primary / junior 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
+  const activeBand = corpus === 'primary' ? loadGrade() : corpus === 'junior' ? loadJuniorGrade() : undefined;
 
   // 关数按 (corpus, band) 动态计算：tang 50、primary band=1 至多 30（入门 10+进阶 20），依语料库变动。
   const totalLevels = getTotalAvailableLevels(poemCorpus, activeBand);
@@ -49,19 +52,29 @@ export function SentencePlay() {
 
   const levelKey = String(level);   // 进度存储用字符串 key
 
+  // 从原文页返回时取出"已查看"的上句，加进排除集，避免回到题面后又看到同一题。
+  // key 带 corpus+band 前缀，避免不同库下同 levelKey 互相污染。
+  // viewedKey 同时作为"刚从查看原文返回"的唯一信号 —— 仅此时续传 mid-level 进度，
+  // 用户主动退出再进入一律开新局（progress.current 被 beginSentenceStage 覆盖）。
+  const viewedKey = `feihuaSentenceViewed:${corpus}:${activeBand ?? ''}:${levelKey}`;
+
   const [stage, setStage] = useState(() => {
     if (!validLevel) return null;
     const progress = loadSentenceProgress(corpus, activeBand);
-    if (progress.current && progress.current.keyword === levelKey) return progress.current;
+    // 仅"从查看原文返回"时续传：viewedKey flag 表示玩家点了"查看原文"跳到 PoemPage 后回来。
+    // 其它情况（首次进入、退出再进、切关）一律 beginSentenceStage 开新局 —— 用户语义：退出 = 放弃进度。
+    const isReturningFromView = sessionStorage.getItem(viewedKey) !== null;
+    if (isReturningFromView && progress.current && progress.current.keyword === levelKey) {
+      return progress.current;
+    }
     return beginSentenceStage(levelKey, corpus, activeBand).current;
   });
 
-  // 从原文页返回时取出"已查看"的上句，加进排除集，避免回到题面后又看到同一题
   const [viewedUpperLine] = useState<string | null>(() => {
     if (!validLevel) return null;
-    const v = sessionStorage.getItem(`feihuaSentenceViewed:${levelKey}`);
+    const v = sessionStorage.getItem(viewedKey);
     if (v) {
-      sessionStorage.removeItem(`feihuaSentenceViewed:${levelKey}`);
+      sessionStorage.removeItem(viewedKey);
       return v;
     }
     return null;
@@ -95,8 +108,10 @@ export function SentencePlay() {
     if (!validLevel || !tier) return;
     if (stageRef.current?.keyword === levelKey) return;
     const progress = loadSentenceProgress(corpus, activeBand);
+    // 同 useState 初始化：仅"从查看原文返回"时续传，其它一律开新局。
+    const isReturningFromView = sessionStorage.getItem(viewedKey) !== null;
     const fresh =
-      progress.current && progress.current.keyword === levelKey
+      isReturningFromView && progress.current && progress.current.keyword === levelKey
         ? progress.current
         : beginSentenceStage(levelKey, corpus, activeBand).current;
     setStage(fresh);
@@ -122,11 +137,14 @@ export function SentencePlay() {
   const handleCorrect = () => {
     if (!validLevel || !tier || !questionRef.current || !stageRef.current) return;
     const cur = stageRef.current;
-    const line = questionRef.current.answer.line;
-    const newCorrect = [...cur.correct, line];
+    // stage.correct 存的是"已答过的上句"——pickLevelQuestion 用 upper.line 排除，
+    // 必须同维度记录；若存下句会导致排除集失效，5 题里随机到重复上句。
+    const upperLine = questionRef.current.upper.line;
+    const newCorrect = [...cur.correct, upperLine];
 
-    commitSentenceCorrect(levelKey, line, corpus, activeBand);
-    setStage(loadSentenceProgress(corpus, activeBand).current);
+    commitSentenceCorrect(levelKey, upperLine, corpus, activeBand);
+    const next = loadSentenceProgress(corpus, activeBand);
+    setStage(next.current);
     usedUpperRef.current = new Set(newCorrect);
 
     if (newCorrect.length >= STAGE_GOAL) {
@@ -155,6 +173,12 @@ export function SentencePlay() {
       setResult({ kind: 'failed', correct: cur.correct });
       return;
     }
+    // 答错也排除当前上句，避免换题后又被随机到同一道
+    if (questionRef.current) {
+      const newUsed = new Set(usedUpperRef.current);
+      newUsed.add(questionRef.current.upper.line);
+      usedUpperRef.current = newUsed;
+    }
     setGrading(true);
     setTimeout(() => {
       setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus, activeBand));
@@ -176,7 +200,7 @@ export function SentencePlay() {
     const poemId = questionRef.current.upper.poemId;
 
     commitSentenceBlood(levelKey, newBlood, corpus, activeBand);
-    sessionStorage.setItem(`feihuaSentenceViewed:${levelKey}`, upperLine);
+    sessionStorage.setItem(viewedKey, upperLine);
     setStage(loadSentenceProgress(corpus, activeBand).current);
     navigate(`/poem/${poemId}`, { state: { from: `/play/sentence/${level}` } });
   };
@@ -202,8 +226,6 @@ export function SentencePlay() {
   }
 
   const isLastLevel = level >= totalLevels;
-  const bp = useBreakpoint();
-  const isMobile = bp === 'mobile';
 
   const resetKey = `${levelKey}-${stage.correct.length}-${stage.blood}`;
 
@@ -229,7 +251,7 @@ export function SentencePlay() {
   return (
     <PlayShell
       blood={stage.blood}
-      correctCount={stage.correct.length}
+      correctCount={Math.min(stage.correct.length + 1, STAGE_GOAL)}
       paused={grading || result !== null}
       onZero={handleWrong}
       resetKey={resetKey}

@@ -8,6 +8,7 @@
 import { extractVariants } from '../utils/poemText';
 import { getPoemsForPlay } from '../data/grades';
 import type { PoemCorpus } from '../types';
+import { STAGE_GOAL } from './types';
 
 export interface TitleQuestion {
   poemId: string;
@@ -32,7 +33,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 // 候选池：必须有 content（极少数诗可能 content 为空）
-function buildPool(corpus: PoemCorpus, band?: number) {
+function buildPool(corpus: PoemCorpus, band?: number | string) {
   return getPoemsForPlay(corpus, band).filter(p => p.content && p.content.length > 0);
 }
 
@@ -44,11 +45,12 @@ const TITLE_LEVEL_CAP: Record<PoemCorpus, number> = {
   both: 50,
 };
 
-export function countAvailableTitleLevels(corpus: PoemCorpus, band?: number): number {
+export function countAvailableTitleLevels(corpus: PoemCorpus, band?: number | string): number {
   const pool = buildPool(corpus, band);
-  if (pool.length < 4) return 0;
-  // 池子大小即关数：pickTitleQuestion 仅需 4 首诗（1 正确 + 3 干扰），
-  // 干扰项在同作者不足时会回退到任意不同诗名，因此池中 4 首诗就够出 1 题。
+  // 每关需答出 STAGE_GOAL 首不重复的诗才能通关。池子不足 STAGE_GOAL 时整档归零
+  // —— 否则用户打开关卡后中途会遇到「题库已空」永远无法通关。
+  // （每关的 usedPoemIds 是独立的，多关共享同一池子。）
+  if (pool.length < STAGE_GOAL) return 0;
   return Math.min(TITLE_LEVEL_CAP[corpus], pool.length);
 }
 
@@ -56,7 +58,7 @@ export function pickTitleQuestion(
   level: number,
   usedPoemIds: ReadonlySet<string>,
   corpus: PoemCorpus,
-  band?: number,
+  band?: number | string,
 ): TitleQuestion | null {
   const pool = buildPool(corpus, band);
   if (pool.length === 0) return null;

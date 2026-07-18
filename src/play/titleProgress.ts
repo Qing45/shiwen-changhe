@@ -8,21 +8,29 @@
 // 小学年级分桶：
 //   - corpus === 'primary' && band !== MAX_BAND 时，key 追加 ':g{band}'，按年级端点隔离。
 //   - tang / all / primary band === MAX_BAND（或未传 band）都走原 key。
+// 初中段分桶：
+//   - corpus === 'junior' && band !== '9b' 时，key 追加 ':g{band}'，按学期端点隔离。
+//   - junior band === '9b' 或未传 band 都走 base key。
 
 import { INITIAL_PROGRESS, STAGE_BLOOD, type FeihuaProgress } from './types';
 import type { Corpus } from '../state/corpus';
 import { MAX_BAND } from '../data/grades';
 
 const STORAGE_KEY = 'shiwen-feihua-title-progress';
+const JUNIOR_MAX_BAND = '9b';
 
-function storageKey(corpus: Corpus, band?: number): string {
+function storageKey(corpus: Corpus, band?: number | string | string): string {
   if (corpus === 'tang') return STORAGE_KEY;
   const base = `${STORAGE_KEY}:${corpus}`;
+  if (corpus === 'junior') {
+    if (band == null || band === JUNIOR_MAX_BAND) return base;
+    return `${base}:g${band}`;
+  }
   if (corpus !== 'primary' || band == null || band === MAX_BAND) return base;
   return `${base}:g${band}`;
 }
 
-export function loadTitleProgress(corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function loadTitleProgress(corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   try {
     const raw = window.localStorage.getItem(storageKey(corpus, band));
     if (!raw) return { ...INITIAL_PROGRESS, cleared: [] };
@@ -46,7 +54,7 @@ export function loadTitleProgress(corpus: Corpus = 'tang', band?: number): Feihu
   }
 }
 
-export function saveTitleProgress(p: FeihuaProgress, corpus: Corpus = 'tang', band?: number): void {
+export function saveTitleProgress(p: FeihuaProgress, corpus: Corpus = 'tang', band?: number | string): void {
   try {
     window.localStorage.setItem(storageKey(corpus, band), JSON.stringify(p));
   } catch {
@@ -54,7 +62,7 @@ export function saveTitleProgress(p: FeihuaProgress, corpus: Corpus = 'tang', ba
   }
 }
 
-export function markTitleCleared(keyword: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function markTitleCleared(keyword: string, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadTitleProgress(corpus, band);
   if (p.cleared.includes(keyword)) {
     p.current = null;
@@ -71,14 +79,14 @@ export function markTitleCleared(keyword: string, corpus: Corpus = 'tang', band?
   return p;
 }
 
-export function beginTitleStage(keyword: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function beginTitleStage(keyword: string, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadTitleProgress(corpus, band);
   p.current = { keyword, correct: [], blood: STAGE_BLOOD };
   saveTitleProgress(p, corpus, band);
   return p;
 }
 
-export function commitTitleCorrect(keyword: string, line: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function commitTitleCorrect(keyword: string, line: string, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadTitleProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   if (!p.current.correct.includes(line)) p.current.correct.push(line);
@@ -86,7 +94,7 @@ export function commitTitleCorrect(keyword: string, line: string, corpus: Corpus
   return p;
 }
 
-export function commitTitleBlood(keyword: string, blood: number, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function commitTitleBlood(keyword: string, blood: number, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadTitleProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   p.current.blood = blood;
@@ -94,7 +102,7 @@ export function commitTitleBlood(keyword: string, blood: number, corpus: Corpus 
   return p;
 }
 
-export function clearTitleCurrent(corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function clearTitleCurrent(corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadTitleProgress(corpus, band);
   p.current = null;
   saveTitleProgress(p, corpus, band);

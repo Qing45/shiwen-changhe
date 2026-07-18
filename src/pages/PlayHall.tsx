@@ -16,7 +16,8 @@ import { loadTitleProgress } from '../play/titleProgress';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { useCorpus } from '../state/corpus';
 import { loadGrade, saveGrade } from '../state/primaryGrade';
-import { getAvailableBands } from '../data/grades';
+import { loadJuniorGrade, saveJuniorGrade } from '../state/juniorGrade';
+import { getAvailableBands, getAvailableJuniorBands } from '../data/grades';
 import { colors, fontFamilies } from '../theme';
 import { toChineseNum } from '../utils/number';
 
@@ -48,14 +49,21 @@ export function PlayHall() {
   const corpus = useCorpus();
 
   const isPrimary = corpus === 'primary';
+  const isJunior = corpus === 'junior';
   const [band, setBand] = useState(() => loadGrade());
-  const activeBand = isPrimary ? band : undefined;
+  const [juniorBand, setJuniorBand] = useState(() => loadJuniorGrade());
+  const activeBand = isPrimary ? band : isJunior ? juniorBand : undefined;
   // 总库（'all'）映射到底层 'both'，与引擎/数据层语料枚举一致。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
 
   const onBandChange = (next: number) => {
     setBand(next);
     saveGrade(next);
+  };
+
+  const onJuniorBandChange = (next: string) => {
+    setJuniorBand(next);
+    saveJuniorGrade(next);
   };
 
   const charProgress = loadProgress(corpus, activeBand);
@@ -97,7 +105,7 @@ export function PlayHall() {
               marginTop: 6, color: '#8b7355', fontFamily: fontFamilies.chinese,
               fontSize: 14, letterSpacing: 6,
             }}>
-              当前诗库：{corpus === 'tang' ? '唐诗三百首' : corpus === 'primary' ? '小学必背' : '总库'}
+              当前诗库：{corpus === 'tang' ? '唐诗三百首' : corpus === 'primary' ? '小学必背' : corpus === 'junior' ? '初中必背' : '总库'}
             </div>
           </div>
 
@@ -106,6 +114,14 @@ export function PlayHall() {
               bands={getAvailableBands()}
               value={band}
               onChange={onBandChange}
+            />
+          )}
+
+          {isJunior && (
+            <GradeSelector
+              bands={getAvailableJuniorBands()}
+              value={juniorBand}
+              onChange={onJuniorBandChange}
             />
           )}
 

@@ -9,24 +9,31 @@
 // 小学年级分桶（Task 5）：
 //   - corpus === 'primary' && band !== MAX_BAND 时，key 追加 ':g{band}'，按年级端点隔离。
 //   - tang / all / primary band === MAX_BAND（或未传 band）都走原 key。
+// 初中段分桶：
+//   - corpus === 'junior' && band !== '9b' 时，key 追加 ':g{band}'，按学期端点隔离。
+//   - junior band === '9b'（=全部 86 首累积）或未传 band 都走 base key。
 
 import { INITIAL_PROGRESS, STAGE_BLOOD, type FeihuaProgress } from './types';
-import { KEYWORDS } from './keywords';
-import { PRIMARY_KEYWORDS } from './primaryKeywords';
+import { getCharKeywords } from './engine';
 import type { Corpus } from '../state/corpus';
 import { MAX_BAND } from '../data/grades';
 
 const STORAGE_KEY = 'shiwen-feihua-progress';
 const LEGACY_KEY = 'shiwen-feihua-progress'; // tang 的旧 key（无后缀）
+const JUNIOR_MAX_BAND = '9b';
 
-function storageKey(corpus: Corpus, band?: number): string {
+function storageKey(corpus: Corpus, band?: number | string): string {
   if (corpus === 'tang') return STORAGE_KEY;
   const base = `${STORAGE_KEY}:${corpus}`;
+  if (corpus === 'junior') {
+    if (band == null || band === JUNIOR_MAX_BAND) return base;
+    return `${base}:g${band}`;
+  }
   if (corpus !== 'primary' || band == null || band === MAX_BAND) return base;
   return `${base}:g${band}`;
 }
 
-export function loadProgress(corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function loadProgress(corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   try {
     const key = storageKey(corpus, band);
     let raw = window.localStorage.getItem(key);
@@ -61,7 +68,7 @@ export function loadProgress(corpus: Corpus = 'tang', band?: number): FeihuaProg
   }
 }
 
-export function saveProgress(p: FeihuaProgress, corpus: Corpus = 'tang', band?: number): void {
+export function saveProgress(p: FeihuaProgress, corpus: Corpus = 'tang', band?: number | string): void {
   try {
     window.localStorage.setItem(storageKey(corpus, band), JSON.stringify(p));
   } catch {
@@ -69,7 +76,7 @@ export function saveProgress(p: FeihuaProgress, corpus: Corpus = 'tang', band?: 
   }
 }
 
-export function markCleared(keyword: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function markCleared(keyword: string, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadProgress(corpus, band);
   if (p.cleared.includes(keyword)) {
     p.current = null;
@@ -77,8 +84,11 @@ export function markCleared(keyword: string, corpus: Corpus = 'tang', band?: num
     return p;
   }
   p.cleared.push(keyword);
-  // unlockedIndex = max(已解锁序号, 该字在当前 corpus 关键字表中的位置 + 1)
-  const keywordList = corpus === 'primary' ? PRIMARY_KEYWORDS : KEYWORDS;
+  // unlockedIndex 必须用过滤后的 charKeywords 算 idx —— PlayHall 的 stateOf 也用它。
+  // 旧实现用未过滤的 PRIMARY_KEYWORDS/KEYWORDS，band 过滤剔除某些字后两端 idx 错位，
+  // 会出现「已通关该字但下一字仍 locked」的卡死。
+  const poemCorpus = corpus === 'all' ? 'both' : corpus;
+  const keywordList = getCharKeywords(poemCorpus, band);
   const idx = keywordList.indexOf(keyword);
   if (idx >= 0 && idx + 1 > p.unlockedIndex) p.unlockedIndex = idx + 1;
   p.current = null; // 通关清空 current
@@ -86,14 +96,14 @@ export function markCleared(keyword: string, corpus: Corpus = 'tang', band?: num
   return p;
 }
 
-export function beginStage(keyword: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function beginStage(keyword: string, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadProgress(corpus, band);
   p.current = { keyword, correct: [], blood: STAGE_BLOOD };
   saveProgress(p, corpus, band);
   return p;
 }
 
-export function commitStageCorrect(keyword: string, line: string, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function commitStageCorrect(keyword: string, line: string, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   if (!p.current.correct.includes(line)) p.current.correct.push(line);
@@ -101,7 +111,7 @@ export function commitStageCorrect(keyword: string, line: string, corpus: Corpus
   return p;
 }
 
-export function commitStageBlood(keyword: string, blood: number, corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function commitStageBlood(keyword: string, blood: number, corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadProgress(corpus, band);
   if (!p.current || p.current.keyword !== keyword) return p;
   p.current.blood = blood;
@@ -109,7 +119,7 @@ export function commitStageBlood(keyword: string, blood: number, corpus: Corpus 
   return p;
 }
 
-export function clearCurrent(corpus: Corpus = 'tang', band?: number): FeihuaProgress {
+export function clearCurrent(corpus: Corpus = 'tang', band?: number | string): FeihuaProgress {
   const p = loadProgress(corpus, band);
   p.current = null;
   saveProgress(p, corpus, band);

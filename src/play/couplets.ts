@@ -9,6 +9,7 @@ import { extractVariants, getPoemMode, splitIntoLines } from '../utils/poemText'
 import { getPoemsForPlay } from '../data/grades';
 import type { PoemCorpus } from '../types';
 import type { Verse } from './types';
+import { STAGE_GOAL } from './types';
 
 export interface CoupletPair {
   upper: Verse;
@@ -41,7 +42,7 @@ export function tierOfLevel(level: number): LevelTier {
 // 语料分桶缓存：(corpus + band) → pools。
 // band 可选：未传时按 corpus 自身（tang/both 用全量；primary 用全部 primary 诗）。
 // key 用字符串拼接，避免不同 (corpus, band) 组合互相污染。
-function cacheKey(corpus: PoemCorpus, band?: number): string {
+function cacheKey(corpus: PoemCorpus, band?: number | string): string {
   return band == null ? corpus : `${corpus}:${band}`;
 }
 
@@ -52,7 +53,7 @@ const _longPoolCacheByCorpus = new Map<string, CoupletPair[]>();
 // 扫描所有诗（默认 tang 语料），按相邻两行配对成 (上句, 下句)。
 // 上下句去标点后字数必须一致 —— 否则序言、注释、长序等会混进池子，
 // 导致题目（上句）和选项（下句）字数不等，玩家靠"挑短/长"就能蒙对。
-export function buildAllCouplets(corpus: PoemCorpus = 'tang', band?: number): CoupletPair[] {
+export function buildAllCouplets(corpus: PoemCorpus = 'tang', band?: number | string): CoupletPair[] {
   const poems = getPoemsForPlay(corpus, band);
   const out: CoupletPair[] = [];
   for (const poem of poems) {
@@ -88,7 +89,7 @@ export function buildAllCouplets(corpus: PoemCorpus = 'tang', band?: number): Co
   return out;
 }
 
-export function getAllCouplets(corpus: PoemCorpus = 'tang', band?: number): CoupletPair[] {
+export function getAllCouplets(corpus: PoemCorpus = 'tang', band?: number | string): CoupletPair[] {
   const key = cacheKey(corpus, band);
   if (!_allPairsCacheByCorpus.has(key)) {
     _allPairsCacheByCorpus.set(key, buildAllCouplets(corpus, band));
@@ -96,7 +97,7 @@ export function getAllCouplets(corpus: PoemCorpus = 'tang', band?: number): Coup
   return _allPairsCacheByCorpus.get(key)!;
 }
 
-function getShortPool(corpus: PoemCorpus = 'tang', band?: number): CoupletPair[] {
+function getShortPool(corpus: PoemCorpus = 'tang', band?: number | string): CoupletPair[] {
   const key = cacheKey(corpus, band);
   if (!_shortPoolCacheByCorpus.has(key)) {
     _shortPoolCacheByCorpus.set(
@@ -107,7 +108,7 @@ function getShortPool(corpus: PoemCorpus = 'tang', band?: number): CoupletPair[]
   return _shortPoolCacheByCorpus.get(key)!;
 }
 
-function getLongPool(corpus: PoemCorpus = 'tang', band?: number): CoupletPair[] {
+function getLongPool(corpus: PoemCorpus = 'tang', band?: number | string): CoupletPair[] {
   const key = cacheKey(corpus, band);
   if (!_longPoolCacheByCorpus.has(key)) {
     _longPoolCacheByCorpus.set(
@@ -118,7 +119,7 @@ function getLongPool(corpus: PoemCorpus = 'tang', band?: number): CoupletPair[] 
   return _longPoolCacheByCorpus.get(key)!;
 }
 
-function getPoolForTier(tier: LevelTier, corpus: PoemCorpus = 'tang', band?: number): CoupletPair[] {
+function getPoolForTier(tier: LevelTier, corpus: PoemCorpus = 'tang', band?: number | string): CoupletPair[] {
   if (tier === 'entry') return getShortPool(corpus, band);
   if (tier === 'mid') return getLongPool(corpus, band);
   return getAllCouplets(corpus, band);
@@ -142,19 +143,28 @@ function shuffle<T>(arr: T[]): T[] {
 // 取题：根据关卡档位选正确答案，从全局池抽 3 个不同诗的干扰。
 // 干扰项字数必须与正确答案一致（去标点后），否则玩家靠"挑短/长句"就能蒙对。
 // usedUpperLines 用于排除已答过的上句，避免重复出题。
+//
+// pool 必须先用 canMakeQuestion 过滤 —— 否则在小学期/低 band 池里（多数 pair 凑不齐
+// 3 个不同诗的干扰）会随机抽到无法出题的 pair，导致「打开就题库已空」。
+// countAvailableLevels 已用同一过滤算关数，两端必须一致。
 export function pickLevelQuestion(
   tier: LevelTier,
   usedUpperLines: Set<string>,
   corpus: PoemCorpus = 'tang',
-  band?: number,
+  band?: number | string,
 ): SentenceQuestion | null {
-  const pool = getPoolForTier(tier, corpus, band).filter((p) => !usedUpperLines.has(p.upper.line));
+  const allPairs = getAllCouplets(corpus, band);
+  // tierPool: 同档全量池（仅按 usedUpperLines 过滤），兜底搜干扰项要用它，
+  // 否则 canMakeQuestion 过滤后 pool 太小，fallback 找不齐 3 个不同诗干扰。
+  const tierPool = getPoolForTier(tier, corpus, band).filter((p) => !usedUpperLines.has(p.upper.line));
+  // pool: 进一步过滤为「自身可出题」的 pair，从中抽正确答案 ——
+  // 与 countAvailableLevels 用同一 canMakeQuestion，两端必须一致，否则用户会随机看到「题库已空」。
+  const pool = tierPool.filter((p) => canMakeQuestion(p, allPairs));
   if (pool.length === 0) return null;
 
   const correct = pool[Math.floor(_rng() * pool.length)];
   const correctLen = stripPunct(correct.lower.line).length;
 
-  const allPairs = getAllCouplets(corpus, band);
   const distractors: Verse[] = [];
   const seenLines = new Set<string>([correct.lower.line]);
 
@@ -174,7 +184,7 @@ export function pickLevelQuestion(
 
   // 兜底：从同档池补（advanced 池里仍可能有其他句长，需要长度校验）
   if (distractors.length < 3) {
-    for (const p of pool) {
+    for (const p of tierPool) {
       if (p.upper.line === correct.upper.line) continue;
       if (seenLines.has(p.lower.line)) continue;
       if (stripPunct(p.lower.line).length !== correctLen) continue;
@@ -221,7 +231,7 @@ function canMakeQuestion(pair: CoupletPair, allPairs: CoupletPair[]): boolean {
   return false;
 }
 
-export function countAvailableLevels(tier: LevelTier, corpus: PoemCorpus = 'tang', band?: number): number {
+export function countAvailableLevels(tier: LevelTier, corpus: PoemCorpus = 'tang', band?: number | string): number {
   if (corpus === 'primary' && tier === 'advanced') return 0;
   const pool = getPoolForTier(tier, corpus, band);
   const allPairs = getAllCouplets(corpus, band);
@@ -230,10 +240,13 @@ export function countAvailableLevels(tier: LevelTier, corpus: PoemCorpus = 'tang
     if (!canMakeQuestion(pair, allPairs)) continue;
     upperLines.add(pair.upper.line);
   }
+  // 每关需答出 STAGE_GOAL 句不重复的上句才能通关。可出题上句不足 STAGE_GOAL 时
+  // 整档直接归零 —— 否则用户打开关卡后中途会遇到「题库已空」永远无法通关。
+  if (upperLines.size < STAGE_GOAL) return 0;
   return Math.min(TIER_CAPS[tier], upperLines.size);
 }
 
-export function getAvailableLevelGroups(corpus: PoemCorpus = 'tang', band?: number): SentenceLevelGroup[] {
+export function getAvailableLevelGroups(corpus: PoemCorpus = 'tang', band?: number | string): SentenceLevelGroup[] {
   const tiers: LevelTier[] = corpus === 'primary' ? ['entry', 'mid'] : ['entry', 'mid', 'advanced'];
   const groups: SentenceLevelGroup[] = [];
   let start = 1;
@@ -246,10 +259,10 @@ export function getAvailableLevelGroups(corpus: PoemCorpus = 'tang', band?: numb
   return groups;
 }
 
-export function getTotalAvailableLevels(corpus: PoemCorpus = 'tang', band?: number): number {
+export function getTotalAvailableLevels(corpus: PoemCorpus = 'tang', band?: number | string): number {
   return getAvailableLevelGroups(corpus, band).reduce((sum, group) => sum + group.count, 0);
 }
 
-export function tierOfAvailableLevel(level: number, corpus: PoemCorpus = 'tang', band?: number): LevelTier | null {
+export function tierOfAvailableLevel(level: number, corpus: PoemCorpus = 'tang', band?: number | string): LevelTier | null {
   return getAvailableLevelGroups(corpus, band).find((group) => level >= group.start && level <= group.end)?.tier ?? null;
 }
