@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "scrape": "tsx scripts/scraper/index.ts",
+    "scrape:junior-band": "tsx scripts/scraper/scrape-junior-band.ts",
     "build:gh": "npm run build && node scripts/deploy-gh-pages.cjs",
     "build:capacitor": "vite build --config vite.config.capacitor.ts",
     "cap:add:android": "npm run build:capacitor && cap add android",

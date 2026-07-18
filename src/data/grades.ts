@@ -201,14 +201,20 @@ export function getAvailableBands(): PrimaryBand[] {
   return GRADE_BANDS.filter((b) => present.has(b.value as number)) as unknown as PrimaryBand[];
 }
 
+// 初中段（value 永为 string）的窄类型，便于 GradeSelector 直接消费。
+export interface JuniorBand {
+  value: string;
+  label: string;
+}
+
 // 初中段端点筛选：仅返回该年级有 ≥1 首诗的段。
-export function getAvailableJuniorBands(): GradeBand[] {
+export function getAvailableJuniorBands(): JuniorBand[] {
   const present = new Set<string>(
     getPoems('junior')
       .flatMap((p) => collectBands(p))
       .filter((b): b is string => typeof b === 'string'),
   );
-  return JUNIOR_BANDS.filter((b) => present.has(b.value as string));
+  return JUNIOR_BANDS.filter((b) => present.has(b.value as string)) as unknown as JuniorBand[];
 }
 
 // band 参数类型扩为支持初中段字符串。primary 走 cumulative、junior 走 cumulative、tang 忽略。

@@ -1,4 +1,4 @@
-// 86 首初中必背古诗词，按 7-9 年级上下册分组（统编版 2024）。
+// 85 首初中必背古诗词，按 7-9 年级上下册分组（统编版 2024）。
 // 顺序：title, dynasty, poetName（用于核对抓取结果是否匹配预期）。
 // dynasty 与 primary-list.ts 对齐：'tang'|'song'|'ming'|'qing'|'modern'|'other'（含汉魏晋南北朝元）。
 export type JuniorDynasty = 'tang' | 'song' | 'ming' | 'qing' | 'modern' | 'other';
@@ -114,8 +114,6 @@ export const JUNIOR_LIST: JuniorListSection[] = [
       { title: '送友人', dynasty: 'tang', poetName: '李白' },
       { title: '卜算子·黄州定慧院寓居作', dynasty: 'song', poetName: '苏轼' },
       { title: '卜算子·咏梅', dynasty: 'song', poetName: '陆游' },
-      // 课文词（1）
-      { title: '卜算子·我住长江头', dynasty: 'modern', poetName: '李之仪' },
     ],
   },
 
@@ -170,7 +168,7 @@ export const JUNIOR_LIST: JuniorListSection[] = [
   },
 ];
 
-// 验证总数 = 86。
+// 验证总数 = 85。
 export const JUNIOR_LIST_TOTAL = JUNIOR_LIST.reduce(
   (sum, section) => sum + section.entries.length,
   0,

@@ -21,14 +21,17 @@ export interface RawPoem {
 /**
  * Strip the dynasty suffix from a poet label like "王之涣〔唐代〕" -> "王之涣".
  * Handles full-width/half-width brackets: [ ] 〔 〕 （ ） 〈 〉 < >.
- * Falls back to the original string if no bracket is found.
+ * Also strips a leading "作者：" prefix used on the legacy gushiwen_<hash>.aspx pages.
+ * Falls back to the original string if no bracket/prefix is found.
  */
 function cleanPoetName(raw: string): string {
+  // Legacy pages label the poet with "作者：<name>"; modern pages use "<name>〔<dynasty>〕".
+  const noAuthorPrefix = raw.replace(/^作者[：:]\s*/, '');
   // Strip any dynasty/affix that follows the poet name. gushiwen.cn uses the
   // full-width tortoise-shell bracket 〔〕 (U+3014/U+3015), so match up to any
   // of the common opening brackets incl. 〔.
-  const m = raw.match(/^([^[【〈（(〈<〔〖]+)/);
-  return (m ? m[1] : raw).trim();
+  const m = noAuthorPrefix.match(/^([^[【〈（(〈<〔〖]+)/);
+  return (m ? m[1] : noAuthorPrefix).trim();
 }
 
 /**
@@ -81,7 +84,14 @@ export function parsePoemPage(html: string, url: string): RawPoem {
 
   const poetName = cleanPoetName($('.source').first().text().trim());
 
-  const content = $('.contson').first().text().trim();
+  // Legacy pages (gushiwen_<hash>.aspx) pack the poem + annotations + translation
+  // + analysis into .contson as separate <p> blocks. Modern pages (shiwenv_<hash>)
+  // keep .contson as a single block of plain text with <br> between lines.
+  // To avoid bleeding annotations into the content field, take the first <p>
+  // child when one exists; fall back to the full .contson text otherwise.
+  const $contson = $('.contson').first();
+  const firstP = $contson.find('p').first();
+  const content = firstP.length > 0 ? firstP.text().trim() : $contson.text().trim();
 
   let annotations: RawAnnotation[] = [];
   let background: string | undefined;
