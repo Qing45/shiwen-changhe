@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 
 // Nebula clouds: large blurred colored blobs that drift slowly across the
 // canvas. Each is wrapped so the outer div centers via translate(-50%, -50%)
@@ -54,6 +54,117 @@ const PARALLAX_COEFS = {
   starsLayer2: 2.4,
 };
 
+// Second-layer background: a sparse radial-gradient constellation that
+// drifts at a different rate to imply depth.
+const STARS_LAYER2_BG = `
+  radial-gradient(circle at 12% 22%, rgba(255,255,255,0.35) 0px, transparent 1.5px),
+  radial-gradient(circle at 33% 78%, rgba(216,224,240,0.3) 0px, transparent 1.5px),
+  radial-gradient(circle at 55% 18%, rgba(255,255,255,0.25) 0px, transparent 1.5px),
+  radial-gradient(circle at 72% 60%, rgba(216,224,240,0.32) 0px, transparent 1.5px),
+  radial-gradient(circle at 88% 35%, rgba(255,255,255,0.28) 0px, transparent 1.5px),
+  radial-gradient(circle at 22% 50%, rgba(216,224,240,0.22) 0px, transparent 1.5px)
+`;
+
+// Static sub-layers: 内容完全静态（mount 后不再变化），React.memo 永远 bail out。
+// 这些层被包在 RiverBackground 内联的 parallax wrapper 里 —— wrapper 必须每帧
+// 重渲染以更新 transform，而内部这 100+ 个 div 不需要重新 diff。
+const NebulaClouds = memo(function NebulaClouds() {
+  return (
+    <>
+      {NEBULA_CLOUDS.map((c, i) => (
+        <div key={i} style={{
+          position: 'absolute',
+          top: `${c.y}%`,
+          left: `${c.x}%`,
+          transform: 'translate(-50%, -50%)',
+        }}>
+          <div style={{
+            width: c.w,
+            height: c.h,
+            background: `radial-gradient(ellipse, ${c.color} 0%, transparent 70%)`,
+            filter: 'blur(40px)',
+            animation: `nebula-drift ${c.dur}s ease-in-out ${c.delay}s infinite alternate`,
+          }} />
+        </div>
+      ))}
+    </>
+  );
+});
+
+const StarsLayer1 = memo(function StarsLayer1() {
+  return (
+    <>
+      {STARS.map((s, i) => (
+        <div key={i} style={{
+          position: 'absolute',
+          top: `${s.top}%`,
+          left: `${s.left}%`,
+          width: s.size,
+          height: s.size,
+          borderRadius: '50%',
+          background: '#fff',
+          boxShadow: `0 0 ${s.size * 2}px rgba(255,255,255,0.7)`,
+          animation: `twinkle ${s.duration}s ease-in-out ${s.delay}s infinite alternate`,
+        }} />
+      ))}
+    </>
+  );
+});
+
+const StarsLayer2Inner = memo(function StarsLayer2Inner() {
+  return (
+    <>
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: STARS_LAYER2_BG,
+        backgroundSize: '320px 320px',
+        animation: 'star-drift-slow 180s linear infinite alternate',
+      }} />
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: STARS_LAYER2_BG,
+        backgroundSize: '480px 480px',
+        backgroundPosition: '120px 60px',
+        animation: 'star-drift-slower 240s linear infinite alternate',
+      }} />
+      {STARS_LAYER2.map((s, i) => (
+        <div key={i} style={{
+          position: 'absolute',
+          top: `${s.top}%`,
+          left: `${s.left}%`,
+          width: s.size,
+          height: s.size,
+          borderRadius: '50%',
+          background: '#fff',
+          boxShadow: `0 0 ${s.size * 2}px rgba(255,255,255,0.55)`,
+          animation: `twinkle ${s.duration}s ease-in-out ${s.delay}s infinite alternate`,
+        }} />
+      ))}
+    </>
+  );
+});
+
+const TwinkleDots = memo(function TwinkleDots() {
+  return (
+    <>
+      {TWINKLE_DOTS.map((d, i) => (
+        <div key={`tw-${i}`} style={{
+          position: 'absolute',
+          top: `${d.top}%`,
+          left: `${d.left}%`,
+          width: d.size,
+          height: d.size,
+          borderRadius: '50%',
+          background: '#fff',
+          boxShadow: `0 0 ${d.size * 3}px rgba(255,255,255,0.85)`,
+          animation: `twinkle 4s ease-in-out ${d.delay}s infinite alternate`,
+          pointerEvents: 'none',
+        }} />
+      ))}
+    </>
+  );
+});
+
 export function RiverBackground({ dragging }: { dragging: boolean }) {
   const [mouse, setMouse] = useState({ x: 0, y: 0 });
   const mouseRef = useRef({ x: 0, y: 0 });
@@ -88,132 +199,49 @@ export function RiverBackground({ dragging }: { dragging: boolean }) {
     };
   }, []);
 
-  const parallax = (coef: number) =>
-    `translate(${(mouse.x * coef).toFixed(1)}px, ${(mouse.y * coef).toFixed(1)}px)`;
-
-  // Second-layer background: a sparse radial-gradient constellation that
-  // drifts at a different rate to imply depth.
-  const layer2Bg = `
-    radial-gradient(circle at 12% 22%, rgba(255,255,255,0.35) 0px, transparent 1.5px),
-    radial-gradient(circle at 33% 78%, rgba(216,224,240,0.3) 0px, transparent 1.5px),
-    radial-gradient(circle at 55% 18%, rgba(255,255,255,0.25) 0px, transparent 1.5px),
-    radial-gradient(circle at 72% 60%, rgba(216,224,240,0.32) 0px, transparent 1.5px),
-    radial-gradient(circle at 88% 35%, rgba(255,255,255,0.28) 0px, transparent 1.5px),
-    radial-gradient(circle at 22% 50%, rgba(216,224,240,0.22) 0px, transparent 1.5px)
-  `;
+  // Parallax wrapper style —— 必须每帧重建（transform 依赖 mouse）。但 wrapper
+  // 内部子树都是 memo 组件，React.memo bail out 后只更新 wrapper 自己的 transform
+  // CSS 属性，~100+ 子 div 不再走 diff。
+  const wrapStyle = (coef: number) => ({
+    position: 'absolute' as const,
+    inset: 0,
+    transform: `translate(${(mouse.x * coef).toFixed(1)}px, ${(mouse.y * coef).toFixed(1)}px)`,
+    willChange: 'transform',
+    pointerEvents: 'none' as const,
+  });
 
   return (
     <>
       {/* 星云气尘 — parallax wrapper around existing clouds */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        transform: parallax(PARALLAX_COEFS.nebula),
-        willChange: 'transform',
-        pointerEvents: 'none',
-      }}>
-        {NEBULA_CLOUDS.map((c, i) => (
-          <div key={i} style={{
-            position: 'absolute',
-            top: `${c.y}%`,
-            left: `${c.x}%`,
-            transform: 'translate(-50%, -50%)',
-          }}>
-            <div style={{
-              width: c.w,
-              height: c.h,
-              background: `radial-gradient(ellipse, ${c.color} 0%, transparent 70%)`,
-              filter: 'blur(40px)',
-              animation: `nebula-drift ${c.dur}s ease-in-out ${c.delay}s infinite alternate`,
-            }} />
-          </div>
-        ))}
+      <div style={wrapStyle(PARALLAX_COEFS.nebula)}>
+        <NebulaClouds />
       </div>
 
       {/* 星点 layer 1 — outer parallax + inner drift + per-star twinkle */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        transform: parallax(PARALLAX_COEFS.stars),
-        willChange: 'transform',
-        pointerEvents: 'none',
-      }}>
+      <div style={wrapStyle(PARALLAX_COEFS.stars)}>
         <div style={{
           position: 'absolute', inset: 0,
           animation: 'stars-drift 360s ease-in-out infinite alternate',
         }}>
-          {STARS.map((s, i) => (
-            <div key={i} style={{
-              position: 'absolute',
-              top: `${s.top}%`,
-              left: `${s.left}%`,
-              width: s.size,
-              height: s.size,
-              borderRadius: '50%',
-              background: '#fff',
-              boxShadow: `0 0 ${s.size * 2}px rgba(255,255,255,0.7)`,
-              animation: `twinkle ${s.duration}s ease-in-out ${s.delay}s infinite alternate`,
-            }} />
-          ))}
+          <StarsLayer1 />
         </div>
       </div>
 
       {/* 星点 layer 2 — slower parallax + slow drift background pattern */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        transform: parallax(PARALLAX_COEFS.starsLayer2),
-        willChange: 'transform',
-        pointerEvents: 'none',
-      }}>
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: layer2Bg,
-          backgroundSize: '320px 320px',
-          animation: 'star-drift-slow 180s linear infinite alternate',
-        }} />
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: layer2Bg,
-          backgroundSize: '480px 480px',
-          backgroundPosition: '120px 60px',
-          animation: 'star-drift-slower 240s linear infinite alternate',
-        }} />
-        {STARS_LAYER2.map((s, i) => (
-          <div key={i} style={{
-            position: 'absolute',
-            top: `${s.top}%`,
-            left: `${s.left}%`,
-            width: s.size,
-            height: s.size,
-            borderRadius: '50%',
-            background: '#fff',
-            boxShadow: `0 0 ${s.size * 2}px rgba(255,255,255,0.55)`,
-            animation: `twinkle ${s.duration}s ease-in-out ${s.delay}s infinite alternate`,
-          }} />
-        ))}
+      <div style={wrapStyle(PARALLAX_COEFS.starsLayer2)}>
+        <StarsLayer2Inner />
       </div>
 
-      {/* Rare twinkle dots — sparse bright points that blink irregularly */}
-      {TWINKLE_DOTS.map((d, i) => (
-        <div key={`tw-${i}`} style={{
-          position: 'absolute',
-          top: `${d.top}%`,
-          left: `${d.left}%`,
-          width: d.size,
-          height: d.size,
-          borderRadius: '50%',
-          background: '#fff',
-          boxShadow: `0 0 ${d.size * 3}px rgba(255,255,255,0.85)`,
-          animation: `twinkle 4s ease-in-out ${d.delay}s infinite alternate`,
-          pointerEvents: 'none',
-        }} />
-      ))}
+      {/* Rare twinkle dots — sparse bright points, no parallax */}
+      <TwinkleDots />
 
-      {/* 月亮 — parallax only */}
+      {/* 月亮 — parallax only (单元素，每帧重建 style 成本极低) */}
       <div style={{
         position: 'absolute', top: '8%', right: '6%',
         width: 72, height: 72, borderRadius: '50%',
         background: 'radial-gradient(circle, #f0f4ff 0%, #d8e0f0 40%, rgba(216,224,240,0.2) 70%, transparent 100%)',
         boxShadow: '0 0 60px rgba(216,224,240,0.3)',
-        transform: parallax(PARALLAX_COEFS.moon),
+        transform: `translate(${(mouse.x * PARALLAX_COEFS.moon).toFixed(1)}px, ${(mouse.y * PARALLAX_COEFS.moon).toFixed(1)}px)`,
         pointerEvents: 'none',
         willChange: 'transform',
       }} />

@@ -69,8 +69,15 @@ export function getPoemsByPoet(poetId: string): Poem[] {
     });
 }
 
+// 模块级诗人→诗数映射：模块加载时一次性 O(N) 建表，所有 getPoemCount 调用
+// 走 O(1) 查询。RiverPage 渲染 50+ 诗人时省下 ~23200 ops/帧。
+const poemCountByPoet = new Map<string, number>();
+for (const p of poems) {
+  poemCountByPoet.set(p.poetId, (poemCountByPoet.get(p.poetId) ?? 0) + 1);
+}
+
 export function getPoemCount(poetId: string): number {
-  return poems.filter((p) => p.poetId === poetId).length;
+  return poemCountByPoet.get(poetId) ?? 0;
 }
 
 export function getPoems(): Poem[];
