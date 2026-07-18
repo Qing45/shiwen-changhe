@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { getDynastyName } from '../data/dynasties';
-import { getPoem, getPoet, getNeighbors, getGlobalPoemNeighbors } from '../data/load';
+import { getPoem, getPoet, getNeighbors, getGlobalPoemNeighbors, poemInCorpus } from '../data/load';
 import { TopNav } from '../components/TopNav';
 import { useBreakpoint } from '../hooks/useBreakpoint';
-import { useCorpus, useSetCorpus } from '../state/corpus';
+import { useCorpus, useSetCorpus, type Corpus } from '../state/corpus';
 import { colors, fontFamilies, fontSizes, paperTheme } from '../theme';
 import { extractVariants, getPoemMode, splitIntoLines } from '../utils/poemText';
 
@@ -37,15 +37,20 @@ export function PoemPage() {
   if (!poet) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>作者未找到</div>;
   }
-  // inScope: poem is visible under the active corpus.
-  // - corpus='all' shows every poem.
-  // - corpus='both' poems are always in scope.
-  // - tang-only poems (corpus='tang') are out of scope when active corpus='primary'.
-  // - primary-only poems (corpus='primary') are out of scope when active corpus='tang'.
-  const inScope = corpus === 'all' || poem.corpus === 'both' || poem.corpus === corpus;
-  // Which corpus would bring this poem into scope (for the switch prompt).
-  const switchTarget = corpus === 'tang' ? 'primary' : 'tang';
-  const switchLabel = switchTarget === 'tang' ? '唐诗三百首' : '小学必背';
+  // inScope: poem 是否在当前 corpus 下可见。poemInCorpus 走 gradeBands 判定 —— 跨库诗
+  // （如 corpus='tang' 的《竹里馆》同时是初中必背）不能仅靠 poem.corpus === corpus，
+  // 否则初中库下点跨库诗会误报"不在当前诗库"。
+  const inScope = corpus === 'all' ? true : poemInCorpus(poem, corpus);
+  // 切换建议：找一个包含这首诗的其它 corpus；都没有时为 undefined（不显示按钮）。
+  const switchTarget: Corpus | undefined = corpus === 'all'
+    ? undefined
+    : ((['tang', 'primary', 'junior'] as const).find((c) => c !== corpus && poemInCorpus(poem, c)));
+  const switchLabelMap: Record<Exclude<Corpus, 'all'>, string> = {
+    tang: '唐诗三百首',
+    primary: '小学必背',
+    junior: '初中必背',
+  };
+  const switchLabel = switchTarget ? switchLabelMap[switchTarget] : '';
   const { prev, next } = fromPath === '/poems'
     ? getGlobalPoemNeighbors(poem.id)
     : getNeighbors(poem.id);
@@ -138,7 +143,7 @@ export function PoemPage() {
           }} />
         </div>
 
-        {/* 不在当前诗库提示：仍展示诗文，但提示可切库 */}
+        {/* 不在当前诗库提示：仍展示诗文，但提示可切库（若有其它库包含此诗） */}
         {!inScope && (
           <div style={{
             maxWidth: 1400, margin: '0 auto', padding: '12px 32px 0',
@@ -146,16 +151,18 @@ export function PoemPage() {
             fontFamily: fontFamilies.chinese, fontSize: 13, letterSpacing: 2,
           }}>
             这首诗不在当前诗库。
-            <button
-              onClick={() => setCorpus(switchTarget)}
-              style={{
-                marginLeft: 8, padding: '4px 14px',
-                background: 'transparent', color: colors.textPrimary,
-                border: `1px solid ${colors.textPrimary}`, borderRadius: 3,
-                fontFamily: fontFamilies.chinese, fontSize: 13, letterSpacing: 2,
-                cursor: 'pointer',
-              }}
-            >切到{switchLabel}</button>
+            {switchTarget && (
+              <button
+                onClick={() => setCorpus(switchTarget)}
+                style={{
+                  marginLeft: 8, padding: '4px 14px',
+                  background: 'transparent', color: colors.textPrimary,
+                  border: `1px solid ${colors.textPrimary}`, borderRadius: 3,
+                  fontFamily: fontFamilies.chinese, fontSize: 13, letterSpacing: 2,
+                  cursor: 'pointer',
+                }}
+              >切到{switchLabel}</button>
+            )}
           </div>
         )}
 

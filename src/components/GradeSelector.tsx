@@ -1,13 +1,14 @@
 import { fontFamilies } from '../theme';
 
-// 仅用于小学段（value 永远是 number）。初中段需要单独的选择器组件。
-interface Props {
-  bands: readonly { value: number; label: string }[];
-  value: number;
-  onChange: (band: number) => void;
+// 通用段位选择器：value 类型支持 number（小学 1-12）和 string（初中 '7a'-'9b'）。
+// 两类段位 UI 完全一致，仅值类型不同；用泛型 prop 一次覆盖。
+interface Props<T extends number | string> {
+  bands: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (band: T) => void;
 }
 
-export function GradeSelector({ bands, value, onChange }: Props) {
+export function GradeSelector<T extends number | string>({ bands, value, onChange }: Props<T>) {
   return (
     <div style={{ margin: '0 auto 18px', maxWidth: 920 }}>
       <div style={{

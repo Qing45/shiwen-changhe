@@ -74,6 +74,14 @@ export function CorpusSwitcher() {
       <button
         type="button"
         role="tab"
+        aria-selected={corpus === 'junior'}
+        onClick={() => onSwitch('junior')}
+        style={corpus === 'junior' ? activeStyle : inactiveStyle}
+        data-testid="corpus-junior"
+      >{isMobile ? '初中' : '初中必背'}</button>
+      <button
+        type="button"
+        role="tab"
         aria-selected={corpus === 'all'}
         onClick={() => onSwitch('all')}
         style={corpus === 'all' ? activeStyle : inactiveStyle}
