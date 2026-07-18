@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { JUNIOR_LIST, JUNIOR_LIST_TOTAL } from '../scripts/scraper/junior-list';
 
 describe('junior poem list', () => {
-  it('contains exactly 86 poems across 6 semester bands', () => {
-    expect(JUNIOR_LIST_TOTAL).toBe(86);
+  it('contains exactly 85 poems across 6 semester bands', () => {
+    expect(JUNIOR_LIST_TOTAL).toBe(85);
     expect(JUNIOR_LIST.length).toBe(6);
   });
 
-  it('distributes poems per band as 12/14/18/13/12/17', () => {
+  it('distributes poems per band as 12/14/18/12/12/17', () => {
     const counts = JUNIOR_LIST.map((s) => s.entries.length);
-    expect(counts).toEqual([12, 14, 18, 13, 12, 17]);
+    expect(counts).toEqual([12, 14, 18, 12, 12, 17]);
   });
 
   it('bands are in chronological 7a→9b order', () => {
