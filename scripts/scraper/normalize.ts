@@ -90,6 +90,53 @@ const POET_META: Record<
   '刘长卿': { courtesyName: '文房', birthYear: 726, deathYear: 786, familiarity: 2, dynastyId: 'tang' },
   '温庭筠': { courtesyName: '飞卿', birthYear: 812, deathYear: 866, familiarity: 3, dynastyId: 'tang' },
   '许浑': { courtesyName: '用晦', birthYear: 788, deathYear: 858, familiarity: 2, dynastyId: 'tang' },
+  // 唐代补充（占位 700/750 替换为实际历史生卒年，对生卒不详者按活跃年代估）
+  '骆宾王': { courtesyName: '观光', birthYear: 640, deathYear: 684, familiarity: 3, dynastyId: 'tang' },
+  '杜审言': { courtesyName: '必简', birthYear: 645, deathYear: 708, familiarity: 2, dynastyId: 'tang' },
+  '宋之问': { courtesyName: '延清', birthYear: 656, deathYear: 712, familiarity: 2, dynastyId: 'tang' },
+  '沈佺期': { courtesyName: '云卿', birthYear: 656, deathYear: 715, familiarity: 2, dynastyId: 'tang' },
+  '李隆基': { birthYear: 685, deathYear: 762, familiarity: 3, dynastyId: 'tang' },
+  '张九龄': { courtesyName: '子寿', pseudonym: '曲江公', birthYear: 678, deathYear: 740, familiarity: 3, dynastyId: 'tang' },
+  '金昌绪': { birthYear: 700, deathYear: 750, familiarity: 2, dynastyId: 'tang' }, // 生卒无考，估
+  '祖咏': { courtesyName: '维', birthYear: 699, deathYear: 746, familiarity: 2, dynastyId: 'tang' },
+  '裴迪': { birthYear: 716, deathYear: 770, familiarity: 2, dynastyId: 'tang' },
+  '丘为': { courtesyName: '为', birthYear: 694, deathYear: 789, familiarity: 2, dynastyId: 'tang' },
+  '綦毋潜': { courtesyName: '孝通', birthYear: 692, deathYear: 749, familiarity: 2, dynastyId: 'tang' },
+  '崔曙': { birthYear: 700, deathYear: 739, familiarity: 2, dynastyId: 'tang' },
+  '李颀': { birthYear: 690, deathYear: 751, familiarity: 2, dynastyId: 'tang' },
+  '张旭': { courtesyName: '伯高', pseudonym: '颠张', birthYear: 675, deathYear: 750, familiarity: 3, dynastyId: 'tang' },
+  '刘昚虚': { birthYear: 700, deathYear: 760, familiarity: 2, dynastyId: 'tang' },
+  '王翰': { courtesyName: '子羽', birthYear: 687, deathYear: 726, familiarity: 2, dynastyId: 'tang' },
+  '韩愈': { courtesyName: '退之', pseudonym: '昌黎先生', birthYear: 768, deathYear: 824, familiarity: 4, dynastyId: 'tang' },
+  '皎然': { courtesyName: '清昼', birthYear: 730, deathYear: 799, familiarity: 2, dynastyId: 'tang' },
+  '卢纶': { courtesyName: '允言', birthYear: 739, deathYear: 799, familiarity: 2, dynastyId: 'tang' },
+  '司空曙': { courtesyName: '文明', birthYear: 720, deathYear: 790, familiarity: 2, dynastyId: 'tang' },
+  '钱起': { courtesyName: '仲文', birthYear: 710, deathYear: 780, familiarity: 2, dynastyId: 'tang' },
+  '李端': { birthYear: 743, deathYear: 782, familiarity: 2, dynastyId: 'tang' },
+  '柳中庸': { birthYear: 720, deathYear: 780, familiarity: 2, dynastyId: 'tang' },
+  '戴叔伦': { courtesyName: '幼公', birthYear: 732, deathYear: 789, familiarity: 2, dynastyId: 'tang' },
+  '元结': { courtesyName: '次山', birthYear: 719, deathYear: 772, familiarity: 2, dynastyId: 'tang' },
+  '皇甫冉': { courtesyName: '茂政', birthYear: 717, deathYear: 770, familiarity: 2, dynastyId: 'tang' },
+  '顾况': { courtesyName: '逋翁', pseudonym: '悲翁', birthYear: 727, deathYear: 816, familiarity: 2, dynastyId: 'tang' },
+  '权德舆': { courtesyName: '载之', birthYear: 759, deathYear: 818, familiarity: 2, dynastyId: 'tang' },
+  '王涯': { courtesyName: '广津', birthYear: 764, deathYear: 835, familiarity: 2, dynastyId: 'tang' },
+  '张籍': { courtesyName: '文昌', birthYear: 766, deathYear: 830, familiarity: 3, dynastyId: 'tang' },
+  '元稹': { courtesyName: '微之', birthYear: 779, deathYear: 831, familiarity: 4, dynastyId: 'tang' },
+  '刘方平': { birthYear: 730, deathYear: 780, familiarity: 2, dynastyId: 'tang' },
+  '马戴': { courtesyName: '虞臣', birthYear: 800, deathYear: 860, familiarity: 2, dynastyId: 'tang' },
+  '朱庆馀': { courtesyName: '可止', birthYear: 797, deathYear: 841, familiarity: 2, dynastyId: 'tang' },
+  '张祜': { courtesyName: '承吉', birthYear: 792, deathYear: 853, familiarity: 2, dynastyId: 'tang' },
+  '薛逢': { courtesyName: '陶臣', birthYear: 806, deathYear: 876, familiarity: 2, dynastyId: 'tang' },
+  '陈陶': { birthYear: 803, deathYear: 879, familiarity: 2, dynastyId: 'tang' },
+  '崔涂': { courtesyName: '礼山', birthYear: 854, deathYear: 900, familiarity: 2, dynastyId: 'tang' },
+  '张乔': { birthYear: 850, deathYear: 900, familiarity: 2, dynastyId: 'tang' },
+  '秦韬玉': { courtesyName: '仲明', birthYear: 820, deathYear: 880, familiarity: 2, dynastyId: 'tang' },
+  '郑畋': { courtesyName: '台文', birthYear: 825, deathYear: 882, familiarity: 2, dynastyId: 'tang' },
+  '韦庄': { courtesyName: '端己', birthYear: 836, deathYear: 910, familiarity: 3, dynastyId: 'tang' },
+  '杜荀鹤': { courtesyName: '彦之', pseudonym: '九华山人', birthYear: 846, deathYear: 904, familiarity: 2, dynastyId: 'tang' },
+  '张泌': { birthYear: 850, deathYear: 900, familiarity: 2, dynastyId: 'tang' },
+  '韩偓': { courtesyName: '致尧', pseudonym: '玉山樵人', birthYear: 842, deathYear: 923, familiarity: 2, dynastyId: 'tang' },
+  '西鄙人': { birthYear: 750, deathYear: 800, familiarity: 2, dynastyId: 'tang' },
   '马致远': { courtesyName: '千里', pseudonym: '东篱', birthYear: 1250, deathYear: 1321, familiarity: 3, dynastyId: 'other' }, // 元
   '张养浩': { courtesyName: '希孟', pseudonym: '云庄', birthYear: 1270, deathYear: 1329, familiarity: 3, dynastyId: 'other' }, // 元
   '王磐': { courtesyName: '鸿渐', pseudonym: '西楼', birthYear: 1470, deathYear: 1530, familiarity: 2, dynastyId: 'ming' },
@@ -101,15 +148,21 @@ const POET_META: Record<
   '秦观': { courtesyName: '少游', pseudonym: '淮海居士', birthYear: 1049, deathYear: 1100, familiarity: 3, dynastyId: 'song' },
   '朱敦儒': { courtesyName: '希真', pseudonym: '岩壑老人', birthYear: 1081, deathYear: 1159, familiarity: 2, dynastyId: 'song' },
   '陈与义': { courtesyName: '去非', pseudonym: '简斋', birthYear: 1090, deathYear: 1138, familiarity: 3, dynastyId: 'song' },
+  '文天祥': { courtesyName: '宋瑞', pseudonym: '文山', birthYear: 1236, deathYear: 1283, familiarity: 4, dynastyId: 'song' },
   '赵师秀': { courtesyName: '紫芝', pseudonym: '灵秀', birthYear: 1170, deathYear: 1219, familiarity: 2, dynastyId: 'song' },
   '李之仪': { courtesyName: '端叔', birthYear: 1048, deathYear: 1117, familiarity: 2, dynastyId: 'song' },
   '诗经': { birthYear: -1046, deathYear: -256, familiarity: 2, dynastyId: 'other' },
 };
 
 // 民歌/乐府类诗人别名归一化：gushiwen 用「乐府诗集」「佚名」时映射回 spec 期望名。
+// 诗经各篇章在 gushiwen 标为「诗经·国风·XX」/「诗经·XX」，统一归到「诗经」。
 const POET_NAME_ALIASES: Record<string, string> = {
   乐府诗集: '北朝民歌', // 敕勒歌 spec 标 北朝民歌
   乐府民歌: '北朝民歌',
+  '诗经·国风·周南': '诗经',
+  '诗经·国风·秦风': '诗经',
+  '诗经·国风·邶风': '诗经',
+  '诗经·国风·郑风': '诗经',
 };
 
 const DEFAULT_POET_META = { birthYear: 700, deathYear: 750, familiarity: 2 };
@@ -189,7 +242,9 @@ function slug(s: string): string {
 }
 
 function poemIdFromUrl(url: string): string {
-  const match = url.match(/shiwenv_([a-zA-Z0-9]+)\.aspx/);
+  // Modern: shiwenv_<hex>.aspx; legacy: gushiwen_<hex>.aspx — both reference the
+  // same poem-detail page on gushiwen.cn, just via different URL schemes.
+  const match = url.match(/(?:shiwenv|gushiwen)_([a-zA-Z0-9]+)\.aspx/);
   if (match) return match[1];
   // Fallback for unexpected URL shapes: slug the full URL
   return url.split('').map((c) => c.charCodeAt(0).toString(16)).join('').slice(0, 32);
