@@ -39,6 +39,20 @@ export const JUNIOR_BANDS: readonly GradeBand[] = [
 // 所有有效的初中段字符串值，用于校验。
 export const JUNIOR_BAND_VALUES: readonly string[] = JUNIOR_BANDS.map((b) => b.value as string);
 
+// 高中段：'gz1u'-'gz3l'。注意：高二的 PEP 教材实际是「选择性必修上/中」
+// （高二年级无中册，「中册」是选择性必修中册），但 UI 用「上下」更直觉，所以
+// gz2l 在数据层表示 PEP 选择性必修中册。
+export const SENIOR_BANDS: readonly GradeBand[] = [
+  { value: 'gz1u', label: '高一上' },
+  { value: 'gz1l', label: '高一下' },
+  { value: 'gz2u', label: '高二上' },
+  { value: 'gz2l', label: '高二下' },
+  { value: 'gz3l', label: '高三下' },
+];
+
+// 所有有效的高中段字符串值，用于校验。
+export const SENIOR_BAND_VALUES: readonly string[] = SENIOR_BANDS.map((b) => b.value as string);
+
 export const PRIMARY_GRADE_BAND_BY_POEM_ID = {
   c90ff9ea5a71: 3,
   e9b1a8b4def0: 7,
@@ -159,6 +173,11 @@ export function isJuniorBand(value: unknown): value is string {
   return typeof value === 'string' && JUNIOR_BAND_VALUES.includes(value);
 }
 
+// 校验高中段字符串。合法值见 SENIOR_BAND_VALUES。
+export function isSeniorBand(value: unknown): value is string {
+  return typeof value === 'string' && SENIOR_BAND_VALUES.includes(value);
+}
+
 // 把诗的所有 gradeBand 收集到一个数组（合并 gradeBand + gradeBands）。
 function collectBands(poem: Poem): GradeBandValue[] {
   const out: GradeBandValue[] = [];
@@ -181,6 +200,17 @@ export function getJuniorPoemsUpTo(band: string): Poem[] {
   if (idx < 0) return getPoems('junior');
   const upTo = JUNIOR_BAND_VALUES.slice(0, idx + 1);
   return getPoems('junior').filter((p) => {
+    const bands = collectBands(p).filter((b): b is string => typeof b === 'string');
+    return bands.some((b) => upTo.includes(b));
+  });
+}
+
+// 高中段：返回该段及更早段的全部诗。段顺序按 gz1u < gz1l < gz2u < gz2l < gz3l。
+export function getSeniorPoemsUpTo(band: string): Poem[] {
+  const idx = SENIOR_BAND_VALUES.indexOf(band);
+  if (idx < 0) return getPoems('senior');
+  const upTo = SENIOR_BAND_VALUES.slice(0, idx + 1);
+  return getPoems('senior').filter((p) => {
     const bands = collectBands(p).filter((b): b is string => typeof b === 'string');
     return bands.some((b) => upTo.includes(b));
   });
@@ -217,12 +247,32 @@ export function getAvailableJuniorBands(): JuniorBand[] {
   return JUNIOR_BANDS.filter((b) => present.has(b.value as string)) as unknown as JuniorBand[];
 }
 
-// band 参数类型扩为支持初中段字符串。primary 走 cumulative、junior 走 cumulative、tang 忽略。
+// 高中段（value 永为 string）的窄类型。
+export interface SeniorBand {
+  value: string;
+  label: string;
+}
+
+// 高中段端点筛选：仅返回该年级有 ≥1 首诗的段。
+export function getAvailableSeniorBands(): SeniorBand[] {
+  const present = new Set<string>(
+    getPoems('senior')
+      .flatMap((p) => collectBands(p))
+      .filter((b): b is string => typeof b === 'string'),
+  );
+  return SENIOR_BANDS.filter((b) => present.has(b.value as string)) as unknown as SeniorBand[];
+}
+
+// band 参数类型扩为支持初中/高中段字符串。primary 走 cumulative、junior / senior
+// 走 cumulative、tang 忽略。
 export function getPoemsForPlay(corpus: PoemCorpus, band?: number | string): Poem[] {
   if (corpus === 'junior' && band != null && typeof band === 'string') {
     return getJuniorPoemsUpTo(band);
   }
-  if (corpus !== 'tang' && corpus !== 'junior' && band != null && typeof band === 'number') {
+  if (corpus === 'senior' && band != null && typeof band === 'string') {
+    return getSeniorPoemsUpTo(band);
+  }
+  if (corpus !== 'tang' && corpus !== 'junior' && corpus !== 'senior' && band != null && typeof band === 'number') {
     return getPrimaryPoemsUpTo(band);
   }
   return corpus === 'both' ? getPoems() : getPoems(corpus);

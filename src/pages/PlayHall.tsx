@@ -105,7 +105,7 @@ export function PlayHall() {
               marginTop: 6, color: '#8b7355', fontFamily: fontFamilies.chinese,
               fontSize: 14, letterSpacing: 6,
             }}>
-              当前诗库：{corpus === 'tang' ? '唐诗三百首' : corpus === 'primary' ? '小学必背' : corpus === 'junior' ? '初中必背' : '总库'}
+              当前诗库：{corpus === 'tang' ? '唐诗三百首' : corpus === 'primary' ? '小学必背' : corpus === 'junior' ? '初中必背' : corpus === 'senior' ? '高中必背' : '总库'}
             </div>
           </div>
 

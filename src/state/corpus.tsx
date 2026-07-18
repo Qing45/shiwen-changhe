@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-export type Corpus = 'tang' | 'primary' | 'junior' | 'all';
+export type Corpus = 'tang' | 'primary' | 'junior' | 'senior' | 'all';
 const STORAGE_KEY = 'feihuaCorpus';
 
 interface CorpusCtx {
@@ -14,7 +14,7 @@ export function CorpusProvider({ children }: { children: ReactNode }) {
   const [corpus, setCorpusState] = useState<Corpus>(() => {
     if (typeof localStorage === 'undefined') return 'tang';
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v === 'primary' || v === 'junior' || v === 'all') return v;
+    if (v === 'primary' || v === 'junior' || v === 'senior' || v === 'all') return v;
     return 'tang';
   });
 
@@ -22,7 +22,7 @@ export function CorpusProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key !== STORAGE_KEY) return;
-      if (e.newValue === 'primary' || e.newValue === 'junior' || e.newValue === 'all') {
+      if (e.newValue === 'primary' || e.newValue === 'junior' || e.newValue === 'senior' || e.newValue === 'all') {
         setCorpusState(e.newValue);
       } else if (e.newValue === null || e.newValue === 'tang') {
         setCorpusState('tang');

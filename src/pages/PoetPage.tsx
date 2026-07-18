@@ -53,7 +53,8 @@ export function PoetPage() {
     if (corpus === 'all') return allPoems;
     return allPoems.filter((p) => {
       if (corpus === 'tang') return p.corpus !== 'primary';
-      return p.corpus !== 'tang';
+      if (corpus === 'primary') return p.corpus !== 'tang';
+      return p.corpus === 'senior'; // senior 不与 tang/primary 互斥；不过滤
     });
   }, [poet, allPoems, corpus]);
   const hasFilteredOut = filteredPoems.length < allPoems.length;
@@ -87,7 +88,7 @@ export function PoetPage() {
           color: colors.textTertiary, fontFamily: fontFamilies.chinese,
           fontSize: 18, letterSpacing: 4, textAlign: 'center', padding: 24,
         }}>
-          <div style={{ marginBottom: 16 }}>{corpus === 'all' ? '该诗人无作品' : `该诗人在${corpus === 'tang' ? '唐诗三百首' : '小学必背'}库中无作品`}</div>
+          <div style={{ marginBottom: 16 }}>{corpus === 'all' ? '该诗人无作品' : `该诗人在${corpus === 'tang' ? '唐诗三百首' : corpus === 'primary' ? '小学必背' : corpus === 'junior' ? '初中必背' : '高中必背'}库中无作品`}</div>
           <button
             onClick={() => setShowAll(true)}
             style={{

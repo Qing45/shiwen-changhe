@@ -37,11 +37,12 @@ function buildPool(corpus: PoemCorpus, band?: number | string) {
   return getPoemsForPlay(corpus, band).filter(p => p.content && p.content.length > 0);
 }
 
-// 整篇模式关数上限：tang 50，primary 30，junior 50（与句子模式入口档对齐）。
+// 整篇模式关数上限：tang 50，primary 30，junior 50，senior 50（与句子模式入口档对齐）。
 const TITLE_LEVEL_CAP: Record<PoemCorpus, number> = {
   tang: 50,
   primary: 30,
   junior: 50,
+  senior: 50,
   both: 50,
 };
 

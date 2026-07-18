@@ -9,8 +9,8 @@ export interface Dynasty {
 // 用 number | string 联合类型让 TS 在比较时强制区分，避免小学段数字与初中段字符串误判等值。
 export type GradeBand = number | string;
 
-export type PoetCorpus = 'tang' | 'primary' | 'junior';
-export type PoemCorpus = 'tang' | 'primary' | 'junior' | 'both';
+export type PoetCorpus = 'tang' | 'primary' | 'junior' | 'senior';
+export type PoemCorpus = 'tang' | 'primary' | 'junior' | 'senior' | 'both';
 
 export interface Poet {
   id: string;

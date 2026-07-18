@@ -1276,5 +1276,86 @@
     "dynastyId": "ming",
     "familiarity": 2,
     "corpus": "junior"
+  },
+  {
+    "id": "000cf3ce",
+    "name": "李煜",
+    "birthYear": 937,
+    "deathYear": 978,
+    "dynastyId": "five_dynasties",
+    "familiarity": 3,
+    "corpus": "senior"
+  },
+  {
+    "id": "013f3109",
+    "name": "关汉卿",
+    "birthYear": 1220,
+    "deathYear": 1300,
+    "dynastyId": "yuan",
+    "familiarity": 2,
+    "corpus": "senior"
+  },
+  {
+    "id": "0170a0c8",
+    "name": "张孝祥",
+    "birthYear": 1132,
+    "deathYear": 1190,
+    "dynastyId": "song",
+    "familiarity": 2,
+    "corpus": "senior"
+  },
+  {
+    "id": "01a3be3c",
+    "name": "汤显祖",
+    "birthYear": 1550,
+    "deathYear": 1616,
+    "dynastyId": "ming",
+    "familiarity": 2,
+    "corpus": "senior"
+  },
+  {
+    "id": "01757735",
+    "name": "张若虚",
+    "birthYear": 660,
+    "deathYear": 720,
+    "dynastyId": "tang",
+    "familiarity": 2,
+    "corpus": "senior"
+  },
+  {
+    "id": "000b8057",
+    "name": "屈原",
+    "birthYear": -340,
+    "deathYear": -278,
+    "dynastyId": "warring_states",
+    "familiarity": 3,
+    "corpus": "senior"
+  },
+  {
+    "id": "000d02a5",
+    "name": "柳永",
+    "birthYear": 987,
+    "deathYear": 1053,
+    "dynastyId": "song",
+    "familiarity": 3,
+    "corpus": "senior"
+  },
+  {
+    "id": "000b3ab8",
+    "name": "姜夔",
+    "birthYear": 1155,
+    "deathYear": 1221,
+    "dynastyId": "song",
+    "familiarity": 2,
+    "corpus": "senior"
+  },
+  {
+    "id": "0013667a",
+    "name": "鲍照",
+    "birthYear": 414,
+    "deathYear": 466,
+    "dynastyId": "liu_song",
+    "familiarity": 2,
+    "corpus": "senior"
   }
 ]

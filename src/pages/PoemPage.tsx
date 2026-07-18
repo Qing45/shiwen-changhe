@@ -44,11 +44,12 @@ export function PoemPage() {
   // 切换建议：找一个包含这首诗的其它 corpus；都没有时为 undefined（不显示按钮）。
   const switchTarget: Corpus | undefined = corpus === 'all'
     ? undefined
-    : ((['tang', 'primary', 'junior'] as const).find((c) => c !== corpus && poemInCorpus(poem, c)));
+    : ((['tang', 'primary', 'junior', 'senior'] as const).find((c) => c !== corpus && poemInCorpus(poem, c)));
   const switchLabelMap: Record<Exclude<Corpus, 'all'>, string> = {
     tang: '唐诗三百首',
     primary: '小学必背',
     junior: '初中必背',
+    senior: '高中必背',
   };
   const switchLabel = switchTarget ? switchLabelMap[switchTarget] : '';
   const { prev, next } = fromPath === '/poems'

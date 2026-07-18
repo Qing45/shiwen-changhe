@@ -101,7 +101,7 @@ export function PoemsRiverPage() {
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <TopNav variant="main" />
       <div style={{ textAlign: 'center', padding: '8px 0 0', color: '#8b7355', fontFamily: fontFamilies.chinese, fontSize: 14, letterSpacing: 6 }}>
-        {corpus === 'tang' ? '唐 诗 三 百 首' : corpus === 'primary' ? '小 学 必 背' : corpus === 'junior' ? '初 中 必 背' : '总 库'}
+        {corpus === 'tang' ? '唐 诗 三 百 首' : corpus === 'primary' ? '小 学 必 背' : corpus === 'junior' ? '初 中 必 背' : corpus === 'senior' ? '高 中 必 背' : '总 库'}
       </div>
       <div
         {...vp.containerProps}
