@@ -34,7 +34,7 @@ export function PoetPage() {
   const poet = poetId ? getPoet(poetId) : undefined;
   const corpus = useCorpus();
   const [showAll, setShowAll] = useState(false);
-  const vp = useRiverViewport();
+  const vp = useRiverViewport(`poet:${poetId ?? ''}`);
   const { visited, markVisited } = useVisited();
 
   // 切换诗人时复位 window 滚动到顶部

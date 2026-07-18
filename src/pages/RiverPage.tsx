@@ -24,7 +24,7 @@ export function RiverPage() {
   const visiblePoets = poets.filter((p) => visiblePoetIds.has(p.id));
   const range = computeCorpusYearRange(visiblePoets, corpus);
   const positioned = layoutPoets(visiblePoets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 });
-  const vp = useRiverViewport();
+  const vp = useRiverViewport(`river:${corpus}`);
   const { visited, markVisited } = useVisited();
   const bp = useBreakpoint();
   // 移动端节点整体缩小，字号收紧，避免互相重叠

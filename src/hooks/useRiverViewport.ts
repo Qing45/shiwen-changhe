@@ -10,6 +10,12 @@ interface Pan {
   y: number;
 }
 
+// River 页路由切换时组件卸载，useState 的 zoom/pan 会丢。按 cacheKey 缓存到 module
+// scope，重挂载时从缓存恢复；cacheKey 变化（如切换 corpus 或诗人）也走同一缓存。
+// 仅 session 内有效，浏览器刷新清空 —— 匹配「刚才点击诗文的位置」语义。
+interface ViewportState { zoom: number; pan: Pan; }
+const viewportCache = new Map<string, ViewportState>();
+
 interface DragState {
   startX: number;
   startY: number;
@@ -41,9 +47,10 @@ interface Pointer {
  * Uses Pointer Events so the same code path handles mouse + touch + pen.
  * Two pointers (two-finger pinch) cancel the single-pointer drag.
  */
-export function useRiverViewport() {
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState<Pan>({ x: 0, y: 0 });
+export function useRiverViewport(cacheKey?: string) {
+  const initial = cacheKey ? viewportCache.get(cacheKey) : undefined;
+  const [zoom, setZoom] = useState(initial?.zoom ?? 1);
+  const [pan, setPan] = useState<Pan>(initial?.pan ?? { x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
@@ -56,6 +63,25 @@ export function useRiverViewport() {
   const panRef = useRef(pan);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { panRef.current = pan; }, [pan]);
+
+  // cacheKey 变化（如切换 corpus / 诗人）→ 从缓存恢复或复位。
+  // 必要：useCorpus / useParams 改变只 re-render，不重挂载，useState 不会重新初始化。
+  useEffect(() => {
+    if (!cacheKey) return;
+    const cached = viewportCache.get(cacheKey);
+    if (cached) {
+      setZoom(cached.zoom);
+      setPan(cached.pan);
+    } else {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+    }
+  }, [cacheKey]);
+
+  // zoom/pan 变化 → 同步回缓存（重挂载时恢复）。
+  useEffect(() => {
+    if (cacheKey) viewportCache.set(cacheKey, { zoom, pan });
+  }, [zoom, pan, cacheKey]);
 
   // Non-passive wheel listener so we can preventDefault to stop the page from
   // scrolling. React's synthetic onWheel is passive by default.
