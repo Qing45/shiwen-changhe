@@ -1,4 +1,4 @@
-import { useState, type ReactNode, type RefObject } from 'react';
+import { memo, useState, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import { colors, fontFamilies } from '../theme';
 
@@ -8,26 +8,11 @@ import { colors, fontFamilies } from '../theme';
 //
 // 动画 keyframes（node-float / focal-pulse / fade-in）在 src/styles.css 全局定义，
 // 本组件不再内联。
-export function RiverNode({
-  id,
-  to,
-  state,
-  label,
-  size,
-  textFontSize,
-  isFocal,
-  isVisited,
-  tooltip,
-  x,
-  y,
-  variant,
-  enablePress = true,
-  visible = true,
-  floatDuration,
-  floatDelay,
-  dragMovedRef,
-  onVisited,
-}: {
+//
+// React.memo 自定义 comparator：忽略 tooltip / state / onVisited —— 它们只在交互
+// 时（hover / 点击）使用，每次 render 由父组件生成新引用（inline JSX）但不影响可见
+// 输出。父组件传入的 `id` 是稳定的，所以 tooltip/state/onVisited 内容天然唯一。
+type RiverNodeProps = {
   id: string;
   to: string;
   state?: object;
@@ -46,7 +31,28 @@ export function RiverNode({
   floatDelay: number;
   dragMovedRef: RefObject<boolean>;
   onVisited?: () => void;
-}) {
+};
+
+function RiverNodeInner({
+  id,
+  to,
+  state,
+  label,
+  size,
+  textFontSize,
+  isFocal,
+  isVisited,
+  tooltip,
+  x,
+  y,
+  variant,
+  enablePress = true,
+  visible = true,
+  floatDuration,
+  floatDelay,
+  dragMovedRef,
+  onVisited,
+}: RiverNodeProps) {
   const [hover, setHover] = useState(false);
   const [pressed, setPressed] = useState(false);
 
@@ -181,3 +187,27 @@ export function RiverNode({
     </Link>
   );
 }
+
+// 比较可见/动画/几何相关 prop。tooltip / state / onVisited 仅在交互时使用，
+// 父组件 inline 生成但不影响渲染输出，故忽略。
+function areRiverNodePropsEqual(prev: RiverNodeProps, next: RiverNodeProps): boolean {
+  return (
+    prev.id === next.id &&
+    prev.to === next.to &&
+    prev.label === next.label &&
+    prev.size === next.size &&
+    prev.textFontSize === next.textFontSize &&
+    prev.isFocal === next.isFocal &&
+    prev.isVisited === next.isVisited &&
+    prev.x === next.x &&
+    prev.y === next.y &&
+    prev.variant === next.variant &&
+    prev.enablePress === next.enablePress &&
+    prev.visible === next.visible &&
+    prev.floatDuration === next.floatDuration &&
+    prev.floatDelay === next.floatDelay &&
+    prev.dragMovedRef === next.dragMovedRef
+  );
+}
+
+export const RiverNode = memo(RiverNodeInner, areRiverNodePropsEqual);

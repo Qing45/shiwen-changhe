@@ -7,6 +7,51 @@ export interface LayoutRange {
   rightPadding: number; // percent
 }
 
+// Module-scope caches: 相同逻辑输入跳过 scatter 算法。Key 用 ID + 年份编码，
+// 对同一组诗文（无论传入数组的顺序/引用如何）返回稳定结果。每次切换 corpus /
+// 诗人 / corpus=小学 ↔ 总库都命中。容量上限 ~数十条（corpus×诗人组合），无
+// 需 LRU。
+const layoutPoetsCache = new Map<string, { poet: Poet; x: number; y: number }[]>();
+const layoutPoemsCache = new Map<string, { poem: Poem; x: number; y: number }[]>();
+const layoutAllPoemsCache = new Map<string, { poem: Poem; x: number; y: number }[]>();
+
+function layoutPoetsKey(
+  poets: ReadonlyArray<{ id: string; birthYear: number; deathYear: number }>,
+  range: LayoutRange,
+): string {
+  return 'p:' + [...poets]
+    .map((p) => `${p.id}:${p.birthYear}-${p.deathYear}`)
+    .sort()
+    .join(',') + `|${range.minYear}-${range.maxYear}-${range.leftPadding}-${range.rightPadding}`;
+}
+
+function layoutPoemsKey(
+  poems: ReadonlyArray<{ id: string; creationYear?: number }>,
+  poet: { id: string; birthYear: number; deathYear: number },
+  padding: { leftPadding: number; rightPadding: number },
+): string {
+  return 'm:' + poet.id + ':' + poet.birthYear + '-' + poet.deathYear + '|' + [...poems]
+    .map((p) => `${p.id}:${p.creationYear ?? '_'}`)
+    .sort()
+    .join(',') + `|${padding.leftPadding}-${padding.rightPadding}`;
+}
+
+function layoutAllPoemsKey(
+  poems: ReadonlyArray<{ id: string; creationYear?: number; poetId: string }>,
+  poets: ReadonlyArray<{ id: string; birthYear: number; deathYear: number }>,
+  range: LayoutRange,
+  minDx: number,
+): string {
+  const byPoet = new Map(poets.map((p) => [p.id, `${p.birthYear}-${p.deathYear}`] as const));
+  return 'a:' + [...poems]
+    .map((p) => `${p.id}:${p.creationYear ?? '_'}:${p.poetId}`)
+    .sort()
+    .join(',') + '|' + [...poets]
+    .map((p) => `${p.id}:${byPoet.get(p.id)}`)
+    .sort()
+    .join(',') + `|${range.minYear}-${range.maxYear}-${range.leftPadding}-${range.rightPadding}-${minDx}`;
+}
+
 // Poets within COLUMN_THRESHOLD percent of X are treated as one column and
 // scatter together. Below this they're considered separate columns.
 const COLUMN_THRESHOLD = 1.5;
@@ -232,16 +277,24 @@ function assignPositions<T>(items: { item: T; x: number }[], minDx: number = SCA
 }
 
 export function layoutPoets(poets: Poet[], range: LayoutRange): { poet: Poet; x: number; y: number }[] {
+  const key = layoutPoetsKey(poets, range);
+  const cached = layoutPoetsCache.get(key);
+  if (cached) return cached;
   const sorted = [...poets].sort((a, b) => a.birthYear - b.birthYear);
   const span = 100 - range.leftPadding - range.rightPadding;
   const withX = sorted.map((poet) => {
     const pct = computePercent(poet.birthYear, range.minYear, range.maxYear);
     return { item: poet, x: range.leftPadding + (pct / 100) * span };
   });
-  return assignPositions(withX).map(({ item: poet, x, y }) => ({ poet, x, y }));
+  const result = assignPositions(withX).map(({ item: poet, x, y }) => ({ poet, x, y }));
+  layoutPoetsCache.set(key, result);
+  return result;
 }
 
 export function layoutPoems(poems: Poem[], poet: Poet, padding: { leftPadding: number; rightPadding: number }): { poem: Poem; x: number; y: number }[] {
+  const key = layoutPoemsKey(poems, poet, padding);
+  const cached = layoutPoemsCache.get(key);
+  if (cached) return cached;
   const sorted = [...poems].sort((a, b) => {
     if (a.creationYear == null && b.creationYear == null) return 0;
     if (a.creationYear == null) return 1;
@@ -266,7 +319,9 @@ export function layoutPoems(poems: Poem[], poet: Poet, padding: { leftPadding: n
     return { item: poem, x: padding.leftPadding + (pct / 100) * span };
   });
 
-  return assignPositions(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
+  const result = assignPositions(withX).map(({ item: poem, x, y }) => ({ poem, x, y }));
+  layoutPoemsCache.set(key, result);
+  return result;
 }
 
 /**
@@ -281,6 +336,9 @@ export function layoutAllPoems(
   range: LayoutRange,
   minDx: number = SCATTER_MIN_DX,
 ): { poem: Poem; x: number; y: number }[] {
+  const key = layoutAllPoemsKey(poems, poets, range, minDx);
+  const cached = layoutAllPoemsCache.get(key);
+  if (cached) return cached;
   const poetMap = new Map(poets.map((p) => [p.id, p]));
   const sorted = [...poems].sort((a, b) => {
     const ya = a.creationYear ?? poetMap.get(a.poetId)?.birthYear ?? 0;
@@ -293,5 +351,7 @@ export function layoutAllPoems(
     const pct = computePercent(year, range.minYear, range.maxYear);
     return { item: poem, x: range.leftPadding + (pct / 100) * span };
   });
-  return assignPositions(withX, minDx).map(({ item: poem, x, y }) => ({ poem, x, y }));
+  const result = assignPositions(withX, minDx).map(({ item: poem, x, y }) => ({ poem, x, y }));
+  layoutAllPoemsCache.set(key, result);
+  return result;
 }

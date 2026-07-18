@@ -21,11 +21,25 @@ const VIEWPORT_PAD = 80;
 
 export function PoemsRiverPage() {
   const corpus = useCorpus();
-  const poems = getPoems(corpus === 'all' ? 'both' : corpus);
+  // getPoems/getPoets 返回新数组引用。把整条依赖链 memo 起来，确保 layout 调用的 deps
+  // 在同一 corpus 下引用稳定 —— 否则 useMemo 失效，每次 render 仍重算（cache 兜底）。
   const poets = getPoets();
-  const visiblePoetIds = new Set(poems.map((p) => p.poetId));
-  const visiblePoets = poets.filter((p) => visiblePoetIds.has(p.id));
-  const range = computeCorpusYearRange(visiblePoets, corpus);
+  const poems = useMemo(
+    () => getPoems(corpus === 'all' ? 'both' : corpus),
+    [corpus],
+  );
+  const visiblePoetIds = useMemo(
+    () => new Set(poems.map((p) => p.poetId)),
+    [poems],
+  );
+  const visiblePoets = useMemo(
+    () => poets.filter((p) => visiblePoetIds.has(p.id)),
+    [poets, visiblePoetIds],
+  );
+  const range = useMemo(
+    () => computeCorpusYearRange(visiblePoets, corpus),
+    [visiblePoets, corpus],
+  );
   // 唐诗 309 首在 year=700 单列 115 首这种密集场景下，最小 X 间距 0.4% 算
   // 法上无碰撞，但在 2250% 画布下移动端像素间距仅 ~31px（亮斑+文字会视觉
   // 重叠）。唐诗画布放大到 4500%（=2250%×2），最小像素间距翻倍到 ~63px
@@ -37,7 +51,10 @@ export function PoemsRiverPage() {
   const layoutMinDx = isTang || isAll ? 0.4 : undefined;
   // canvas 宽度比例（1 = container 宽度）。用于视口裁剪时把节点 % 坐标换算到像素。
   const canvasWidthRatio = isTang || isAll ? 45 : 6;
-  const positioned = layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, layoutMinDx);
+  const positioned = useMemo(
+    () => layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, layoutMinDx),
+    [poems, poets, range, layoutMinDx],
+  );
   const vp = useRiverViewport(`poems:${corpus}`);
   const { visited, markVisited } = useVisited();
 

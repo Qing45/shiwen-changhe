@@ -19,11 +19,27 @@ const VIEWPORT_PAD = 80;
 export function RiverPage() {
   const poets = getPoets();
   const corpus = useCorpus();
-  const visiblePoems = getPoems(corpus === 'all' ? 'both' : corpus);
-  const visiblePoetIds = new Set(visiblePoems.map((p) => p.poetId));
-  const visiblePoets = poets.filter((p) => visiblePoetIds.has(p.id));
-  const range = computeCorpusYearRange(visiblePoets, corpus);
-  const positioned = layoutPoets(visiblePoets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 });
+  // 整条依赖链 memo 化，确保 layout 调用的 deps 在同一 corpus 下引用稳定。
+  const visiblePoems = useMemo(
+    () => getPoems(corpus === 'all' ? 'both' : corpus),
+    [corpus],
+  );
+  const visiblePoetIds = useMemo(
+    () => new Set(visiblePoems.map((p) => p.poetId)),
+    [visiblePoems],
+  );
+  const visiblePoets = useMemo(
+    () => poets.filter((p) => visiblePoetIds.has(p.id)),
+    [poets, visiblePoetIds],
+  );
+  const range = useMemo(
+    () => computeCorpusYearRange(visiblePoets, corpus),
+    [visiblePoets, corpus],
+  );
+  const positioned = useMemo(
+    () => layoutPoets(visiblePoets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }),
+    [visiblePoets, range],
+  );
   const vp = useRiverViewport(`river:${corpus}`);
   const { visited, markVisited } = useVisited();
   const bp = useBreakpoint();

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { getPoet, getPoemsByPoet } from '../data/load';
 import { layoutPoems } from '../utils/layout';
@@ -42,19 +42,39 @@ export function PoetPage() {
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, [poet?.id]);
 
-  if (!poet) {
-    return <div style={{ padding: 40, color: colors.textPrimary }}>诗人未找到</div>;
-  }
-
-  const allPoems = getPoemsByPoet(poet.id);
-  const filteredPoems: Poem[] = corpus === 'all'
-    ? allPoems
-    : allPoems.filter((p) => {
+  // 整条依赖链 memo 化，确保 layout 调用的 deps 在 (poet, showAll, corpus) 不变时引用稳定。
+  // poet 可能 undefined（路由未命中），各 memo 内部用 poet ?? null 兜底，hooks 调用顺序保持一致。
+  const allPoems = useMemo(
+    () => (poet ? getPoemsByPoet(poet.id) : []),
+    [poet?.id],
+  );
+  const filteredPoems = useMemo<Poem[]>(() => {
+    if (!poet) return [];
+    if (corpus === 'all') return allPoems;
+    return allPoems.filter((p) => {
       if (corpus === 'tang') return p.corpus !== 'primary';
       return p.corpus !== 'tang';
     });
+  }, [poet, allPoems, corpus]);
   const hasFilteredOut = filteredPoems.length < allPoems.length;
-  const visiblePoems = showAll ? allPoems : filteredPoems;
+  const visiblePoems = useMemo(
+    () => (showAll ? allPoems : filteredPoems),
+    [showAll, allPoems, filteredPoems],
+  );
+  const positioned = useMemo(
+    () => (poet && visiblePoems.length > 0
+      ? layoutPoems(visiblePoems, poet, { leftPadding: 6, rightPadding: 6 })
+      : []),
+    [poet, visiblePoems],
+  );
+  const ticks = useMemo(
+    () => (poet ? buildPoetTicks(poet.birthYear, poet.deathYear) : []),
+    [poet?.birthYear, poet?.deathYear],
+  );
+
+  if (!poet) {
+    return <div style={{ padding: 40, color: colors.textPrimary }}>诗人未找到</div>;
+  }
 
   // 空态：当前诗库下该诗人无作品
   if (visiblePoems.length === 0) {
@@ -81,9 +101,6 @@ export function PoetPage() {
       </div>
     );
   }
-
-  const positioned = layoutPoems(visiblePoems, poet, { leftPadding: 6, rightPadding: 6 });
-  const ticks = buildPoetTicks(poet.birthYear, poet.deathYear);
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
