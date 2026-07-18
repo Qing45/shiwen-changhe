@@ -4,9 +4,14 @@ import {
   GRADE_BANDS,
   MAX_BAND,
   PRIMARY_GRADE_BAND_BY_POEM_ID,
+  SENIOR_BANDS,
+  SENIOR_BAND_VALUES,
   getAvailableBands,
+  getAvailableSeniorBands,
   getPoemsForPlay,
   getPrimaryPoemsUpTo,
+  getSeniorPoemsUpTo,
+  isSeniorBand,
   normalizeBand,
 } from './grades';
 
@@ -67,5 +72,61 @@ describe('primary grade bands', () => {
     expect(normalizeBand(13)).toBe(MAX_BAND);
     expect(normalizeBand(3.5)).toBe(MAX_BAND);
     expect(normalizeBand(Number.NaN)).toBe(MAX_BAND);
+  });
+});
+
+describe('senior grade bands', () => {
+  it('defines the 5 senior grade-semester endpoints', () => {
+    expect(SENIOR_BANDS.map((b) => b.label)).toEqual([
+      '高一上', '高一下', '高二上', '高二下', '高三下',
+    ]);
+    expect(SENIOR_BAND_VALUES).toEqual(['gz1u', 'gz1l', 'gz2u', 'gz2l', 'gz3l']);
+  });
+
+  it('isSeniorBand accepts only the five valid values', () => {
+    expect(isSeniorBand('gz1u')).toBe(true);
+    expect(isSeniorBand('gz3l')).toBe(true);
+    expect(isSeniorBand('9b')).toBe(false);
+    expect(isSeniorBand('high1')).toBe(false);
+    expect(isSeniorBand(5)).toBe(false);
+    expect(isSeniorBand(null)).toBe(false);
+  });
+
+  it('getAvailableSeniorBands returns only bands with at least one poem', () => {
+    const available = getAvailableSeniorBands().map((b) => b.value);
+    // 5 段都应该至少有一首诗
+    expect(available).toEqual(['gz1u', 'gz1l', 'gz2u', 'gz2l', 'gz3l']);
+  });
+
+  it('senior corpus contains 41 PEP-required poems (高中必背)', () => {
+    // 人教版 2017 课标：高一 21 首（16 上 + 6 下，减去阿房宫赋等归类差异），高二 8，
+    // 高三 11（含 离骚 + 孔雀东南飞）= 41。回归测试：后续不要掉数。
+    expect(getPoems('senior').length).toBe(41);
+  });
+
+  it('accumulates senior poems monotonically up to the selected band', () => {
+    const expected = [16, 22, 26, 30, 41];
+    let previous = 0;
+    for (let i = 0; i < SENIOR_BAND_VALUES.length; i++) {
+      const band = SENIOR_BAND_VALUES[i];
+      const poems = getSeniorPoemsUpTo(band);
+      expect(poems.length).toBe(expected[i]);
+      expect(poems.length).toBeGreaterThanOrEqual(previous);
+      previous = poems.length;
+    }
+  });
+
+  it('senior pool includes tang poems whose gradeBands list a gz band', () => {
+    // 蜀道难 / 登高 / 将进酒 等 9 首原本就在 tang 的诗，加 gradeBands='gz*'
+    // 后也属于 senior —— 通过 poemInCorpus 的 gradeBands 跨库判定。
+    const senior = new Set(getPoems('senior').map((p) => p.id));
+    const tangSet = new Set(getPoems('tang').map((p) => p.id));
+    const shared = ['蜀道难', '登高', '将进酒', '锦瑟', '蜀相'];
+    for (const title of shared) {
+      const tangPoem = getPoems('tang').find((p) => p.title === title);
+      expect(tangPoem).toBeDefined();
+      expect(tangSet.has(tangPoem!.id)).toBe(true);
+      expect(senior.has(tangPoem!.id)).toBe(true);
+    }
   });
 });
