@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   loadProgress, saveProgress, markCleared,
   beginStage, commitStageCorrect, commitStageBlood, clearCurrent,
+  addUsedItem,
 } from './progress';
 import { INITIAL_PROGRESS } from './types';
 import { PRIMARY_KEYWORDS } from './primaryKeywords';
@@ -94,5 +95,25 @@ describe('progress persistence', () => {
     expect(window.localStorage.getItem('shiwen-feihua-progress:all')).not.toBeNull();
     expect(window.localStorage.getItem('shiwen-feihua-progress:tang:g5')).toBeNull();
     expect(window.localStorage.getItem('shiwen-feihua-progress:all:g5')).toBeNull();
+  });
+});
+
+describe('usedItems cross-level dedup', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('addUsedItem accumulates and dedupes', () => {
+    addUsedItem('a', 'tang');
+    addUsedItem('b', 'tang');
+    addUsedItem('a', 'tang'); // 重复写入应 no-op
+    expect(loadProgress('tang').usedItems).toEqual(['a', 'b']);
+  });
+
+  it('loadProgress tolerates missing usedItems field in legacy JSON', () => {
+    const legacy = { unlockedIndex: 0, cleared: [], current: null };
+    window.localStorage.setItem('shiwen-feihua-progress', JSON.stringify(legacy));
+    const p = loadProgress('tang');
+    expect(p.usedItems).toEqual([]);
   });
 });

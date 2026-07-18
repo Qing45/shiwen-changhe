@@ -22,12 +22,17 @@ export interface FeihuaProgress {
   unlockedIndex: number;                  // 当前解锁到第几关（0-49）
   cleared: string[];                      // 已通关关键字清单
   current: StageProgress | null;          // 当前进行中的局（断点续传）
+  // 跨关卡共享的"已问过"标识：sentence 模式存上句，title 模式存 poemId。
+  // sentence / title 的 50 关共享同一候选池，按 (corpus, band) 桶隔离；
+  // 已问过的题持久化到此字段，避免不同关卡随机到同一题。
+  usedItems: string[];
 }
 
 export const INITIAL_PROGRESS: FeihuaProgress = {
   unlockedIndex: 0,
   cleared: [],
   current: null,
+  usedItems: [],
 };
 
 export const STAGE_GOAL = 5;       // 每关需答出的不重复诗句数

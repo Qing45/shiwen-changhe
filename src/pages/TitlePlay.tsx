@@ -9,6 +9,7 @@ import { countAvailableTitleLevels, pickTitleQuestion, type TitleQuestion } from
 import {
   loadTitleProgress, markTitleCleared, beginTitleStage,
   commitTitleCorrect, commitTitleBlood, clearTitleCurrent,
+  addTitleUsedItem,
 } from '../play/titleProgress';
 import { tierOfAvailableLevel } from '../play/couplets';
 import { STAGE_GOAL } from '../play/types';
@@ -19,6 +20,7 @@ import { useCorpus } from '../state/corpus';
 import { colors, fontFamilies, paperTheme } from '../theme';
 import { loadGrade } from '../state/primaryGrade';
 import { loadJuniorGrade } from '../state/juniorGrade';
+import { loadSeniorGrade } from '../state/seniorGrade';
 
 const { text: PAPER_TEXT, textDim: PAPER_TEXT_DIM, green: PAPER_GREEN, red: PAPER_RED } = paperTheme;
 
@@ -37,8 +39,8 @@ export function TitlePlay() {
   // 引擎/题库（titles.ts）接受 PoemCorpus，state 层 Corpus 含 'all'。
   // 'all' → 'both' 边界映射。进度函数接受 Corpus，仍传 raw corpus。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
-  // 仅 primary / junior 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
-  const activeBand = corpus === 'primary' ? loadGrade() : corpus === 'junior' ? loadJuniorGrade() : undefined;
+  // 仅 primary / junior / senior 库下生效的年级 band；tang / all 走 undefined 保持旧行为（byte-identical）。
+  const activeBand = corpus === 'primary' ? loadGrade() : corpus === 'junior' ? loadJuniorGrade() : corpus === 'senior' ? loadSeniorGrade() : undefined;
 
   // 关数按 (corpus, band) 动态计算：tang 50、primary band=1 较小；依语料库变动。
   const totalLevels = countAvailableTitleLevels(poemCorpus, activeBand);
@@ -54,8 +56,15 @@ export function TitlePlay() {
     return beginTitleStage(levelKey, corpus, activeBand).current;
   });
 
+  // 跨关卡共享去重：progress.usedItems 累积所有关卡已出过的诗 id。
+  // 配合 stage.correct（本关已答诗 id）一起喂给 pickTitleQuestion，
+  // 避免 50 关随机到同一首诗。
+  // useRef 仅首次挂载执行一次，progress.usedItems 的更新由 useEffect 在 levelKey 变化时拉取。
   const usedPoemIdsRef = useRef<Set<string>>(
-    new Set(stage ? (stage.correct ?? []) : []),
+    new Set<string>([
+      ...loadTitleProgress(corpus, activeBand).usedItems,
+      ...(stage ? (stage.correct ?? []) : []),
+    ]),
   );
 
   const [question, setQuestion] = useState<TitleQuestion | null>(() => {
@@ -82,7 +91,13 @@ export function TitlePlay() {
     if (stageRef.current && stageRef.current.keyword === levelKey) return;
     const fresh = beginTitleStage(levelKey, corpus, activeBand).current;
     setStage(fresh);
-    usedPoemIdsRef.current = new Set(fresh ? (fresh.correct ?? []) : []);
+    // 跨关去重集在 levelKey 变化时一并重拉（progress.usedItems 可能因其他关卡的
+    // handleCorrect 写过新条目），并叠加本关已答诗 id。
+    const progress = loadTitleProgress(corpus, activeBand);
+    usedPoemIdsRef.current = new Set<string>([
+      ...progress.usedItems,
+      ...(fresh ? (fresh.correct ?? []) : []),
+    ]);
     setQuestion(pickTitleQuestion(level, usedPoemIdsRef.current, poemCorpus, activeBand));
     setPicked(null);
     setGrading(false);
@@ -109,6 +124,8 @@ export function TitlePlay() {
     const newCorrect = [...cur.correct, poemId];
 
     commitTitleCorrect(levelKey, poemId, corpus, activeBand);
+    // 跨关去重：把当题诗 id 写入 progress.usedItems，下一关/退出重进时仍被排除。
+    addTitleUsedItem(poemId, corpus, activeBand);
     setStage(loadTitleProgress(corpus, activeBand).current);
     usedPoemIdsRef.current = new Set(newCorrect);
 
@@ -131,6 +148,10 @@ export function TitlePlay() {
     const newBlood = cur.blood - 1;
 
     commitTitleBlood(levelKey, newBlood, corpus, activeBand);
+    // 跨关去重：答错也把当题诗 id 写入 progress.usedItems，避免换题又随机到同一首。
+    if (questionRef.current) {
+      addTitleUsedItem(questionRef.current.poemId, corpus, activeBand);
+    }
     setStage(loadTitleProgress(corpus, activeBand).current);
 
     if (newBlood <= 0) {

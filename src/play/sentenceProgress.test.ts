@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   loadSentenceProgress, saveSentenceProgress, markSentenceCleared,
   beginSentenceStage, commitSentenceCorrect, commitSentenceBlood, clearSentenceCurrent,
+  addSentenceUsedItem,
 } from './sentenceProgress';
 import { INITIAL_PROGRESS } from './types';
 
@@ -69,5 +70,25 @@ describe('sentence progress persistence', () => {
     window.localStorage.setItem('shiwen-feihua-sentence-progress:primary', JSON.stringify(legacy));
     expect(loadSentenceProgress('primary', 12)).toEqual(legacy);
     expect(loadSentenceProgress('primary')).toEqual(legacy);
+  });
+});
+
+describe('sentence usedItems cross-level dedup', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('addSentenceUsedItem accumulates and dedupes upper lines', () => {
+    addSentenceUsedItem('床前明月光，', 'tang');
+    addSentenceUsedItem('举头望明月，', 'tang');
+    addSentenceUsedItem('床前明月光，', 'tang'); // 重复 no-op
+    expect(loadSentenceProgress('tang').usedItems).toEqual(['床前明月光，', '举头望明月，']);
+  });
+
+  it('loadSentenceProgress tolerates missing usedItems field in legacy JSON', () => {
+    const legacy = { unlockedIndex: 0, cleared: [], current: null };
+    window.localStorage.setItem('shiwen-feihua-sentence-progress', JSON.stringify(legacy));
+    const p = loadSentenceProgress('tang');
+    expect(p.usedItems).toEqual([]);
   });
 });

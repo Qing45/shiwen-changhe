@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   loadTitleProgress, saveTitleProgress, markTitleCleared,
   beginTitleStage, commitTitleCorrect, commitTitleBlood, clearTitleCurrent,
+  addTitleUsedItem,
 } from './titleProgress';
 import { INITIAL_PROGRESS } from './types';
 
@@ -75,5 +76,25 @@ describe('title progress persistence', () => {
     window.localStorage.setItem('shiwen-feihua-title-progress:primary', JSON.stringify(legacy));
     expect(loadTitleProgress('primary', 12)).toEqual(legacy);
     expect(loadTitleProgress('primary')).toEqual(legacy);
+  });
+});
+
+describe('title usedItems cross-level dedup', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('addTitleUsedItem accumulates and dedupes poem ids', () => {
+    addTitleUsedItem('c90ff9ea5a71', 'tang');
+    addTitleUsedItem('e9b1a8b4def0', 'tang');
+    addTitleUsedItem('c90ff9ea5a71', 'tang'); // 重复 no-op
+    expect(loadTitleProgress('tang').usedItems).toEqual(['c90ff9ea5a71', 'e9b1a8b4def0']);
+  });
+
+  it('loadTitleProgress tolerates missing usedItems field in legacy JSON', () => {
+    const legacy = { unlockedIndex: 0, cleared: [], current: null };
+    window.localStorage.setItem('shiwen-feihua-title-progress', JSON.stringify(legacy));
+    const p = loadTitleProgress('tang');
+    expect(p.usedItems).toEqual([]);
   });
 });

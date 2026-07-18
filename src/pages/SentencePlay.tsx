@@ -12,12 +12,14 @@ import {
   commitSentenceBlood,
   markSentenceCleared,
   clearSentenceCurrent,
+  addSentenceUsedItem,
 } from '../play/sentenceProgress';
 import { STAGE_GOAL } from '../play/types';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import { useCorpus } from '../state/corpus';
 import { loadGrade } from '../state/primaryGrade';
 import { loadJuniorGrade } from '../state/juniorGrade';
+import { loadSeniorGrade } from '../state/seniorGrade';
 import { toChineseNum } from '../utils/number';
 import { fontFamilies, paperTheme } from '../theme';
 import { colors } from '../theme';
@@ -42,8 +44,8 @@ export function SentencePlay() {
   // 而 state 层 Corpus 含 'all'。此处做一次边界映射：'all' → 'both'。
   // 进度函数（loadSentenceProgress 等）接受 Corpus，仍传 raw corpus —— 进度 key 自然后缀 :all。
   const poemCorpus = corpus === 'all' ? 'both' : corpus;
-  // 仅 primary / junior 库下生效的年级 band；tang 走 undefined 保持旧行为（byte-identical）。
-  const activeBand = corpus === 'primary' ? loadGrade() : corpus === 'junior' ? loadJuniorGrade() : undefined;
+  // 仅 primary / junior / senior 库下生效的年级 band；tang / all 走 undefined 保持旧行为（byte-identical）。
+  const activeBand = corpus === 'primary' ? loadGrade() : corpus === 'junior' ? loadJuniorGrade() : corpus === 'senior' ? loadSeniorGrade() : undefined;
 
   // 关数按 (corpus, band) 动态计算：tang 50、primary band=1 至多 30（入门 10+进阶 20），依语料库变动。
   const totalLevels = getTotalAvailableLevels(poemCorpus, activeBand);
@@ -80,8 +82,16 @@ export function SentencePlay() {
     return null;
   });
 
+  // 跨关卡共享去重：progress.usedItems 累积了所有关卡已出过的上句。
+  // 配合 stage.correct（本关已答）和 viewedUpperLine（从原文页返回时的当题上句）
+  // 一起喂给 pickLevelQuestion，避免 50 关随机到同一上句。
+  // useRef 仅首次挂载执行一次，progress.usedItems 的更新由 useEffect 在 levelKey 变化时拉取。
   const usedUpperRef = useRef<Set<string>>(
-    new Set([...(stage?.correct ?? []), ...(viewedUpperLine ? [viewedUpperLine] : [])]),
+    new Set<string>([
+      ...loadSentenceProgress(corpus, activeBand).usedItems,
+      ...(stage?.correct ?? []),
+      ...(viewedUpperLine ? [viewedUpperLine] : []),
+    ]),
   );
 
   const [question, setQuestion] = useState<SentenceQuestion | null>(() => {
@@ -115,7 +125,12 @@ export function SentencePlay() {
         ? progress.current
         : beginSentenceStage(levelKey, corpus, activeBand).current;
     setStage(fresh);
-    usedUpperRef.current = new Set(fresh?.correct ?? []);
+    // 跨关去重集在 levelKey 变化时一并重拉（progress.usedItems 可能因其他关卡的
+    // handleCorrect 写过新条目），并叠加本关已答 + 当题 viewed 上句。
+    usedUpperRef.current = new Set<string>([
+      ...progress.usedItems,
+      ...(fresh?.correct ?? []),
+    ]);
     setQuestion(pickLevelQuestion(tier, usedUpperRef.current, poemCorpus, activeBand));
     setPicked(null);
     setGrading(false);
@@ -143,6 +158,8 @@ export function SentencePlay() {
     const newCorrect = [...cur.correct, upperLine];
 
     commitSentenceCorrect(levelKey, upperLine, corpus, activeBand);
+    // 跨关去重：把当题上句写入 progress.usedItems，下一关/退出重进时仍被排除。
+    addSentenceUsedItem(upperLine, corpus, activeBand);
     const next = loadSentenceProgress(corpus, activeBand);
     setStage(next.current);
     usedUpperRef.current = new Set(newCorrect);
@@ -175,8 +192,11 @@ export function SentencePlay() {
     }
     // 答错也排除当前上句，避免换题后又被随机到同一道
     if (questionRef.current) {
+      const wrongLine = questionRef.current.upper.line;
+      // 跨关去重：答错的题同样写入 progress.usedItems。
+      addSentenceUsedItem(wrongLine, corpus, activeBand);
       const newUsed = new Set(usedUpperRef.current);
-      newUsed.add(questionRef.current.upper.line);
+      newUsed.add(wrongLine);
       usedUpperRef.current = newUsed;
     }
     setGrading(true);
@@ -200,6 +220,9 @@ export function SentencePlay() {
     const poemId = questionRef.current.upper.poemId;
 
     commitSentenceBlood(levelKey, newBlood, corpus, activeBand);
+    // 查看原文也把当题上句写入跨关去重集 —— 即使玩家换关/退出再回来，
+    // 也避免再随机到同一道（sessionStorage 仅本 tab 有效，持久化更可靠）。
+    addSentenceUsedItem(upperLine, corpus, activeBand);
     sessionStorage.setItem(viewedKey, upperLine);
     setStage(loadSentenceProgress(corpus, activeBand).current);
     navigate(`/poem/${poemId}`, { state: { from: `/play/sentence/${level}` } });
