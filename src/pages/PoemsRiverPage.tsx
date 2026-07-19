@@ -46,11 +46,13 @@ export function PoemsRiverPage() {
   // 移动端 / ~180px 桌面端，彻底消除视觉粘连。minDx 保持 0.4%（碰撞判
   // 定阈值不变，仅画布宽度变化）。总库 464 首分布更不均匀——最大 dense
   // 列 206 首（李白+杜甫合并），比唐诗还密集——也用 4500% 才能避免视觉粘连。
-  const isTang = corpus === 'tang';
-  const isAll = corpus === 'all';
-  const layoutMinDx = isTang || isAll ? 0.4 : undefined;
+  // 初中 39 首/列、小学 61 首/列属于同样的密集场景，同样需要 4500% 画布 +
+  // 0.4% minDx 组合——用默认 minDx=1.5% 会留下 14/44 个碰撞对，肉眼明显。
+  // 高中 41 首无密集列（最大 17 首/列），保持 6x 画布的轻量视图。
+  const isDense = corpus === 'tang' || corpus === 'all' || corpus === 'primary' || corpus === 'junior';
+  const layoutMinDx = isDense ? 0.4 : undefined;
   // canvas 宽度比例（1 = container 宽度）。用于视口裁剪时把节点 % 坐标换算到像素。
-  const canvasWidthRatio = isTang || isAll ? 45 : 6;
+  const canvasWidthRatio = isDense ? 45 : 6;
   const positioned = useMemo(
     () => layoutAllPoems(poems, poets, { minYear: range.minYear, maxYear: range.maxYear, leftPadding: 8, rightPadding: 8 }, layoutMinDx),
     [poems, poets, range, layoutMinDx],
@@ -114,10 +116,10 @@ export function PoemsRiverPage() {
         <div
           key={corpus}
           style={{
-            // 唐诗 + 总库画布 4500%：让最小像素间距翻倍。移动端尤其需要：
-            // 350px 视口下 0.4% minDx 在 2250% 仅 ~31px，4500% 给到 ~63px，
-            // 亮斑+标签不再视觉粘连。
-            position: 'relative', width: isTang || isAll ? '4500%' : '600%', height: '100%',
+            // 唐诗 / 总库 / 小学 / 初中 画布 4500%：让最小像素间距翻倍。
+            // 移动端尤其需要：350px 视口下 0.4% minDx 在 2250% 仅 ~31px，
+            // 4500% 给到 ~63px，亮斑+标签不再视觉粘连。
+            position: 'relative', width: isDense ? '4500%' : '600%', height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}

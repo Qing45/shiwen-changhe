@@ -211,4 +211,56 @@ describe('layoutAllPoems', () => {
     }
     expect(collisions).toBe(0);
   });
+
+  it('keeps a real-data 初中必背 dense column (39 items) collision-free under minDx 0.4%', () => {
+    // Regression: 初中 corpus 实际数据有 39 首密集列（次北固山下至贾生，
+    // 跨 7.4% X）。默认 minDx=1.5% 留 14 个碰撞对，肉眼明显。Tang 早就
+    // 用 minDx=0.4% + 4500% 画布组合修过同样问题；初中 / 小学需要同样的
+    // 组合（见 PoemsRiverPage.tsx isDense）。
+    const clusterPoets: Poet[] = Array.from({ length: 12 }, (_, i) => ({
+      id: 'p' + i, name: 'P' + i, birthYear: 650 + i * 10, deathYear: 700 + i * 10, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const,
+    }));
+    const clusterPoems: Poem[] = Array.from({ length: 39 }, (_, i) => ({
+      id: String(i), title: String(i), poetId: clusterPoets[i % 12].id, content: '', annotations: [], familiarity: 1,
+      creationYear: 650 + Math.floor(i / 4) * 8, corpus: 'tang' as const,
+    }));
+    const result = layoutAllPoems(clusterPoems, clusterPoets, range, 0.4);
+    expect(result.length).toBe(39);
+    const minDx = 0.4;
+    const minDy = 10;
+    let collisions = 0;
+    for (let i = 0; i < result.length; i++) {
+      for (let j = i + 1; j < result.length; j++) {
+        if (Math.abs(result[i].x - result[j].x) < minDx && Math.abs(result[i].y - result[j].y) < minDy) {
+          collisions++;
+        }
+      }
+    }
+    expect(collisions).toBe(0);
+  });
+
+  it('keeps a real-data 小学必背 dense column (61 items) collision-free under minDx 0.4%', () => {
+    // 同上 — 小学 corpus 在 default year range 下最大密集列 61 首，
+    // 用 minDx=1.5% 留 44 个碰撞对。
+    const clusterPoets: Poet[] = Array.from({ length: 14 }, (_, i) => ({
+      id: 'p' + i, name: 'P' + i, birthYear: 200 + i * 12, deathYear: 250 + i * 12, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const,
+    }));
+    const clusterPoems: Poem[] = Array.from({ length: 61 }, (_, i) => ({
+      id: String(i), title: String(i), poetId: clusterPoets[i % 14].id, content: '', annotations: [], familiarity: 1,
+      creationYear: 200 + Math.floor(i / 5) * 9, corpus: 'tang' as const,
+    }));
+    const result = layoutAllPoems(clusterPoems, clusterPoets, range, 0.4);
+    expect(result.length).toBe(61);
+    const minDx = 0.4;
+    const minDy = 10;
+    let collisions = 0;
+    for (let i = 0; i < result.length; i++) {
+      for (let j = i + 1; j < result.length; j++) {
+        if (Math.abs(result[i].x - result[j].x) < minDx && Math.abs(result[i].y - result[j].y) < minDy) {
+          collisions++;
+        }
+      }
+    }
+    expect(collisions).toBe(0);
+  });
 });
