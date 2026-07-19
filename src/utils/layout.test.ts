@@ -263,4 +263,62 @@ describe('layoutAllPoems', () => {
     }
     expect(collisions).toBe(0);
   });
+
+  it('keeps a 66-poem "all" corpus dense cluster (李白+王维 year=701) collision-free', () => {
+    // Regression for 'all' corpus year=701 cluster: 李白 37 + 王维 29 poems
+    // all at the same year due to fallback to birthYear. Previously with
+    // 9% X jitter cap, 66 items overflowed 8 Y rows → 381 collisions.
+    // Fix: dense columns (n > DENSE_COLUMN_THRESHOLD=20) get scaled X jitter
+    // (66 → 9 + (66-20)*0.6 = 39.6 ≈ cap 40) so 66 items fit comfortably.
+    const twoPoets: Poet[] = [
+      { id: 'lb', name: 'LB', birthYear: 701, deathYear: 762, dynastyId: 'tang', familiarity: 5, corpus: 'tang' as const },
+      { id: 'ww', name: 'WW', birthYear: 701, deathYear: 761, dynastyId: 'tang', familiarity: 5, corpus: 'tang' as const },
+    ];
+    const poems66: Poem[] = [
+      ...Array.from({ length: 37 }, (_, i) => ({
+        id: 'lb' + i, title: 'L' + i, poetId: 'lb', content: '', annotations: [], familiarity: 1, creationYear: 701, corpus: 'tang' as const,
+      })),
+      ...Array.from({ length: 29 }, (_, i) => ({
+        id: 'ww' + i, title: 'W' + i, poetId: 'ww', content: '', annotations: [], familiarity: 1, creationYear: 701, corpus: 'tang' as const,
+      })),
+    ];
+    const result = layoutAllPoems(poems66, twoPoets, range, 0.4);
+    expect(result.length).toBe(66);
+    const minDx = 0.4;
+    const minDy = 10;
+    let collisions = 0;
+    for (let i = 0; i < result.length; i++) {
+      for (let j = i + 1; j < result.length; j++) {
+        if (Math.abs(result[i].x - result[j].x) < minDx && Math.abs(result[i].y - result[j].y) < minDy) {
+          collisions++;
+        }
+      }
+    }
+    expect(collisions).toBe(0);
+    // Dense column jitter scales: 66 items should spread across a wide X range
+    // (≈ ±40% jitter), not be capped at ±1.7%. Verify that items reach far
+    // from their nominal X (= ((701-618)/(907-618))*84 + 8 ≈ 28.9).
+    const nominalX = 8 + ((701 - 618) / (907 - 618)) * 84;
+    const maxDeltaFromNominal = Math.max(...result.map((r) => Math.abs(r.x - nominalX)));
+    expect(maxDeltaFromNominal).toBeGreaterThan(20);
+  });
+
+  it('keeps small dense columns (n ≤ 20) on the original cap, not the wide-jitter path', () => {
+    // Guard against accidentally enabling wide jitter for all multi-item columns.
+    // 20-item column at a unique year (no singleton neighbors) must still be
+    // bounded — it doesn't trigger DENSE_COLUMN_THRESHOLD.
+    const poet: Poet = { id: 'p', name: 'P', birthYear: 700, deathYear: 760, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const };
+    const poems20: Poem[] = Array.from({ length: 20 }, (_, i) => ({
+      id: String(i), title: String(i), poetId: 'p', content: '', annotations: [], familiarity: 1, creationYear: 700, corpus: 'tang' as const,
+    }));
+    const result = layoutAllPoems(poems20, [poet], range, 0.4);
+    expect(result.length).toBe(20);
+    // Nominal X for year=700 in tang range ≈ ((700-618)/(907-618))*84 + 8 ≈ 28.5
+    const nominalX = 8 + ((700 - 618) / (907 - 618)) * 84;
+    // 20 items at threshold boundary: DENSE_COLUMN_THRESHOLD=20 means n > 20
+    // triggers wide jitter, n ≤ 20 stays on the regular cap (no singleton
+    // neighbors → xRangeCap = Infinity → perItemJitter = X_JITTER_RANGE=9).
+    const maxDeltaFromNominal = Math.max(...result.map((r) => Math.abs(r.x - nominalX)));
+    expect(maxDeltaFromNominal).toBeLessThan(9.5); // stays within ±9%
+  });
 });

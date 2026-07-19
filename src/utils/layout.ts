@@ -71,6 +71,18 @@ const SCATTER_Y_RANGE = 40;
 // the extra territory — at 80% packing it requires ~22% canvas width.
 const X_JITTER_RANGE = 9;
 
+// 多项目列在超过这个数量时跳过 singleton 邻接 cap，让 X 扩散用满
+// X_JITTER_RANGE。66 项的 dense 列 cap=±1.7% × 8 Y 行 = 32 容量，溢出 34；
+// 放开后 cap=±9% × 8 Y 行 = 360 容量。threshold 选 20：tang 115、primary
+// 61、all 66 都覆盖；tang / primary / junior / senior 在阈值以下不触发。
+const DENSE_COLUMN_THRESHOLD = 20;
+
+// Dense 列 X jitter 按规模放大：n 项目用 X_JITTER_RANGE + (n - threshold) *
+// 0.6% 额外 jitter。66 项 → ±28%，115 项 → 上限 ±40%。让真密集簇有更大
+// 横向空间，避免「66 项全堆在 ±9%」中碰撞；其他列（≤ threshold）走 X_JITTER_RANGE。
+const DENSE_JITTER_PER_ITEM = 0.6;
+const DENSE_JITTER_MAX_BONUS = 31; // 总 jitter 上限 40% (=9+31)
+
 // Minimum separation between two scatter points in canvas percent.
 // X: 1.5% canvas ≈ 126px on a 1400px viewport — fits a wrapped title (≤96px)
 // plus dot on each side.
@@ -124,6 +136,7 @@ function scatterPositions(
   existing: { x: number; y: number }[] = [],
   minDx: number = SCATTER_MIN_DX,
   xRangeCap: number = Infinity,
+  extraJitter: number = 0,
 ): { x: number; y: number }[] {
   // Per-item X jitter: each item searches around its own nominal X. The shared
   // xRangeCap (singleton adjacency) minus the natural spread of nominal Xs
@@ -135,7 +148,7 @@ function scatterPositions(
   // unnecessarily.
   const xSpread = nominalXs.length > 0 ? Math.max(...nominalXs) - Math.min(...nominalXs) : 0;
   const perItemJitter = Math.min(
-    X_JITTER_RANGE,
+    X_JITTER_RANGE + extraJitter,
     Math.max(SCATTER_MIN_DX, (xRangeCap - xSpread) / 2),
   );
   const placed = [...existing];
@@ -264,15 +277,32 @@ function assignPositions<T>(items: { item: T; x: number }[], minDx: number = SCA
       // tang 库 27 个 dense 列挤在 50% 范围内、列间距 1.5%，dense-dense cap 把
       // 项目压死在 nominalX 上导致 collisions 12x 飙升（78→972），违反「密集区
       // 可读性优先」的设计前提。dense 列互相侵入的代价靠用户 pinch zoom 解决。
-      const nextSingleton = singletonXs.find((x) => x > col.x);
-      const prevSingleton = [...singletonXs].reverse().find((x) => x < col.x);
-      const upper = nextSingleton !== undefined ? nextSingleton - col.x - minDx : Infinity;
-      const lower = prevSingleton !== undefined ? col.x - prevSingleton - minDx : Infinity;
-      const xRangeCap = Math.min(upper, lower);
+      //
+      // 例外：n > DENSE_COLUMN_THRESHOLD 的真密集列（如 'all' 库 year=701
+      // 有 66 项目），singleton cap 把 X 扩散锁在 ±1.7%，scatter 算法只能
+      // 靠 Y（也只有 8 行）排，66 项严重溢出。collision 检查本身走 placed
+      // 注册表，已能防止侵入 singleton——cap 是额外的搜索空间限制，对真密
+      // 集列 over-binding。放开 cap + 按规模放大 jitter（66 → ±36.6%，115
+      // → 上限 ±40%）让真密集簇横向铺开，避免相邻簇 jitter 区重叠时无处可去。
+      let xRangeCap: number;
+      let extraJitter = 0;
+      if (n > DENSE_COLUMN_THRESHOLD) {
+        xRangeCap = Infinity;
+        extraJitter = Math.min(
+          DENSE_JITTER_MAX_BONUS,
+          (n - DENSE_COLUMN_THRESHOLD) * DENSE_JITTER_PER_ITEM,
+        );
+      } else {
+        const nextSingleton = singletonXs.find((x) => x > col.x);
+        const prevSingleton = [...singletonXs].reverse().find((x) => x < col.x);
+        const upper = nextSingleton !== undefined ? nextSingleton - col.x - minDx : Infinity;
+        const lower = prevSingleton !== undefined ? col.x - prevSingleton - minDx : Infinity;
+        xRangeCap = Math.min(upper, lower);
+      }
       // Pass each item's individual nominal X so dense columns preserve their
       // chronological order instead of collapsing onto the column's leftmost X.
       const nominalXs = col.items.map((it) => it.x);
-      const positions = scatterPositions(nominalXs, placed, minDx, xRangeCap);
+      const positions = scatterPositions(nominalXs, placed, minDx, xRangeCap, extraJitter);
       positions.forEach((pos, i) => {
         const it = col.items[i];
         out.push({ item: it.item, x: pos.x, y: pos.y });
