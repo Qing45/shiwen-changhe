@@ -30,6 +30,11 @@ export function PoemPage() {
   const setCorpus = useSetCorpus();
   const fromPath = (location.state as { from?: string } | null)?.from;
   const poem = poemId ? getPoem(poemId) : undefined;
+  // 默认右栏视图：有配图显配图，否则注释。配图优先——视觉冲击强、用户多为此而来。
+  const [rightTab, setRightTab] = useState<'notes' | 'illustration'>(
+    poem?.illustration ? 'illustration' : 'notes'
+  );
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   if (!poem) {
     return <div style={{ padding: 40, color: colors.textPrimary }}>诗未找到</div>;
   }
@@ -71,6 +76,12 @@ export function PoemPage() {
     try { window.localStorage.setItem(SIZE_MODE_KEY, sizeMode); } catch { /* noop */ }
   }, [sizeMode]);
 
+  // 切换诗时复位右栏 tab：默认配图（如果有），否则注释。同时关掉 lightbox。
+  useEffect(() => {
+    setRightTab(poem.illustration ? 'illustration' : 'notes');
+    setLightboxOpen(false);
+  }, [poem.id]);
+
   // 切换诗文时复位内部滚动容器到顶部
   const paperRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -96,12 +107,17 @@ export function PoemPage() {
         e.preventDefault();
         navigate(`/poem/${next.id}`, { state: linkState });
       } else if (e.key === 'Escape') {
-        navigate(backTo);
+        // lightbox 打开时优先关 lightbox，没开才返回上一级
+        if (lightboxOpen) {
+          setLightboxOpen(false);
+        } else {
+          navigate(backTo);
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [prev, next, navigate, fromPath, backTo]);
+  }, [prev, next, navigate, fromPath, backTo, lightboxOpen]);
 
   // Strip inline variants, pick layout mode, split into display lines.
   const { cleanText, variants } = extractVariants(poem.content);
@@ -119,7 +135,15 @@ export function PoemPage() {
   const hasAnnotations = poem.annotations.length > 0;
   const hasVariants = variants.length > 0;
   const hasBackground = Boolean(poem.background);
-  const hasRightContent = hasAnnotations || hasVariants || hasBackground;
+  const hasIllustration = Boolean(poem.illustration);
+  const hasRightContent = hasAnnotations || hasVariants || hasBackground || hasIllustration;
+  // 仅当「图 + 注释类内容」并存时才显示切换 tab；只有图或只有注释时直接渲染对应内容
+  const showRightTabs = hasIllustration && (hasAnnotations || hasVariants || hasBackground);
+  // 当前右栏实际显示哪个视图：
+  // - 有切换器：跟 rightTab
+  // - 无切换器：有图显图，没图显注释
+  const showIllustration = hasIllustration && (!showRightTabs || rightTab === 'illustration');
+  const showNotes = !showIllustration && (hasAnnotations || hasVariants || hasBackground);
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -263,7 +287,7 @@ export function PoemPage() {
               gap: isMobile ? 24 : 48,
               animation: 'fade-in 0.3s ease-out',
             }}>
-              {/* 左：正文 */}
+              {/* 正文 */}
               <div style={{
                 fontFamily: fontFamilies.chinese, color: PAPER_TEXT,
                 fontSize: poemFontSize,
@@ -274,59 +298,129 @@ export function PoemPage() {
                 {lines.map((line, i) => <div key={i}>{line}</div>)}
               </div>
 
-              {/* 右：注释 + 异文 + 背景 */}
+              {/* 右：注释/异文/背景（可切换到配图） */}
               {hasRightContent && (
                 <div style={{ textAlign: 'left' }}>
-                  {hasAnnotations && (
-                    <section>
-                      <SectionTitle fontSize={sectionTitleFontSize} bold>注 释</SectionTitle>
+                  {/* 视图切换器（图 + 注释类内容并存时显示） */}
+                  {showRightTabs && (
+                    <div style={{
+                      display: 'flex',
+                      marginBottom: 22,
+                      borderBottom: '1px solid rgba(176, 138, 74, 0.3)',
+                }}>
+                  {(['notes', 'illustration'] as const).map((t) => {
+                    const label = t === 'notes' ? '注 释' : '配 图';
+                    const active = rightTab === t;
+                    return (
+                      <button
+                        key={t}
+                        onClick={() => setRightTab(t)}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          background: 'transparent',
+                          color: active ? PAPER_TEXT : PAPER_TEXT_DIM,
+                          border: 'none',
+                          borderBottom: active ? `2px solid #b08a4a` : '2px solid transparent',
+                          fontFamily: fontFamilies.chinese,
+                          fontSize: buttonFontSize,
+                          letterSpacing: 6,
+                          cursor: 'pointer',
+                          marginBottom: '-1px',
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                    </div>
+                  )}
+
+                  {/* 配图视图 */}
+                  {showIllustration && (
+                    <div style={{ textAlign: 'center' }}>
+                      <img
+                        src={`${import.meta.env.BASE_URL}illustrations/${poem.illustration}`}
+                        alt={`${poem.title} 配图`}
+                        loading="lazy"
+                        onClick={() => setLightboxOpen(true)}
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: isMobile ? 360 : 520,
+                          width: 'auto',
+                          height: 'auto',
+                          objectFit: 'contain',
+                          borderRadius: 4,
+                          border: '1px solid rgba(176, 138, 74, 0.35)',
+                          boxShadow: '0 2px 16px rgba(0, 0, 0, 0.18)',
+                          cursor: 'zoom-in',
+                        }}
+                      />
                       <div style={{
-                        color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
-                        fontSize: metaFontSize, lineHeight: 1.9,
-                      }}>
-                        {poem.annotations.map((a, i) => (
-                          <div key={i} style={{ marginBottom: 12, textIndent: '2em' }}>
-                            <span style={{ color: PAPER_TEXT }}>{a.term}：</span>
-                            {a.explanation}
+                        marginTop: 10,
+                        color: PAPER_TEXT_DIM,
+                        fontFamily: fontFamilies.chinese,
+                        fontSize: 12,
+                        letterSpacing: 3,
+                      }}>点 击 放 大</div>
+                    </div>
+                  )}
+
+                  {/* 注释 / 异文 / 背景视图 */}
+                  {showNotes && (
+                    <>
+                      {hasAnnotations && (
+                        <section>
+                          <SectionTitle fontSize={sectionTitleFontSize} bold>注 释</SectionTitle>
+                          <div style={{
+                            color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
+                            fontSize: metaFontSize, lineHeight: 1.9,
+                          }}>
+                            {poem.annotations.map((a, i) => (
+                              <div key={i} style={{ marginBottom: 12, textIndent: '2em' }}>
+                                <span style={{ color: PAPER_TEXT }}>{a.term}：</span>
+                                {a.explanation}
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </section>
-                  )}
+                        </section>
+                      )}
 
-                  {hasAnnotations && hasVariants && (
-                    <div style={{ height: 24 }} />
-                  )}
+                      {hasAnnotations && hasVariants && (
+                        <div style={{ height: 24 }} />
+                      )}
 
-                  {hasVariants && (
-                    <section>
-                      <SectionTitle fontSize={sectionTitleFontSize}>异 文</SectionTitle>
-                      <div style={{
-                        color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
-                        fontSize: metaFontSize, lineHeight: 1.9,
-                      }}>
-                        {variants.map((v, i) => (
-                          <div key={i} style={{ marginBottom: 12, textIndent: '2em' }}>
-                            <span style={{ color: PAPER_TEXT }}>{v.original}：</span>
-                            {v.kind}「{v.variant}」
+                      {hasVariants && (
+                        <section>
+                          <SectionTitle fontSize={sectionTitleFontSize}>异 文</SectionTitle>
+                          <div style={{
+                            color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
+                            fontSize: metaFontSize, lineHeight: 1.9,
+                          }}>
+                            {variants.map((v, i) => (
+                              <div key={i} style={{ marginBottom: 12, textIndent: '2em' }}>
+                                <span style={{ color: PAPER_TEXT }}>{v.original}：</span>
+                                {v.kind}「{v.variant}」
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </section>
-                  )}
+                        </section>
+                      )}
 
-                  {(hasAnnotations || hasVariants) && hasBackground && (
-                    <div style={{ height: 24 }} />
-                  )}
+                      {(hasAnnotations || hasVariants) && hasBackground && (
+                        <div style={{ height: 24 }} />
+                      )}
 
-                  {hasBackground && (
-                    <section>
-                      <SectionTitle fontSize={sectionTitleFontSize} bold>创 作 背 景</SectionTitle>
-                      <div style={{
-                        color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
-                        fontSize: metaFontSize, lineHeight: 2, textIndent: '2em',
-                      }}>{poem.background}</div>
-                    </section>
+                      {hasBackground && (
+                        <section>
+                          <SectionTitle fontSize={sectionTitleFontSize} bold>创 作 背 景</SectionTitle>
+                          <div style={{
+                            color: PAPER_TEXT_SOFT, fontFamily: fontFamilies.chinese,
+                            fontSize: metaFontSize, lineHeight: 2, textIndent: '2em',
+                          }}>{poem.background}</div>
+                        </section>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -392,6 +486,59 @@ export function PoemPage() {
           )}
         </nav>
       </div>
+
+      {/* 配图放大层：全屏黑底 + 居中大图，点击空白 / × / ESC 关闭 */}
+      {lightboxOpen && poem.illustration && (
+        <div
+          onClick={() => setLightboxOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(8, 6, 4, 0.92)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: isMobile ? 16 : 48,
+            animation: 'fade-in 0.18s ease-out',
+          }}
+        >
+          <img
+            src={`${import.meta.env.BASE_URL}illustrations/${poem.illustration}`}
+            alt={`${poem.title} 配图`}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              borderRadius: 4,
+              boxShadow: '0 8px 48px rgba(0, 0, 0, 0.6)',
+            }}
+          />
+          <button
+            onClick={() => setLightboxOpen(false)}
+            aria-label="关闭"
+            style={{
+              position: 'absolute',
+              top: isMobile ? 12 : 20,
+              right: isMobile ? 16 : 24,
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: 'rgba(245, 235, 210, 0.08)',
+              color: '#f5ebd2',
+              border: '1px solid rgba(245, 235, 210, 0.35)',
+              fontSize: 24,
+              lineHeight: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: 'serif',
+            }}
+          >×</button>
+        </div>
+      )}
     </div>
   );
 }

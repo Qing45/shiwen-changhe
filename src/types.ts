@@ -40,6 +40,9 @@ export interface Poem {
   // 例：'both' 类诗在 tang + primary grade 5 + junior '7a'，
   //     gradeBand=5，gradeBands=['7a']。
   gradeBands?: GradeBand[];
+  // 配图文件名（不含路径）。文件放在 public/illustrations/ 下。
+  // 有配图的诗在 PoemPage 右栏显示「注释 / 配图」切换 tab，默认配图，点击可放大。
+  illustration?: string;
 }
 
 export interface VerseHit {
