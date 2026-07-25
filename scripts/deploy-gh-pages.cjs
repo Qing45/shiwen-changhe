@@ -13,31 +13,41 @@ if (!fs.existsSync(dist)) {
   process.exit(1);
 }
 
-// 2) 复制 dist/* 到根（不递归 subdirs），覆盖 index.html / manifest / sw.js / icons
+// 2) 复制 dist/* 到根。顶层文件直接拷（index.html / manifest / sw.js / icons），
+//    子目录整树拷（assets/ 哈希 bundle + publicDir 拷过来的 illustrations/ 等）。
+function copyDirRecursive(srcDir, dstDir) {
+  if (fs.existsSync(dstDir)) {
+    for (const name of fs.readdirSync(dstDir)) {
+      fs.rmSync(path.join(dstDir, name), { recursive: true, force: true });
+    }
+  } else {
+    fs.mkdirSync(dstDir, { recursive: true });
+  }
+  for (const name of fs.readdirSync(srcDir)) {
+    const s = path.join(srcDir, name);
+    const d = path.join(dstDir, name);
+    const stat = fs.statSync(s);
+    if (stat.isDirectory()) {
+      copyDirRecursive(s, d);
+    } else {
+      fs.copyFileSync(s, d);
+    }
+  }
+}
+
 const topLevel = fs.readdirSync(dist);
 for (const name of topLevel) {
   const src = path.join(dist, name);
   const dst = path.join(root, name);
   const stat = fs.statSync(src);
-  if (stat.isDirectory()) continue; // assets/ 单独处理
-  fs.copyFileSync(src, dst);
-  console.log(`copied ${name}`);
-}
-
-// 3) 复制 dist/assets/* 到根 assets/
-const assetsSrc = path.join(dist, 'assets');
-const assetsDst = path.join(root, 'assets');
-if (fs.existsSync(assetsDst)) {
-  // 清掉老 assets 内容
-  for (const name of fs.readdirSync(assetsDst)) {
-    fs.rmSync(path.join(assetsDst, name), { recursive: true, force: true });
+  if (stat.isDirectory()) {
+    // 子目录：清掉旧内容后递归拷（覆盖 assets/、illustrations/ 等）
+    copyDirRecursive(src, dst);
+    console.log(`copied ${name}/ (recursive)`);
+  } else {
+    fs.copyFileSync(src, dst);
+    console.log(`copied ${name}`);
   }
-} else {
-  fs.mkdirSync(assetsDst);
-}
-for (const name of fs.readdirSync(assetsSrc)) {
-  fs.copyFileSync(path.join(assetsSrc, name), path.join(assetsDst, name));
-  console.log(`copied assets/${name}`);
 }
 
 // 4) SPA 路由 fallback：写一个 404.html 让浏览器从 root（200）重新加载并还原路径。

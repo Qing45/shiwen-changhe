@@ -58,6 +58,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         // 老 SW 切走时清空缓存：每次新版都从网络拉最新
         cleanupOutdatedCaches: true,
+        // 默认 2 MiB 太小 —— 诗文配图单张可达 6 MB。把上限提到 10 MB。
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         // 字体走 CacheFirst 一般可以，但本项目字体来自 Google Fonts CDN，先走 StaleWhileRevalidate
         runtimeCaching: [
           {
