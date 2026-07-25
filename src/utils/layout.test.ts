@@ -213,10 +213,12 @@ describe('layoutAllPoems', () => {
   });
 
   it('keeps a real-data 初中必背 dense column (39 items) collision-free under minDx 0.4%', () => {
-    // Regression: 初中 corpus 实际数据有 39 首密集列（次北固山下至贾生，
-    // 跨 7.4% X）。默认 minDx=1.5% 留 14 个碰撞对，肉眼明显。Tang 早就
-    // 用 minDx=0.4% + 4500% 画布组合修过同样问题；初中 / 小学需要同样的
-    // 组合（见 PoemsRiverPage.tsx isDense）。
+    // Regression: 初中 corpus 在更大年跨窗口下有 39 首密集列（跨 7.4% X）。
+    // 默认 minDx=1.5% 留 14 个碰撞对，肉眼明显。Tang 早就用 minDx=0.4% +
+    // 4500% 画布组合修过同样问题。Primary 也用此组合（实测 max-col=21），
+    // junior 现在数据 max-col=5 不再需要 0.4%（见 PoemsRiverPage.tsx
+    // CORPUS_MIN_DX）。本测试保留作为算法回归保护——即便未来 junior 重回
+    // 密集数据，layout 函数已验证能处理。
     const clusterPoets: Poet[] = Array.from({ length: 12 }, (_, i) => ({
       id: 'p' + i, name: 'P' + i, birthYear: 650 + i * 10, deathYear: 700 + i * 10, dynastyId: 'tang', familiarity: 1, corpus: 'tang' as const,
     }));

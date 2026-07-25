@@ -8,7 +8,7 @@ import { RiverBackground } from '../components/RiverBackground';
 import { RiverNode } from '../components/RiverNode';
 import { TimeAxis } from '../components/TimeAxis';
 import { TopNav } from '../components/TopNav';
-import { useCorpus } from '../state/corpus';
+import { useCorpus, type Corpus } from '../state/corpus';
 import { computeCorpusYearRange } from '../utils/yearRange';
 import { getDynastyName } from '../data/dynasties';
 import { colors, fontFamilies, fontSizes, poemCountToSize } from '../theme';
@@ -47,8 +47,19 @@ export function RiverPage() {
   const scale = bp === 'mobile' ? 0.7 : bp === 'tablet' ? 0.85 : 1;
   const nameScale = bp === 'mobile' ? 0.85 : 1;
 
-  // RiverPage 画布固定 600%（6× container 宽度）。用于视口裁剪像素换算。
-  const canvasWidthRatio = 6;
+  // RiverPage 画布宽度按 corpus 调。tang / all 数据密（74 / 全库诗人生卒年
+  // 跨度小），保持 6× 防密集列粘连。小学 / 初中 / 高中诗人总数少（36-62 位）
+  // + 生卒年跨度大（~2200-3000 年），6× 画布下视口只显示 ~17%，节点星点
+  // 看起来「离得太远」；降到 3× 让视口同时显示 ~33% 时间轴，星点视觉上
+  // 距离缩半。X jitter / Y scatter 都保留，密集区可读性 > 单点时间精度。
+  const POET_CANVAS: Record<Corpus, number> = {
+    all: 6,
+    tang: 6,
+    primary: 3,
+    junior: 3,
+    senior: 3,
+  };
+  const canvasWidthRatio = POET_CANVAS[corpus];
 
   // 视口裁剪：测量 container 实际尺寸 + pan/zoom，算出可见节点 id 集。
   // 未测量（首帧 / 无 ResizeObserver 环境）返回 null = 全显。
@@ -101,7 +112,7 @@ export function RiverPage() {
         <div
           key={corpus}
           style={{
-            position: 'relative', width: '600%', height: '100%',
+            position: 'relative', width: `${canvasWidthRatio * 100}%`, height: '100%',
             animation: 'fade-in 0.25s ease-out',
             ...vp.canvasStyle,
           }}
